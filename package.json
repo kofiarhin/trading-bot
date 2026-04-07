@@ -1,0 +1,11 @@
+{
+  "name": "trading-bot",
+  "version": "1.0.0",
+  "description": "CLI trading assistant for Alpaca paper trading",
+  "type": "module",
+  "scripts": {
+    "trade": "node src/index.js",
+    "trade:dry": "node src/index.js --dry-run"
+  },
+  "license": "MIT"
+}
