@@ -46,15 +46,16 @@ npm run trade -- "<command>"
 npm run trade -- "buy 1 share of apple"
 npm run trade -- "buy 2 shares of tesla"
 npm run trade -- "buy $100 of apple"
-npm run trade -- "buy $50 of nvidia"
+npm run trade -- "buy 200 dollars of apple"
+npm run trade -- "buy $200 share of nvidia"
 ```
 
 ### Sell examples
 
 ```bash
 npm run trade -- "sell apple stock"
-npm run trade -- "sell 2 shares of apple"
 npm run trade -- "sell microsoft stock"
+npm run trade -- "sell 2 shares of apple"
 ```
 
 ### Close position examples
@@ -63,6 +64,24 @@ npm run trade -- "sell microsoft stock"
 npm run trade -- "close my apple position"
 npm run trade -- "close my aapl position"
 npm run trade -- "close my tsla position"
+```
+
+---
+
+## Shell `$` Escaping Notes (bash/git bash)
+
+If you type:
+
+```bash
+npm run trade -- "buy $200 of nvidia"
+```
+
+bash may expand `$200` unexpectedly. Use one of these instead:
+
+```bash
+npm run trade -- 'buy $200 of nvidia'
+npm run trade -- "buy \$200 of nvidia"
+npm run trade -- "buy 200 dollars of nvidia"
 ```
 
 ---
@@ -111,5 +130,6 @@ The bot will reject and exit non-zero for:
 - **Paper trading only.** The bot hard-fails if `ALPACA_BASE_URL` is not exactly `https://paper-api.alpaca.markets`.
 - No live endpoint is ever contacted.
 - US equities, market orders only. No crypto, options, or margin logic.
-- Sell and close commands always sell the **full current position** (or the requested share count for explicit sells).
+- `sell <symbol> stock` and `close` liquidate the full open position.
+- `sell <qty> shares of <symbol>` sells only the requested share count.
 - Orders are day orders (`time_in_force: day`).

@@ -8,7 +8,8 @@
     "trade:dry": "node src/index.js --dry-run",
     "monitor": "node src/monitor.js",
     "monitor:dry": "node src/monitor.js --dry-run",
-    "scrapers:politicians": "node scrapers/politicians.js"
+    "scrapers:politicians": "node scrapers/politicians.js",
+    "test": "node --test"
   },
   "license": "MIT",
   "devDependencies": {

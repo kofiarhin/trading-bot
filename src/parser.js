@@ -1,5 +1,16 @@
 import { resolveSymbol } from "./symbols.js";
 
+function buildShellExpansionError() {
+  return (
+    "It looks like your dollar amount was altered by shell variable expansion (for example, `$200` became `00`). " +
+    "In bash/git bash, `$...` is expanded unless escaped or single-quoted. " +
+    "Use one of:\n" +
+    "- npm run trade -- 'buy $200 of nvidia'\n" +
+    "- npm run trade -- \"buy \\$200 of nvidia\"\n" +
+    "- npm run trade -- \"buy 200 dollars of nvidia\""
+  );
+}
+
 /**
  * Parses a natural language trading command into a structured intent.
  *
@@ -16,12 +27,10 @@ export function parseCommand(input) {
 
   const raw = input.trim().toLowerCase();
 
-  // Detect exit intent first
   if (/^(exit|quit|q)$/.test(raw)) {
     return { action: "exit", symbol: null, qty: null, notional: null };
   }
 
-  // Detect buy and sell presence
   const hasBuy = /\bbuy\b/.test(raw);
   const hasSell = /\b(sell|close)\b/.test(raw);
 
@@ -37,7 +46,6 @@ export function parseCommand(input) {
     );
   }
 
-  // Determine action
   let action;
   if (/\bclose\b/.test(raw)) {
     action = "close";
@@ -47,7 +55,13 @@ export function parseCommand(input) {
     action = "buy";
   }
 
-  // Extract notional dollar amount: "$50", "50 dollars", "$50.00"
+  if (
+    action === "buy" &&
+    /\bbuy\s+0{2,}(?:\.0+)?\s+(?:share|shares|of|dollars?)\b/.test(raw)
+  ) {
+    throw new Error(buildShellExpansionError());
+  }
+
   let notional = null;
   const notionalMatch =
     raw.match(/\$\s*(\d+(?:\.\d+)?)/) ||
@@ -59,16 +73,13 @@ export function parseCommand(input) {
     }
   }
 
-  // Extract share quantity: "2 shares", "1 share", standalone integer before
-  // or after "of", but not when it's part of a dollar amount already captured.
   let qty = null;
   if (!notional) {
-    // "2 shares of ...", "1 share of ...", "buy 3 apple"
     const qtyMatch =
       raw.match(/(\d+(?:\.\d+)?)\s+shares?\b/) ||
-      raw.match(/\b(\d+(?:\.\d+)?)\s+(?:of\s+)?\w+\s+stock\b/) ||
       raw.match(/\bbuy\s+(\d+(?:\.\d+)?)\b/) ||
       raw.match(/\bsell\s+(\d+(?:\.\d+)?)\b/);
+
     if (qtyMatch) {
       qty = parseFloat(qtyMatch[1]);
       if (isNaN(qty) || qty <= 0) {
@@ -77,17 +88,14 @@ export function parseCommand(input) {
     }
   }
 
-  // Extract company name / ticker.
-  // Strip action words, quantity markers, and filler words, then match what remains.
   const cleaned = raw
-    .replace(/\$\s*\d+(?:\.\d+)?/, "") // strip dollar amounts
-    .replace(/\d+(?:\.\d+)?\s*dollars?/, "") // strip "X dollars"
-    .replace(/\d+(?:\.\d+)?\s*shares?/, "") // strip "X shares"
-    .replace(/\b(buy|sell|close|my|position|stock|shares?|of|a|the|some)\b/g, "") // filler
+    .replace(/\$\s*\d+(?:\.\d+)?/, "")
+    .replace(/\d+(?:\.\d+)?\s*dollars?/, "")
+    .replace(/\d+(?:\.\d+)?\s*shares?/, "")
+    .replace(/\b(buy|sell|close|my|position|stock|shares?|of|a|the|some)\b/g, "")
     .replace(/\s+/g, " ")
     .trim();
 
-  // Attempt to find a resolvable token in the cleaned string
   const tokens = cleaned.split(/\s+/).filter(Boolean);
   let symbol = null;
 
@@ -106,7 +114,6 @@ export function parseCommand(input) {
     );
   }
 
-  // Guardrail: buy without qty or notional is ambiguous
   if (action === "buy" && qty === null && notional === null) {
     throw new Error(
       `Buy command requires a share quantity or dollar amount. ` +

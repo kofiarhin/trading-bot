@@ -3,10 +3,8 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { parseCommand } from "./parser.js";
 import { getPosition, submitMarketOrder } from "./alpaca.js";
+import { buildOrderFromIntent, formatSummary } from "./tradePlanner.js";
 
-// ---------------------------------------------------------------------------
-// Load .env manually (no external dependencies)
-// ---------------------------------------------------------------------------
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const envPath = resolve(__dirname, "../.env");
 
@@ -25,27 +23,11 @@ if (existsSync(envPath)) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 function fail(message) {
   console.error(`\nError: ${message}\n`);
   process.exit(1);
 }
 
-function formatSummary({ action, symbol, qty, notional, positionQty }) {
-  if (action === "buy") {
-    if (notional != null) return `BUY ${symbol} — notional $${notional}`;
-    return `BUY ${symbol} — ${qty} share${qty !== 1 ? "s" : ""}`;
-  }
-  if (action === "sell" || action === "close") {
-    return `SELL ${symbol} — ${positionQty} share${positionQty !== 1 ? "s" : ""} (full position)`;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
 const commandArgs = args.filter((a) => a !== "--dry-run");
@@ -78,18 +60,12 @@ if (parsed.action === "exit") {
 
 const { action, symbol, qty, notional } = parsed;
 
-// ---------------------------------------------------------------------------
-// Resolve position for sell / close
-// ---------------------------------------------------------------------------
 let positionQty = null;
-
 if (action === "sell" || action === "close") {
   if (dryRun) {
     console.log(`[DRY RUN] Would check position for ${symbol}.`);
-    console.log(
-      `[DRY RUN] Assuming a position exists for simulation purposes.`
-    );
-    positionQty = qty ?? 10; // simulated quantity
+    console.log("[DRY RUN] Assuming a position exists for simulation purposes.");
+    positionQty = 10;
   } else {
     let position;
     try {
@@ -99,45 +75,33 @@ if (action === "sell" || action === "close") {
     }
 
     if (!position) {
-      fail(
-        `No open position found for ${symbol}. Order not placed.`
-      );
+      fail(`No open position found for ${symbol}. Order not placed.`);
     }
 
     positionQty = Math.abs(parseFloat(position.qty));
-
-    if (isNaN(positionQty) || positionQty <= 0) {
-      fail(`Position quantity for ${symbol} is invalid (${position.qty}). Order not placed.`);
-    }
   }
 }
 
-// ---------------------------------------------------------------------------
-// Build order parameters
-// ---------------------------------------------------------------------------
 let orderParams;
-
-if (action === "buy") {
-  orderParams = {
+try {
+  orderParams = buildOrderFromIntent({
+    action,
     symbol,
-    side: "buy",
-    qty: qty ?? null,
-    notional: notional ?? null,
-  };
-} else {
-  // sell or close — always sell full position
-  orderParams = {
-    symbol,
-    side: "sell",
-    qty: positionQty,
-    notional: null,
-  };
+    qty,
+    notional,
+    positionQty,
+  });
+} catch (err) {
+  fail(err.message);
 }
 
-// ---------------------------------------------------------------------------
-// Print execution summary
-// ---------------------------------------------------------------------------
-const summary = formatSummary({ action, symbol, qty, notional, positionQty });
+const summary = formatSummary({
+  action,
+  symbol,
+  qty: orderParams.qty,
+  notional,
+  positionQty,
+});
 console.log(`\n> ${summary}`);
 
 if (dryRun) {
@@ -147,9 +111,6 @@ if (dryRun) {
   process.exit(0);
 }
 
-// ---------------------------------------------------------------------------
-// Submit order
-// ---------------------------------------------------------------------------
 let response;
 try {
   response = await submitMarketOrder(orderParams);
