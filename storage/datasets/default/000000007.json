@@ -1,0 +1,1663 @@
+{
+	"politician": "Dave McCormick",
+	"trades": [
+		{
+			"ticker": null,
+			"issuerName": "ALLEGHENY COUNTY AIRPORT AUTHORITY",
+			"type": "buy",
+			"traded": "2026-03-17",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PHILADELPHIA WATER DEPARTMENT",
+			"type": "buy",
+			"traded": "2026-03-03",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": "GS:US",
+			"type": "buy",
+			"traded": "2026-03-10",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "GS:US",
+			"type": "buy",
+			"traded": "2026-03-03",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA TURNPIKE COMMISSION",
+			"type": "buy",
+			"traded": "2026-02-27",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA TURNPIKE COMMISSION",
+			"type": "buy",
+			"traded": "2026-02-26",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DUBLIN CITY SCHOOL DISTRICT",
+			"type": "buy",
+			"traded": "2026-02-26",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DEPARTMENT OF STATE PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2026-02-25",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": "GS:US",
+			"type": "buy",
+			"traded": "2026-02-25",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "GS:US",
+			"type": "buy",
+			"traded": "2026-02-24",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "GS:US",
+			"type": "buy",
+			"traded": "2026-02-23",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PARKLAND SCHOOL DISTRICT",
+			"type": "buy",
+			"traded": "2026-02-20",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "MERCER COUNTY",
+			"type": "buy",
+			"traded": "2026-02-10",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CITY OF PHILADELPHIA PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2026-02-19",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DALLAS INDEPENDENT SCHOOL DISTRICT DALLAS COUNTY TEXAS",
+			"type": "buy",
+			"traded": "2026-02-19",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "GS FINANCE CORP",
+			"type": "buy",
+			"traded": "2026-02-18",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "GS FINANCE CORP",
+			"type": "buy",
+			"traded": "2026-02-17",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "POTTSVILLE HOSPITAL AUTHORITY",
+			"type": "buy",
+			"traded": "2026-02-12",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "GS FINANCE CORP",
+			"type": "buy",
+			"traded": "2026-02-11",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA HIGHER EDUCATIONAL FACILITIES AUTHORITY",
+			"type": "buy",
+			"traded": "2026-02-11",
+			"size": "1M–5M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "ALVIN INDEPENDENT SCHOOL DISTRICT",
+			"type": "buy",
+			"traded": "2026-02-11",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "UPPER UWCHLAN TOWNSHIP PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2026-02-11",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "GS FINANCE CORP",
+			"type": "buy",
+			"traded": "2026-02-10",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "GS FINANCE CORP",
+			"type": "buy",
+			"traded": "2026-02-09",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CORPUS CHRISTI INDEPENDENT SCHOOL DISTRICT",
+			"type": "buy",
+			"traded": "2026-02-09",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COMMONWEALTH OF PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2026-02-06",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DELAWARE COUNTY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2026-02-05",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA TURNPIKE COMMISSION",
+			"type": "buy",
+			"traded": "2026-02-05",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "GS FINANCE CORP",
+			"type": "buy",
+			"traded": "2026-02-04",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COMMONWEALTH OF PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2026-02-04",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "GS FINANCE CORP",
+			"type": "buy",
+			"traded": "2026-02-03",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COMMONWEALTH OF PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2026-02-03",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "STATE OF WASHINGTON",
+			"type": "buy",
+			"traded": "2026-02-03",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "SOUTHCENTRAL PENNSYLVANIA GENERAL AUTHORITY",
+			"type": "buy",
+			"traded": "2026-02-03",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "GS FINANCE CORP",
+			"type": "buy",
+			"traded": "2026-02-02",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA TURNPIKE COMMISSION",
+			"type": "buy",
+			"traded": "2026-02-02",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "MARYLAND TRANSPORTATION AUTHORITY",
+			"type": "buy",
+			"traded": "2026-01-30",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA TURNPIKE COMMISSION",
+			"type": "buy",
+			"traded": "2026-01-30",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA INFRASTRUCTURE INVESTMENT AUTHORITY",
+			"type": "buy",
+			"traded": "2026-01-29",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "WALLENPAUPACK AREA SCHOOL DISTRICT PIKE AND WAYNE COUNTIES PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2026-01-28",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSBURY SCHOOL DISTRICT",
+			"type": "buy",
+			"traded": "2026-01-28",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA TURNPIKE COMMISSION",
+			"type": "buy",
+			"traded": "2026-01-27",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DEPARTMENT OF STATE PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2026-01-26",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "SCHOOL DISTRICT OF NEW GLARUS",
+			"type": "buy",
+			"traded": "2026-01-26",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "WASHINGTON KING COUNTY",
+			"type": "buy",
+			"traded": "2026-01-26",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DELAWARE VALLEY REGIONAL FINANCE AUTHORITY",
+			"type": "buy",
+			"traded": "2026-01-26",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "GS:US",
+			"type": "sell",
+			"traded": "2026-01-23",
+			"size": "1M–5M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "STATE OF MARYLAND",
+			"type": "buy",
+			"traded": "2026-01-23",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DELAWARE COUNTY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-12-17",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DEPARTMENT OF STATE PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-12-10",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-11-28",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-11-26",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "OHIO STATE UNIVERSITY",
+			"type": "buy",
+			"traded": "2025-12-17",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DEPARTMENT OF STATE PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-12-15",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "ENERGY NORTHWEST",
+			"type": "buy",
+			"traded": "2025-12-09",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "SENECA VALLEY SCHOOL DISTRICT BUTLER COUNTY PENNSYLVANIA",
+			"type": "sell",
+			"traded": "2025-12-08",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CITY OF PHILADELPHIA PENNSYLVANIA",
+			"type": "sell",
+			"traded": "2025-12-08",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "UNIVERSITY OF PITTSBURGH",
+			"type": "buy",
+			"traded": "2025-12-05",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-11-25",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-11-24",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "HEMPFIELD PA AREA SCHOOL DIST",
+			"type": "buy",
+			"traded": "2025-11-04",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "OHIO WATER DEVELOPMENT AUTHORITY",
+			"type": "buy",
+			"traded": "2025-11-19",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "MONTGOMERY COUNTY INDUSTRIAL DEVELOPMENT",
+			"type": "buy",
+			"traded": "2025-11-18",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "GREATER LATROBE SCH AUTH",
+			"type": "buy",
+			"traded": "2025-10-31",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DANIEL BOONE AREA SCH DIST",
+			"type": "sell",
+			"traded": "2025-10-31",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "TOWNSHIP OF DERRY DAUPHIN COUNTY PENNSYLVANIA",
+			"type": "sell",
+			"traded": "2025-10-31",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "SALISBURY TOWNSHIP SCHOOL DISTRICT LEHIGH COUNTY PENNSYLVANIA",
+			"type": "sell",
+			"traded": "2025-10-31",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PHILADELPHIA WATER DEPARTMENT",
+			"type": "buy",
+			"traded": "2025-10-29",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "UNIVERSITY OF PITTSBURGH",
+			"type": "sell",
+			"traded": "2025-10-28",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "UPPER MERION AREA SCHOOL DISTRICT MONTGOMERY COUNTY PENNSYLVANIA",
+			"type": "sell",
+			"traded": "2025-10-28",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "SCHOOL DISTRICT OF HAVERFORD TOWNSHIP DELAWARE COUNTY PENNSYLVANIA",
+			"type": "sell",
+			"traded": "2025-10-28",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DELAWARE RIVER PORT AUTHORITY",
+			"type": "sell",
+			"traded": "2025-10-28",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DEPARTMENT OF STATE PENNSYLVANIA",
+			"type": "sell",
+			"traded": "2025-10-28",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA HIGHER EDUCATIONAL FACILITIES AUTHORITY",
+			"type": "buy",
+			"traded": "2025-10-28",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DEPARTMENT OF STATE PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-10-08",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "STATE OF NEVADA",
+			"type": "buy",
+			"traded": "2025-10-14",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DEPARTMENT OF STATE PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-10-16",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DEPARTMENT OF STATE PENNSYLVANIA",
+			"type": "sell",
+			"traded": "2025-10-20",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "WHITEHALL TWP-PENNSYLVANIA",
+			"type": "sell",
+			"traded": "2025-10-20",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CITY OF CLARKSVILLE",
+			"type": "buy",
+			"traded": "2025-10-21",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "WASHINGTON KING COUNTY",
+			"type": "buy",
+			"traded": "2025-10-21",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DEPARTMENT OF STATE PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-10-23",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "NESHAMINY SCHOOL DISTRICT BUCK COUNTY PENNSYLVANIA",
+			"type": "sell",
+			"traded": "2025-10-24",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CITY OF EASTON NORTHAMPTON COUNTY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-10-24",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COUNTY OF MONTGOMERY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-09-12",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "HLT:US",
+			"type": "sell",
+			"traded": "2025-09-10",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CENTRAL BUCKS SCHOOL DISTRICT BUCKS COUNTY PENNSYLVANIA",
+			"type": "sell",
+			"traded": "2025-09-10",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "EAST STROUDSBURG AREA SCHOOL DISTRICT",
+			"type": "buy",
+			"traded": "2025-08-04",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "SCHOOL DISTRICT OF HAVERFORD TOWNSHIP DELAWARE COUNTY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-08-15",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA TURNPIKE COMMISSION",
+			"type": "buy",
+			"traded": "2025-08-15",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "MONROE COUNTY HOSPITAL AUTHORITY",
+			"type": "buy",
+			"traded": "2025-08-19",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "UNIVERSITY OF PITTSBURGH",
+			"type": "buy",
+			"traded": "2025-08-20",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "TREDYFFRIN EASTTOWN SCHOOL DISTRICT",
+			"type": "buy",
+			"traded": "2025-08-28",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PITTSBURGH WATER AND SEWER AUTHORITY",
+			"type": "buy",
+			"traded": "2025-08-28",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "DAL:US",
+			"type": "sell",
+			"traded": "2025-07-30",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COUNTY OF ADAMS",
+			"type": "buy",
+			"traded": "2025-07-22",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CENTENNIAL SCHOOL DISTRICT",
+			"type": "buy",
+			"traded": "2025-07-22",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PALMER TOWNSHIP NORTHAMPTON COUNTY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-07-21",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COMMONWEALTH OF PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-07-21",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "HOLLIDAYSBURG AREA SCHOOL DISTRICT",
+			"type": "buy",
+			"traded": "2025-07-21",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "SENECA VALLEY SCHOOL DISTRICT BUTLER COUNTY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-07-17",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COMMONWEALTH OF PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-07-17",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COUNTY OF CHESTER",
+			"type": "buy",
+			"traded": "2025-07-17",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "UNIVERSITY OF PITTSBURGH",
+			"type": "buy",
+			"traded": "2025-07-15",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "UNIVERSITY OF PITTSBURGH",
+			"type": "buy",
+			"traded": "2025-07-02",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "NORTHAMPTON BORO PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-07-02",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA TURNPIKE COMMISSION",
+			"type": "buy",
+			"traded": "2025-07-02",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PHILADELPHIA PARKING AUTHORITY",
+			"type": "buy",
+			"traded": "2025-06-23",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "SCHOOL DISTRICT OF HATBORO HORSHAM PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-06-23",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CITY OF PITTSBURGH PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-06-02",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DEPARTMENT OF STATE PENNSYLVANIA",
+			"type": "sell",
+			"traded": "2025-06-16",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CITY OF PHILADELPHIA PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-06-11",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DELAWARE COUNTY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-06-06",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "UPPER MERION AREA SCHOOL DISTRICT MONTGOMERY COUNTY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-06-06",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "TOWNSHIP OF EAST HEMPFIELD PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-06-06",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "UNIVERSITY OF PITTSBURGH",
+			"type": "buy",
+			"traded": "2025-06-05",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "BOROUGH OF HANOVER YORK COUNTY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-06-04",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA HIGHER EDUCATIONAL FACILITIES AUTHORITY",
+			"type": "buy",
+			"traded": "2025-06-04",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA TURNPIKE COMMISSION",
+			"type": "sell",
+			"traded": "2025-05-29",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA STATE UNIVERSITY",
+			"type": "buy",
+			"traded": "2025-05-23",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA STATE UNIVERSITY",
+			"type": "buy",
+			"traded": "2025-05-09",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "IJR:US",
+			"type": "sell",
+			"traded": "2025-05-06",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA STATE UNIVERSITY",
+			"type": "buy",
+			"traded": "2025-05-16",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COMMONWEALTH OF PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-05-15",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "ELIZABETHTOWN AREA SCHOOL DISTRICT",
+			"type": "buy",
+			"traded": "2025-05-09",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA STATE UNIVERSITY",
+			"type": "buy",
+			"traded": "2025-05-08",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA TURNPIKE COMMISSION",
+			"type": "buy",
+			"traded": "2025-05-08",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "TOWNSHIP OF LOWER MERION PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-05-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "NORTHAMPTON BORO PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-05-06",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COMMONWEALTH OF PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-05-06",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COUNTY OF CENTRE PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-05-05",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COMMONWEALTH OF PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-05-05",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "NORTHEASTERN YORK COUNTY SCHOOL DISTRICT",
+			"type": "buy",
+			"traded": "2025-04-16",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "UNIVERSITY OF PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-04-16",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "NAZARETH AREA SCHOOL DISTRICT",
+			"type": "buy",
+			"traded": "2025-04-15",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COMMONWEALTH OF PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-04-08",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "EASTON AREA SCHOOL DISTRICT NORTHAMPTON AND BUCKS COUNTIES PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-04-08",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DELAWARE RIVER PORT AUTHORITY",
+			"type": "buy",
+			"traded": "2025-04-08",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CITY OF PITTSBURGH PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-04-08",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "WEST VIEW WATER AUTHORITY",
+			"type": "buy",
+			"traded": "2025-04-08",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COMMONWEALTH OF PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-04-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CHELTENHAM SCHOOL DISTRICT",
+			"type": "buy",
+			"traded": "2025-04-07",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COMMONWEALTH OF PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-04-04",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "ALTOONA AREA SCHOOL DISTRICT",
+			"type": "buy",
+			"traded": "2025-04-02",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COMMONWEALTH OF PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-04-02",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "SALISBURY TOWNSHIP SCHOOL DISTRICT LEHIGH COUNTY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-04-02",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CITY OF PITTSBURGH PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-04-02",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CITY OF PITTSBURGH PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-04-22",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "SCHOOL DISTRICT OF PHILADELPHIA",
+			"type": "buy",
+			"traded": "2025-04-16",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": "ORCL:US",
+			"type": "sell",
+			"traded": "2025-04-02",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-04-09",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-04-07",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-04-03",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "FOX CHAPEL AREA SCHOOL DISTRICT ALLEGHENY COUNTY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-04-02",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-04-02",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "MERCER COUNTY",
+			"type": "buy",
+			"traded": "2025-04-01",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-03-31",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-03-27",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "TOWNSHIP OF EAST HEMPFIELD PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-03-25",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-03-25",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA TURNPIKE COMMISSION",
+			"type": "buy",
+			"traded": "2025-03-24",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-03-24",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "BETHLEHEM AREA SCHOOL DISTRICT",
+			"type": "buy",
+			"traded": "2025-03-17",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CENTRAL DAUPHIN SCHOOL DISTRICT",
+			"type": "buy",
+			"traded": "2025-03-17",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DELAWARE RIVER PORT AUTHORITY",
+			"type": "buy",
+			"traded": "2025-03-04",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COMMONWEALTH OF PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-03-04",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "GS:US",
+			"type": "sell",
+			"traded": "2025-02-28",
+			"size": "1M–5M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA TURNPIKE COMMISSION",
+			"type": "buy",
+			"traded": "2025-02-28",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA TURNPIKE COMMISSION",
+			"type": "buy",
+			"traded": "2025-02-27",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-03-20",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA ECONOMIC DEVELOPMENT FINANCING AUTHORITY",
+			"type": "buy",
+			"traded": "2025-03-13",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "PSKY:US",
+			"type": "sell",
+			"traded": "2025-03-13",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": "GIS:US",
+			"type": "buy",
+			"traded": "2025-03-13",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-03-13",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-03-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-03-10",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "KBH:US",
+			"type": "buy",
+			"traded": "2025-03-05",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-03-05",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-03-03",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-02-28",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-02-27",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA TURNPIKE COMMISSION",
+			"type": "buy",
+			"traded": "2025-02-25",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-02-26",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "BITB:US",
+			"type": "buy",
+			"traded": "2025-02-25",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PITTSBURGH WATER AND SEWER AUTHORITY",
+			"type": "buy",
+			"traded": "2025-02-24",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COUNTY OF ALLEGHANY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-02-24",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PITTSBURGH WATER AND SEWER AUTHORITY",
+			"type": "buy",
+			"traded": "2025-02-10",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COUNTY OF ALLEGHANY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-02-10",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "SCHOOL DISTRICT OF CITY OF ALLENTOWN",
+			"type": "buy",
+			"traded": "2025-02-05",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "EAGLE MOUNTAIN SAGINAW ISD",
+			"type": "buy",
+			"traded": "2025-02-05",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "UPPER MERION AREA SCHOOL DISTRICT MONTGOMERY COUNTY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-02-24",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA HIGHER EDUCATIONAL FACILITIES AUTHORITY",
+			"type": "buy",
+			"traded": "2025-02-24",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "LANCASTER COUNTY NEBRASKA",
+			"type": "buy",
+			"traded": "2025-02-24",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COMMONWEALTH OF PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-02-24",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COMMONWEALTH OF PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-02-20",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA TURNPIKE COMMISSION",
+			"type": "buy",
+			"traded": "2025-02-19",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "WHITEHALL TWP-PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-02-18",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PHILADELPHIA WATER DEPARTMENT",
+			"type": "buy",
+			"traded": "2025-02-18",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COMMONWEALTH OF PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-02-14",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "MONTOUR SCHOOL DISTRICT",
+			"type": "buy",
+			"traded": "2025-02-04",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CITY OF PHILADELPHIA PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-02-04",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA TURNPIKE COMMISSION",
+			"type": "buy",
+			"traded": "2025-02-03",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DEPARTMENT OF STATE PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-02-25",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CITY OF PITTSBURGH PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-02-24",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "NORTH ALLEGHENY SCHOOL DISTRICT ALLEGHENY COUNTY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-02-24",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CITY OF PITTSBURGH PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-02-10",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "NORTH ALLEGHENY SCHOOL DISTRICT ALLEGHENY COUNTY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-02-10",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA STATE SYSTEM OF HIGHER EDUCATION",
+			"type": "buy",
+			"traded": "2025-02-24",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CITY OF LANCASTER LANCASTER COUNTY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-02-24",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DEPARTMENT OF STATE PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-02-24",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DEPARTMENT OF STATE PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-02-20",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DEPARTMENT OF STATE PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-02-19",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CITY OF PHILADELPHIA PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2024-02-18",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DEPARTMENT OF STATE PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-02-14",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DEPARTMENT OF STATE PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-02-03",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA STATE UNIVERSITY",
+			"type": "buy",
+			"traded": "2025-01-23",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CITY OF PHILADELPHIA PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-01-23",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "OXY:US",
+			"type": "buy",
+			"traded": "2025-01-21",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": "ARCC:US",
+			"type": "buy",
+			"traded": "2025-01-17",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": "ATH:US",
+			"type": "buy",
+			"traded": "2025-01-16",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "SPORTS & EXHIBITION AUTHORITY OF PITTSBURGH AND ALLEGHENY COUNTY",
+			"type": "buy",
+			"traded": "2025-01-16",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": "RUM:US",
+			"type": "sell",
+			"traded": "2025-01-16",
+			"size": "1M–5M"
+		},
+		{
+			"ticker": "MCD:US",
+			"type": "buy",
+			"traded": "2025-01-10",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": "PSX:US",
+			"type": "buy",
+			"traded": "2025-01-10",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": "CG:US",
+			"type": "buy",
+			"traded": "2025-01-10",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COUNTY OF ARMSTRONG PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-01-24",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "BELLEFONTE AREA SCHOOL DISTRICT",
+			"type": "buy",
+			"traded": "2025-01-23",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COMMONWEALTH OF PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-01-23",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "SCHOOL DISTRICT OF TOWNSHIP OF UPPER ST CLAIR PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-01-23",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "TOWNSHIP OF LOWER MERION PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-01-22",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "NAZARETH AREA SCHOOL DISTRICT",
+			"type": "buy",
+			"traded": "2025-01-22",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COMMONWEALTH OF PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-01-22",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "NORTHEASTERN YORK COUNTY SCHOOL DISTRICT",
+			"type": "buy",
+			"traded": "2025-01-22",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CARLISLE AREA SCHOOL DISTRICT CUMBERLAND COUNTY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-01-22",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COMMONWEALTH OF PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-01-16",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "NORTH HILLS SCHOOL DISTRICT ALLEGHENY COUNTY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-01-14",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "TOWNSHIP OF EAST HEMPFIELD PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-01-14",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CITY OF PITTSBURGH PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-01-14",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CARLISLE AREA SCHOOL DISTRICT CUMBERLAND COUNTY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-01-13",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PENNSYLVANIA HIGHER EDUCATIONAL FACILITIES AUTHORITY",
+			"type": "buy",
+			"traded": "2025-01-10",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COLONIAL SCHOOL DISTRICT MONTGOMERY COUNTY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2025-01-09",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DELAWARE RIVER PORT AUTHORITY",
+			"type": "buy",
+			"traded": "2025-01-09",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "POCONO MOUNTAIN SCHOOL DISTRICT",
+			"type": "buy",
+			"traded": "2025-01-06",
+			"size": "1K–15K"
+		}
+	]
+}

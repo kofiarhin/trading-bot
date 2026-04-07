@@ -1,0 +1,299 @@
+{
+	"politician": "Don Beyer",
+	"trades": [
+		{
+			"ticker": null,
+			"issuerName": "ARLINGTON COUNTY VIRGINIA",
+			"type": "buy",
+			"traded": "2026-02-19",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "TOWN OF MADISON CONNECTICUT",
+			"type": "buy",
+			"traded": "2026-01-20",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "STATE OF OHIO",
+			"type": "buy",
+			"traded": "2026-01-07",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "UNIVERSITY OF WASHINGTON",
+			"type": "buy",
+			"traded": "2026-01-29",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "STATE OF WEST VIRGINIA",
+			"type": "buy",
+			"traded": "2026-01-15",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "WASHINGTON KING COUNTY",
+			"type": "sell",
+			"traded": "2025-12-18",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "TOWN OF MADISON CONNECTICUT",
+			"type": "sell",
+			"traded": "2025-12-18",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "STATE OF WEST VIRGINIA",
+			"type": "sell",
+			"traded": "2025-12-10",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "STATE OF CONNECTICUT",
+			"type": "buy",
+			"traded": "2025-10-22",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "WASHINGTON KING COUNTY",
+			"type": "buy",
+			"traded": "2025-10-31",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "NORTH ALLEGHENY SCHOOL DISTRICT ALLEGHENY COUNTY PENNSYLVANIA",
+			"type": "exchange",
+			"traded": "2025-10-14",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "ST JOHN THE BAPTIST PARISH",
+			"type": "buy",
+			"traded": "2025-10-23",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "MASSACHUSETTS SCHOOL BUILDING AUTHORITY",
+			"type": "exchange",
+			"traded": "2025-09-18",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "STATE OF OKLAHOMA",
+			"type": "exchange",
+			"traded": "2025-07-01",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "UNIVERSITY OF WASHINGTON",
+			"type": "buy",
+			"traded": "2025-04-08",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "MARYLAND HEALTH AND HIGHER EDUCATIONAL FACILITIES AUTHORITY",
+			"type": "buy",
+			"traded": "2025-02-12",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DALLAS AREA RAPID TRANSIT",
+			"type": "exchange",
+			"traded": "2024-12-02",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DUKE STREET LLC",
+			"type": "sell",
+			"traded": "2024-12-23",
+			"size": "5M–25M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "STATE OF OKLAHOMA",
+			"type": "buy",
+			"traded": "2024-12-04",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "STATE OF OREGON HOUSING AND COMMUNITY SERVICES DEPARTMENT",
+			"type": "buy",
+			"traded": "2024-11-14",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "VIRGINIA HOUSING DEVELOPMENT AUTHORITY",
+			"type": "buy",
+			"traded": "2024-11-21",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CONSOLIDATED SCHOOL DISTRICT OF AIKEN COUNTY",
+			"type": "buy",
+			"traded": "2024-10-16",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CHICAGO O'HARE AIRPORT",
+			"type": "buy",
+			"traded": "2024-10-09",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COUNTY OF CLARK NEVADA",
+			"type": "buy",
+			"traded": "2024-10-03",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "GARNET VALLEY SCHOOL DISTRICT DELAWARE COUNTY PENNSYLVANIA",
+			"type": "buy",
+			"traded": "2024-10-29",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DISTRICT OF COLUMBIA",
+			"type": "exchange",
+			"traded": "2024-10-02",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "JEFFERSON COUNTY TEXAS",
+			"type": "buy",
+			"traded": "2024-10-02",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "LONG ISLAND POWER AUTHORITY",
+			"type": "buy",
+			"traded": "2024-10-24",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "STATE OF NEW JERSEY",
+			"type": "buy",
+			"traded": "2024-10-18",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "STATE OF NORTH CAROLINA",
+			"type": "buy",
+			"traded": "2024-10-28",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CITY OF NORTH LAS VEGAS",
+			"type": "buy",
+			"traded": "2024-10-09",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "GARDEN OF EDEN LLC",
+			"type": "sell",
+			"traded": "2024-08-30",
+			"size": "5M–25M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "STATE OF WASHINGTON",
+			"type": "buy",
+			"traded": "2024-05-02",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "BOARD OF EDUCATION OF COUNTY OF PUTNAM WEST VIRGINIA",
+			"type": "sell",
+			"traded": "2024-05-23",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "INDUSTRIAL DEVELOPMENT AUTHORITY OF WISE COUNTY",
+			"type": "buy",
+			"traded": "2024-05-31",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COUNTY OF WISE",
+			"type": "sell",
+			"traded": "2024-05-31",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "VIRGINIA HOUSING DEVELOPMENT AUTHORITY",
+			"type": "buy",
+			"traded": "2024-03-28",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "WISCONSIN HEALTH AND EDUCATIONAL FACILITIES AUTHORITY",
+			"type": "sell",
+			"traded": "2023-09-15",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "DISTRICT OF COLUMBIA",
+			"type": "buy",
+			"traded": "2023-06-06",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "UNION-ENDICOTT CENTRAL SCHOOL DISTRICT",
+			"type": "sell",
+			"traded": "2023-06-30",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "VIRGINIA COLLEGE BUILDING AUTHORITY",
+			"type": "sell",
+			"traded": "2023-06-06",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "STATE OF NEW YORK MORTGAGE AGENCY",
+			"type": "sell",
+			"traded": "2023-04-18",
+			"size": "15K–50K"
+		}
+	]
+}

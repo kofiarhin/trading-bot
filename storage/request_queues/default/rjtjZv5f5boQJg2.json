@@ -1,0 +1,9 @@
+{
+	"id": "rjtjZv5f5boQJg2",
+	"json": "{\"id\":\"rjtjZv5f5boQJg2\",\"url\":\"https://www.capitoltrades.com/politicians/C001047\",\"loadedUrl\":\"https://www.capitoltrades.com/politicians/C001047\",\"uniqueKey\":\"https://www.capitoltrades.com/politicians/C001047\",\"method\":\"GET\",\"noRetry\":false,\"retryCount\":0,\"errorMessages\":[],\"headers\":{},\"userData\":{\"label\":\"DETAIL\",\"__crawlee\":{\"crawlDepth\":1,\"enqueueStrategy\":\"same-hostname\",\"state\":4}},\"handledAt\":\"2026-04-07T02:42:23.309Z\"}",
+	"method": "GET",
+	"orderNo": null,
+	"retryCount": 0,
+	"uniqueKey": "https://www.capitoltrades.com/politicians/C001047",
+	"url": "https://www.capitoltrades.com/politicians/C001047"
+}

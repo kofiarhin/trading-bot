@@ -1,0 +1,47 @@
+{
+	"politician": "Jake Auchincloss",
+	"trades": [
+		{
+			"ticker": "STT:US",
+			"type": "sell",
+			"traded": "2026-02-17",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "STT:US",
+			"type": "sell",
+			"traded": "2025-11-17",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "STT:US",
+			"type": "sell",
+			"traded": "2025-08-18",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "STT:US",
+			"type": "sell",
+			"traded": "2025-05-16",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "STT:US",
+			"type": "sell",
+			"traded": "2025-02-18",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "STT:US",
+			"type": "sell",
+			"traded": "2024-11-18",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "STT:US",
+			"type": "sell",
+			"traded": "2024-08-16",
+			"size": "15K–50K"
+		}
+	]
+}

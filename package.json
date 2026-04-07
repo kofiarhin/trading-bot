@@ -5,7 +5,14 @@
   "type": "module",
   "scripts": {
     "trade": "node src/index.js",
-    "trade:dry": "node src/index.js --dry-run"
+    "trade:dry": "node src/index.js --dry-run",
+    "monitor": "node src/monitor.js",
+    "monitor:dry": "node src/monitor.js --dry-run",
+    "scrapers:politicians": "node scrapers/politicians.js"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "crawlee": "^3.16.0",
+    "playwright": "^1.59.1"
+  }
 }

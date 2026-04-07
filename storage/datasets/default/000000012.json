@@ -1,0 +1,306 @@
+{
+	"politician": "John Hickenlooper",
+	"trades": [
+		{
+			"ticker": "SIRI:US",
+			"type": "sell",
+			"traded": "2026-02-05",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "LOW:US",
+			"type": "sell",
+			"traded": "2026-01-14",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "TJX:US",
+			"type": "sell",
+			"traded": "2026-01-14",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "ETN:US",
+			"type": "buy",
+			"traded": "2026-01-14",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "UBER:US",
+			"type": "buy",
+			"traded": "2026-01-14",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "FWONK:US",
+			"type": "sell",
+			"traded": "2025-12-10",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "PANW:US",
+			"type": "buy",
+			"traded": "2025-09-02",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "PEP:US",
+			"type": "sell",
+			"traded": "2025-09-02",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "INTU:US",
+			"type": "buy",
+			"traded": "2025-09-02",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "CMG:US",
+			"type": "sell",
+			"traded": "2025-06-12",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "LBRDA:US",
+			"type": "buy",
+			"traded": "2025-05-19",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": "LBRDA:US",
+			"type": "sell",
+			"traded": "2025-05-09",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": "LBRDA:US",
+			"type": "buy",
+			"traded": "2025-05-09",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": "FWONK:US",
+			"type": "sell",
+			"traded": "2025-05-09",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "FWONK:US",
+			"type": "buy",
+			"traded": "2025-05-09",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "SIRI:US",
+			"type": "sell",
+			"traded": "2025-04-25",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "SDZNY:US",
+			"type": "sell",
+			"traded": "2024-01-09",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "FWONK:US",
+			"type": "sell",
+			"traded": "2025-03-18",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "LSXMA:US",
+			"type": "exchange",
+			"traded": "2024-09-09",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "LSXMA:US",
+			"type": "sell",
+			"traded": "2024-09-06",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "CMG:US",
+			"type": "sell",
+			"traded": "2024-09-12",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "SIRI:US",
+			"type": "receive",
+			"traded": "2024-09-09",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "BATRA:US",
+			"type": "sell",
+			"traded": "2024-08-30",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "BATRA:US",
+			"type": "sell",
+			"traded": "2024-08-28",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": "BATRA:US",
+			"type": "buy",
+			"traded": "2024-08-28",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "LINEAGE INC",
+			"type": "buy",
+			"traded": "2024-07-25",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "FWONK:US",
+			"type": "sell",
+			"traded": "2024-06-03",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "FWONK:US",
+			"type": "buy",
+			"traded": "2024-06-03",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "FWONK:US",
+			"type": "sell",
+			"traded": "2024-05-20",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": "FWONK:US",
+			"type": "buy",
+			"traded": "2024-05-20",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "LSXMA:US",
+			"type": "sell",
+			"traded": "2024-03-12",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "FWONK:US",
+			"type": "sell",
+			"traded": "2024-03-12",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "CMG:US",
+			"type": "sell",
+			"traded": "2023-12-13",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "SIRI:US",
+			"type": "sell",
+			"traded": "2023-06-09",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "CMG:US",
+			"type": "sell",
+			"traded": "2023-05-26",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "VZ:US",
+			"type": "sell",
+			"traded": "2023-05-10",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "INTC:US",
+			"type": "sell",
+			"traded": "2023-05-10",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "AMT:US",
+			"type": "sell",
+			"traded": "2023-05-10",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "TTD:US",
+			"type": "sell",
+			"traded": "2023-04-28",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "PTON:US",
+			"type": "sell",
+			"traded": "2023-04-28",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "DIS:US",
+			"type": "sell",
+			"traded": "2023-04-28",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "CMCSA:US",
+			"type": "sell",
+			"traded": "2023-04-28",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "CCCS:US",
+			"type": "sell",
+			"traded": "2023-04-28",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "AMZN:US",
+			"type": "sell",
+			"traded": "2023-04-28",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "BABA:US",
+			"type": "sell",
+			"traded": "2023-04-28",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "SNAP:US",
+			"type": "sell",
+			"traded": "2023-04-28",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "PINS:US",
+			"type": "sell",
+			"traded": "2023-04-28",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "CARG:US",
+			"type": "sell",
+			"traded": "2023-04-12",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "BBY:US",
+			"type": "sell",
+			"traded": "2023-04-12",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "CMG:US",
+			"type": "sell",
+			"traded": "2023-05-01",
+			"size": "100K–250K"
+		}
+	]
+}

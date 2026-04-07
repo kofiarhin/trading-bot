@@ -1,0 +1,435 @@
+{
+	"politician": "Kelly Morrison",
+	"trades": [
+		{
+			"ticker": null,
+			"issuerName": "ANDERSEN CORP",
+			"type": "sell",
+			"traded": "2025-01-20",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "ANDERSEN CORP",
+			"type": "sell",
+			"traded": "2025-03-15",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "ANDERSEN CORP",
+			"type": "sell",
+			"traded": "2025-06-15",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "ANDERSEN CORP",
+			"type": "sell",
+			"traded": "2025-09-15",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "ANDERSEN CORP",
+			"type": "sell",
+			"traded": "2025-10-15",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "ANDERSEN CORP",
+			"type": "sell",
+			"traded": "2026-01-20",
+			"size": "250K–500K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "ANDERSEN CORP",
+			"type": "sell",
+			"traded": "2026-03-15",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "CAVALL LLP",
+			"type": "buy",
+			"traded": "2025-12-22",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "FLUXAI",
+			"type": "buy",
+			"traded": "2025-12-22",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "STARCLOUD INC",
+			"type": "buy",
+			"traded": "2026-03-15",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "AJG:US",
+			"type": "sell",
+			"traded": "2026-03-08",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "SARONIC TECHNOLOGIES INC",
+			"type": "buy",
+			"traded": "2026-03-09",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "MAGNUM ICE CREAM COMPANY NV",
+			"type": "sell",
+			"traded": "2026-03-08",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "HERMEUS CORP",
+			"type": "buy",
+			"traded": "2026-03-02",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "ARCADE AI INC",
+			"type": "buy",
+			"traded": "2026-03-02",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "AXIOM QUANT INC",
+			"type": "buy",
+			"traded": "2026-02-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "HM COMPANIES LLC",
+			"type": "buy",
+			"traded": "2026-02-11",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PROJECT STARDUST, INC",
+			"type": "buy",
+			"traded": "2026-02-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "RHODA AI CORP",
+			"type": "buy",
+			"traded": "2026-02-20",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "ADVANCED MACHINE INTELLIGENCE LABS",
+			"type": "buy",
+			"traded": "2026-01-29",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "AALO ATOMICS",
+			"type": "buy",
+			"traded": "2026-01-29",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "COGNICHIP INC",
+			"type": "buy",
+			"traded": "2026-01-20",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "MODAK COMMUNITIES INC",
+			"type": "buy",
+			"traded": "2026-01-20",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "SYGALDRY TECHNOLOGIES INC",
+			"type": "buy",
+			"traded": "2026-01-29",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "VARDA SPACE INDUSTRIES INC",
+			"type": "buy",
+			"traded": "2026-01-20",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "ASHGY:US",
+			"type": "exchange",
+			"traded": "2025-12-10",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "BENABLE",
+			"type": "buy",
+			"traded": "2025-12-15",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "LAZURITE HOLDINGS LLC",
+			"type": "buy",
+			"traded": "2025-10-24",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "ACN:US",
+			"type": "sell",
+			"traded": "2025-08-19",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "JNJ:US",
+			"type": "sell",
+			"traded": "2025-08-19",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "TMO:US",
+			"type": "sell",
+			"traded": "2025-08-19",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "VZ:US",
+			"type": "sell",
+			"traded": "2025-08-19",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "TREE CARE PARTNERS",
+			"type": "buy",
+			"traded": "2025-08-07",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "KWIKBIT INC",
+			"type": "buy",
+			"traded": "2025-07-25",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "MM FOX LP",
+			"type": "buy",
+			"traded": "2025-07-25",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "HLI:US",
+			"type": "sell",
+			"traded": "2025-06-04",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "NKE:US",
+			"type": "sell",
+			"traded": "2025-06-04",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "RMD:US",
+			"type": "sell",
+			"traded": "2025-06-04",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "UPS:US",
+			"type": "sell",
+			"traded": "2025-06-04",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "WEX:US",
+			"type": "sell",
+			"traded": "2025-06-04",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "ZBRA:US",
+			"type": "sell",
+			"traded": "2025-06-04",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "AERO ENGINEERING HOLDINGS LLC",
+			"type": "buy",
+			"traded": "2025-05-05",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "ASHGY:US",
+			"type": "sell",
+			"traded": "2025-04-10",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "AVGO:US",
+			"type": "buy",
+			"traded": "2025-04-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "META:US",
+			"type": "buy",
+			"traded": "2025-04-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "RMD:US",
+			"type": "sell",
+			"traded": "2025-04-28",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "SMX INDUSTRIAL SOLUTIONS INC",
+			"type": "buy",
+			"traded": "2025-04-10",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "AVGO:US",
+			"type": "buy",
+			"traded": "2025-03-21",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "CACI:US",
+			"type": "sell",
+			"traded": "2025-03-20",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "DHI:US",
+			"type": "sell",
+			"traded": "2025-03-20",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "DEO:US",
+			"type": "sell",
+			"traded": "2025-03-20",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "MRK:US",
+			"type": "sell",
+			"traded": "2025-03-20",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "META:US",
+			"type": "buy",
+			"traded": "2025-03-24",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "UPS:US",
+			"type": "sell",
+			"traded": "2025-03-20",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "US TREASURY NOTE",
+			"type": "buy",
+			"traded": "2025-03-04",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "MONOMYTH ANOVION LLC",
+			"type": "buy",
+			"traded": "2025-03-10",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "TGT:US",
+			"type": "sell",
+			"traded": "2025-03-21",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "TGT:US",
+			"type": "buy",
+			"traded": "2025-03-03",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "US TREASURY NOTE",
+			"type": "sell",
+			"traded": "2025-02-28",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "INTEK PLASTICS LLC",
+			"type": "buy",
+			"traded": "2025-02-20",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "RISE & PUFF INC",
+			"type": "buy",
+			"traded": "2025-02-18",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "AERO ENGINEERING HOLDINGS LLC",
+			"type": "buy",
+			"traded": "2025-01-27",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "ANDERSEN CORP",
+			"type": "sell",
+			"traded": "2025-01-24",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": null,
+			"issuerName": "PATHFINDER 360 CAPITAL POOL II LLC",
+			"type": "buy",
+			"traded": "2025-01-10",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "URBAN SKY",
+			"type": "buy",
+			"traded": "2025-01-06",
+			"size": "15K–50K"
+		}
+	]
+}

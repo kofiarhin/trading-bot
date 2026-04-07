@@ -1,0 +1,978 @@
+{
+	"politician": "Scott Franklin",
+	"trades": [
+		{
+			"ticker": "HSY:US",
+			"type": "sell",
+			"traded": "2026-02-10",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "IVV:US",
+			"type": "buy",
+			"traded": "2025-10-14",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "UNP:US",
+			"type": "buy",
+			"traded": "2025-10-14",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "CMCSA:US",
+			"type": "sell",
+			"traded": "2025-08-04",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "NVO:US",
+			"type": "buy",
+			"traded": "2025-08-04",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "UPS:US",
+			"type": "sell",
+			"traded": "2025-07-22",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "GOOGL:US",
+			"type": "sell",
+			"traded": "2025-06-16",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "AAPL:US",
+			"type": "sell",
+			"traded": "2025-06-16",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "BRK/B:US",
+			"type": "sell",
+			"traded": "2025-06-16",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "CSCO:US",
+			"type": "sell",
+			"traded": "2025-06-16",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "HD:US",
+			"type": "sell",
+			"traded": "2025-06-16",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "JNJ:US",
+			"type": "sell",
+			"traded": "2025-06-16",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "JPM:US",
+			"type": "sell",
+			"traded": "2025-06-16",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "KVUE:US",
+			"type": "sell",
+			"traded": "2025-06-16",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "MCD:US",
+			"type": "sell",
+			"traded": "2025-06-16",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "MRK:US",
+			"type": "sell",
+			"traded": "2025-06-16",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "MSFT:US",
+			"type": "sell",
+			"traded": "2025-06-16",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "PEP:US",
+			"type": "sell",
+			"traded": "2025-06-16",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "PG:US",
+			"type": "sell",
+			"traded": "2025-06-16",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "UPS:US",
+			"type": "sell",
+			"traded": "2025-06-16",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "V:US",
+			"type": "sell",
+			"traded": "2025-06-16",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "WMT:US",
+			"type": "sell",
+			"traded": "2025-06-16",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "ACN:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "APD:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "GOOGL:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "AMGN:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "AAPL:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "AAPL:US",
+			"type": "sell",
+			"traded": "2024-01-30",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "ADP:US",
+			"type": "buy",
+			"traded": "2024-09-25",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "BRK/B:US",
+			"type": "sell",
+			"traded": "2024-01-30",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "BRK/B:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "CB:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "CMCSA:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "COST:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "FBKWX:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "SDVY:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "GD:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "HD:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "ITW:US",
+			"type": "buy",
+			"traded": "2024-09-25",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "QQQM:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "JNJ:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "JPM:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "LMT:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "LSYIX:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "MCD:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "MRK:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "MSFT:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "PEP:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "PG:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "SBUX:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "SBUX:US",
+			"type": "sell",
+			"traded": "2024-01-30",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "HSY:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "UPS:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "UNH:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "V:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "WMT:US",
+			"type": "buy",
+			"traded": "2024-08-07",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "WMT:US",
+			"type": "sell",
+			"traded": "2024-01-30",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "UNP:US",
+			"type": "buy",
+			"traded": "2025-04-21",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "BWIN:US",
+			"type": "sell",
+			"traded": "2025-04-10",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": "NVO:US",
+			"type": "buy",
+			"traded": "2025-03-27",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "AMZN:US",
+			"type": "buy",
+			"traded": "2025-02-26",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "COST:US",
+			"type": "sell",
+			"traded": "2025-01-28",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "FBKWX:US",
+			"type": "buy",
+			"traded": "2025-02-19",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "LMT:US",
+			"type": "buy",
+			"traded": "2025-02-18",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "BWIN:US",
+			"type": "sell",
+			"traded": "2025-02-06",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "BWIN:US",
+			"type": "sell",
+			"traded": "2025-02-07",
+			"size": "1M–5M"
+		},
+		{
+			"ticker": "ADP:US",
+			"type": "buy",
+			"traded": "2024-09-24",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "ACN:US",
+			"type": "buy",
+			"traded": "2024-08-02",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "APD:US",
+			"type": "buy",
+			"traded": "2024-08-02",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "GOOGL:US",
+			"type": "sell",
+			"traded": "2024-08-01",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "AMGN:US",
+			"type": "buy",
+			"traded": "2024-08-02",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "AAPL:US",
+			"type": "sell",
+			"traded": "2024-08-06",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "AAPL:US",
+			"type": "sell",
+			"traded": "2024-08-01",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "BROOKLYN BANCORP INC",
+			"type": "sell",
+			"traded": "2024-08-01",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "BRK/B:US",
+			"type": "sell",
+			"traded": "2024-08-06",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "CB:US",
+			"type": "buy",
+			"traded": "2024-08-02",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "CSCO:US",
+			"type": "sell",
+			"traded": "2024-08-01",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "CSCO:US",
+			"type": "sell",
+			"traded": "2024-08-06",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "COST:US",
+			"type": "sell",
+			"traded": "2024-08-06",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "COST:US",
+			"type": "sell",
+			"traded": "2024-08-01",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "DFS:US",
+			"type": "sell",
+			"traded": "2024-08-01",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "DFS:US",
+			"type": "sell",
+			"traded": "2024-08-06",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "FBKWX:US",
+			"type": "buy",
+			"traded": "2024-08-02",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "FCNTX:US",
+			"type": "sell",
+			"traded": "2024-08-06",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "FFRHX:US",
+			"type": "sell",
+			"traded": "2024-08-06",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "FMCSX:US",
+			"type": "sell",
+			"traded": "2024-08-01",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "ONEQ:US",
+			"type": "sell",
+			"traded": "2024-08-06",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "FQAL:US",
+			"type": "sell",
+			"traded": "2024-08-06",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "SDVY:US",
+			"type": "buy",
+			"traded": "2024-08-02",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "GD:US",
+			"type": "buy",
+			"traded": "2024-08-02",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "QQQM:US",
+			"type": "buy",
+			"traded": "2024-08-02",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "QQQ:US",
+			"type": "sell",
+			"traded": "2024-08-01",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "QQQ:US",
+			"type": "sell",
+			"traded": "2024-08-06",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "IVV:US",
+			"type": "sell",
+			"traded": "2024-08-06",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "IJR:US",
+			"type": "sell",
+			"traded": "2024-08-01",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "IJR:US",
+			"type": "sell",
+			"traded": "2024-08-06",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "DGRO:US",
+			"type": "sell",
+			"traded": "2024-08-06",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "JNJ:US",
+			"type": "buy",
+			"traded": "2024-08-02",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "JPM:US",
+			"type": "sell",
+			"traded": "2024-08-01",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "JPM:US",
+			"type": "sell",
+			"traded": "2024-08-06",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "KVUE:US",
+			"type": "sell",
+			"traded": "2024-08-06",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "KVUE:US",
+			"type": "sell",
+			"traded": "2024-08-01",
+			"size": "< 1K"
+		},
+		{
+			"ticker": "LMT:US",
+			"type": "sell",
+			"traded": "2024-08-01",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "LSYIX:US",
+			"type": "buy",
+			"traded": "2024-08-02",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "LUBFX:US",
+			"type": "sell",
+			"traded": "2024-08-06",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "LUBFX:US",
+			"type": "sell",
+			"traded": "2024-08-01",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "MCD:US",
+			"type": "buy",
+			"traded": "2024-08-02",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "MRK:US",
+			"type": "buy",
+			"traded": "2024-08-02",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "MSFT:US",
+			"type": "sell",
+			"traded": "2024-08-06",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "NEE:US",
+			"type": "sell",
+			"traded": "2024-08-06",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "NEE:US",
+			"type": "sell",
+			"traded": "2024-08-01",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "PEP:US",
+			"type": "buy",
+			"traded": "2024-08-02",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "PFE:US",
+			"type": "sell",
+			"traded": "2024-08-01",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "PFE:US",
+			"type": "sell",
+			"traded": "2024-08-06",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "PG:US",
+			"type": "buy",
+			"traded": "2024-08-02",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "SBUX:US",
+			"type": "buy",
+			"traded": "2024-08-02",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "SBUX:US",
+			"type": "sell",
+			"traded": "2024-08-14",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "HSY:US",
+			"type": "buy",
+			"traded": "2024-08-02",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "UPS:US",
+			"type": "buy",
+			"traded": "2024-08-02",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "WMT:US",
+			"type": "sell",
+			"traded": "2024-08-06",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "WMT:US",
+			"type": "sell",
+			"traded": "2024-08-01",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "BWIN:US",
+			"type": "sell",
+			"traded": "2024-05-08",
+			"size": "500K–1M"
+		},
+		{
+			"ticker": "BWIN:US",
+			"type": "sell",
+			"traded": "2024-03-21",
+			"size": "1M–5M"
+		},
+		{
+			"ticker": "BWIN:US",
+			"type": "sell",
+			"traded": "2024-04-09",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "GOOGL:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "AAPL:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "BRK/B:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "CSCO:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "DFS:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "FMCSX:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "FZDXX:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "HD:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "QQQ:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "IJR:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "JNJ:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "JPM:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "MCD:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "MRK:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "MSFT:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "NEE:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "PEP:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "PFE:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "PG:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "SBUX:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "UPS:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "UNH:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "V:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "WMT:US",
+			"type": "sell",
+			"traded": "2023-09-11",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "AAPL:US",
+			"type": "sell",
+			"traded": "2023-04-19",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "CMCSA:US",
+			"type": "buy",
+			"traded": "2023-04-19",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "COST:US",
+			"type": "buy",
+			"traded": "2023-04-19",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "FCNTX:US",
+			"type": "buy",
+			"traded": "2023-04-19",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "FFRHX:US",
+			"type": "buy",
+			"traded": "2023-04-19",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "FQAL:US",
+			"type": "buy",
+			"traded": "2023-04-19",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "FMCSX:US",
+			"type": "sell",
+			"traded": "2023-04-19",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "FSKAX:US",
+			"type": "sell",
+			"traded": "2023-04-19",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "QQQ:US",
+			"type": "sell",
+			"traded": "2023-04-19",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "IVV:US",
+			"type": "buy",
+			"traded": "2023-04-19",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "IJR:US",
+			"type": "sell",
+			"traded": "2023-04-19",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "LSYIX:US",
+			"type": "buy",
+			"traded": "2023-04-19",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "LUBFX:US",
+			"type": "sell",
+			"traded": "2023-04-19",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "SBUX:US",
+			"type": "sell",
+			"traded": "2023-04-19",
+			"size": "1K–15K"
+		}
+	]
+}

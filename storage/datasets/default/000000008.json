@@ -1,0 +1,133 @@
+{
+	"politician": "Debbie Dingell",
+	"trades": [
+		{
+			"ticker": "WAT:US",
+			"type": "receive",
+			"traded": "2026-02-10",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "VERSANT MEDIA GROUP INC",
+			"type": "exchange",
+			"traded": "2026-01-05",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": "GOOGL:US",
+			"type": "sell",
+			"traded": "2025-11-24",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "AAPL:US",
+			"type": "sell",
+			"traded": "2025-11-24",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "HON:US",
+			"type": "sell",
+			"traded": "2025-11-24",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "QNITY ELECTRONICS INC",
+			"type": "exchange",
+			"traded": "2025-11-03",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "SOLSTICE ADVANCED MTRILS INC",
+			"type": "exchange",
+			"traded": "2025-10-30",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "SOLSTICE ADVANCED MTRILS INC",
+			"type": "sell",
+			"traded": "2025-11-24",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "GOVERNMENT NATIONAL MORTGAGE ASSOCIATION",
+			"type": "buy",
+			"traded": "2025-03-28",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "WMT:US",
+			"type": "buy",
+			"traded": "2025-03-27",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "FNMA:US",
+			"type": "buy",
+			"traded": "2025-01-15",
+			"size": "100K–250K"
+		},
+		{
+			"ticker": "DIS:US",
+			"type": "buy",
+			"traded": "2025-01-15",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "GOVERNMENT NATIONAL MORTGAGE ASSOCIATION",
+			"type": "buy",
+			"traded": "2024-11-01",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "AAPL:US",
+			"type": "sell",
+			"traded": "2024-06-13",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "AAPL:US",
+			"type": "sell",
+			"traded": "2024-06-12",
+			"size": "1K–15K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "GOVERNMENT NATIONAL MORTGAGE ASSOCIATION",
+			"type": "buy",
+			"traded": "2024-05-01",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": null,
+			"issuerName": "GOVERNMENT NATIONAL MORTGAGE ASSOCIATION",
+			"type": "buy",
+			"traded": "2024-02-09",
+			"size": "50K–100K"
+		},
+		{
+			"ticker": "MDT:US",
+			"type": "buy",
+			"traded": "2023-12-05",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "BX:US",
+			"type": "buy",
+			"traded": "2023-04-10",
+			"size": "15K–50K"
+		},
+		{
+			"ticker": "CTVA:US",
+			"type": "buy",
+			"traded": "2023-04-10",
+			"size": "15K–50K"
+		}
+	]
+}
