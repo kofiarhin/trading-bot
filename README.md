@@ -45,9 +45,9 @@ npm run trade -- "<command>"
 ```bash
 npm run trade -- "buy 1 share of apple"
 npm run trade -- "buy 2 shares of tesla"
-npm run trade -- "buy $100 of apple"
+npm run trade -- 'buy $100 of apple'
 npm run trade -- "buy 200 dollars of apple"
-npm run trade -- "buy $200 share of nvidia"
+npm run trade -- 'buy $200 share of nvidia'
 ```
 
 ### Sell examples
@@ -92,7 +92,7 @@ Use `--dry-run` (or `npm run trade:dry`) to parse and preview a command without 
 
 ```bash
 npm run trade:dry -- "sell apple stock"
-npm run trade:dry -- "buy $100 of tesla"
+npm run trade:dry -- 'buy $100 of tesla'
 npm run trade:dry -- "close my msft position"
 ```
 
