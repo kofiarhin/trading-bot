@@ -11,6 +11,7 @@ import { getAccount } from "./execution/alpacaTrading.js";
 import { getOpenSymbols } from "./positions/positionMonitor.js";
 import { appendTradeEntry, buildJournalEntry } from "./journal/tradeJournal.js";
 import { logCycleComplete } from "./journal/cycleLogger.js";
+import { logDecision } from "./journal/decisionLogger.js";
 import { logger } from "./utils/logger.js";
 
 const dryRun = process.argv.includes("--dry-run");
@@ -87,6 +88,8 @@ async function runAutopilot() {
       riskPercent: tradingCfg.riskPercent,
       timeframe: tradingCfg.timeframe,
     });
+
+    logDecision(decision, assetClass);
 
     if (!decision.approved) {
       logger.info("Strategy rejected", { symbol, reason: decision.reason });

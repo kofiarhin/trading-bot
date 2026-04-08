@@ -4,6 +4,7 @@
   "description": "Alpaca autopilot trading engine — momentum breakout strategy",
   "type": "module",
   "scripts": {
+    "server": "node -r ./src/config/loadEnv.cjs src/server/index.js",
     "autopilot": "node -r ./src/config/loadEnv.cjs src/autopilot.js",
     "autopilot:dry": "node -r ./src/config/loadEnv.cjs src/autopilot.js --dry-run",
     "worker:15m": "node -r ./src/config/loadEnv.cjs src/worker15m.js",
@@ -35,5 +36,9 @@
     "cross-env": "^10.1.0",
     "jest": "^30.3.0",
     "playwright": "^1.59.1"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
   }
 }

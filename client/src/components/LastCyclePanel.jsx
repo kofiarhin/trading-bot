@@ -19,6 +19,14 @@ function fmtTime(iso) {
   });
 }
 
+function fmtDuration(ms) {
+  if (ms == null || ms < 0) return "—";
+  if (ms < 1000) return `${ms}ms`;
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  return `${Math.floor(s / 60)}m ${s % 60}s`;
+}
+
 export default function LastCyclePanel() {
   const { data: cycle, isLoading } = useLatestCycle();
 
@@ -36,11 +44,16 @@ export default function LastCyclePanel() {
         <div>
           <Row label="Start" value={fmtTime(cycle.startTime)} />
           <Row label="End" value={fmtTime(cycle.endTime)} />
+          <Row label="Duration" value={fmtDuration(cycle.durationMs)} color="text-slate-300" />
           <Row label="Scanned" value={cycle.scanned} />
           <Row label="Approved" value={cycle.approved} color="text-emerald-400" />
           <Row label="Rejected" value={cycle.rejected} color="text-red-400" />
           <Row label="Placed" value={cycle.placed} color="text-sky-400" />
-          <Row label="Errors" value={cycle.errors} color={cycle.errors > 0 ? "text-red-400" : "text-slate-400"} />
+          <Row
+            label="Errors"
+            value={cycle.errors}
+            color={cycle.errors > 0 ? "text-red-400" : "text-slate-400"}
+          />
         </div>
       )}
     </div>

@@ -4,6 +4,7 @@ export const dashboardService = {
   getStatus: () => api.get("/dashboard/status").then((r) => r.data),
   getSummary: () => api.get("/dashboard/summary").then((r) => r.data),
   getLatestCycle: () => api.get("/dashboard/cycles/latest").then((r) => r.data),
+  getDecisions: () => api.get("/dashboard/decisions").then((r) => r.data),
   getSignals: () => api.get("/dashboard/signals").then((r) => r.data),
   getOpenPositions: () => api.get("/dashboard/positions/open").then((r) => r.data),
   getClosedPositions: () => api.get("/dashboard/positions/closed").then((r) => r.data),

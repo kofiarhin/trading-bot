@@ -8,6 +8,15 @@ function fmt(n, d = 2) {
   });
 }
 
+function fmtTime(iso) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/New_York",
+  });
+}
+
 function PnlCell({ value }) {
   if (value == null) return <td className="px-4 py-3 text-right text-slate-400">—</td>;
   const color = value > 0 ? "text-emerald-400" : value < 0 ? "text-red-400" : "text-slate-400";
@@ -29,7 +38,9 @@ export default function OpenPositionsTable() {
           Open Positions
         </h2>
         {positions.length > 0 && (
-          <span className="text-xs text-slate-400">{positions.length} position{positions.length !== 1 ? "s" : ""}</span>
+          <span className="text-xs text-slate-400">
+            {positions.length} position{positions.length !== 1 ? "s" : ""}
+          </span>
         )}
       </div>
 
@@ -44,10 +55,14 @@ export default function OpenPositionsTable() {
               <tr className="text-xs text-slate-400 uppercase tracking-wide border-b border-slate-700">
                 <th className="px-4 py-3 text-left">Symbol</th>
                 <th className="px-4 py-3 text-left">Class</th>
+                <th className="px-4 py-3 text-left">Strategy</th>
+                <th className="px-4 py-3 text-left">Opened</th>
                 <th className="px-4 py-3 text-right">Qty</th>
                 <th className="px-4 py-3 text-right">Entry</th>
                 <th className="px-4 py-3 text-right">Current</th>
-                <th className="px-4 py-3 text-right">Market Value</th>
+                <th className="px-4 py-3 text-right">Stop</th>
+                <th className="px-4 py-3 text-right">Target</th>
+                <th className="px-4 py-3 text-right">Risk $</th>
                 <th className="px-4 py-3 text-right">Unrealized PnL</th>
                 <th className="px-4 py-3 text-right">PnL %</th>
               </tr>
@@ -55,21 +70,39 @@ export default function OpenPositionsTable() {
             <tbody>
               {positions.map((p, i) => {
                 const pnlPct = p.unrealizedPnlPct;
-                const pctColor = pnlPct > 0 ? "text-emerald-400" : pnlPct < 0 ? "text-red-400" : "text-slate-400";
+                const pctColor =
+                  pnlPct > 0 ? "text-emerald-400" : pnlPct < 0 ? "text-red-400" : "text-slate-400";
+                const strategyLabel = p.strategyName
+                  ? p.strategyName.replace(/_/g, " ")
+                  : "—";
                 return (
                   <tr
                     key={i}
                     className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors"
                   >
                     <td className="px-4 py-3 font-mono font-semibold text-white">{p.symbol}</td>
-                    <td className="px-4 py-3 text-slate-400 capitalize">{p.assetClass}</td>
+                    <td className="px-4 py-3 text-slate-400">{p.assetClass}</td>
+                    <td className="px-4 py-3 text-slate-400 text-xs capitalize">{strategyLabel}</td>
+                    <td className="px-4 py-3 text-slate-400 font-mono text-xs">
+                      {fmtTime(p.openedAt)}
+                    </td>
                     <td className="px-4 py-3 text-right font-mono">{fmt(p.qty, 4)}</td>
                     <td className="px-4 py-3 text-right font-mono">${fmt(p.entryPrice)}</td>
                     <td className="px-4 py-3 text-right font-mono">${fmt(p.currentPrice)}</td>
-                    <td className="px-4 py-3 text-right font-mono">${fmt(p.marketValue)}</td>
+                    <td className="px-4 py-3 text-right font-mono text-red-400">
+                      {p.stopLoss != null ? `$${fmt(p.stopLoss)}` : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-emerald-400">
+                      {p.takeProfit != null ? `$${fmt(p.takeProfit)}` : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-slate-400">
+                      {p.riskAmount != null ? `$${fmt(p.riskAmount)}` : "—"}
+                    </td>
                     <PnlCell value={p.unrealizedPnl} />
                     <td className={`px-4 py-3 text-right font-mono ${pctColor}`}>
-                      {pnlPct != null ? `${pnlPct > 0 ? "+" : ""}${fmt(pnlPct, 2)}%` : "—"}
+                      {pnlPct != null
+                        ? `${pnlPct > 0 ? "+" : ""}${fmt(pnlPct, 2)}%`
+                        : "—"}
                     </td>
                   </tr>
                 );

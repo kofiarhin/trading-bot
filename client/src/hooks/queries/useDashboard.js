@@ -41,6 +41,14 @@ export function useOpenPositions() {
   });
 }
 
+export function useDecisions() {
+  return useQuery({
+    queryKey: ["dashboard", "decisions"],
+    queryFn: dashboardService.getDecisions,
+    refetchInterval: 15_000,
+  });
+}
+
 export function useActivity() {
   return useQuery({
     queryKey: ["dashboard", "activity"],
