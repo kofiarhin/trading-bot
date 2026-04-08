@@ -1,6 +1,6 @@
 // Alpaca market data fetcher — uses the Alpaca Data API (separate from trading API).
 // Stocks: https://data.alpaca.markets/v2/stocks/{symbol}/bars
-// Crypto: https://data.alpaca.markets/v2/crypto/us/bars
+// Crypto: https://data.alpaca.markets/v1beta3/crypto/us/bars
 import { config } from "../config/env.js";
 
 const DATA_URL = config.alpaca.dataURL;
@@ -26,7 +26,9 @@ async function dataFetch(path) {
 
   if (!res.ok) {
     const msg = body?.message ?? body?.error ?? body?.raw ?? "Unknown error";
-    throw new Error(`Alpaca data API ${res.status}: ${msg}`);
+    // Strip query string from logged URL to avoid leaking symbols in bulk requests
+    const safePath = path.split("?")[0];
+    throw new Error(`Alpaca data API ${res.status}: ${msg} [path: ${safePath}]`);
   }
 
   return body;
@@ -73,7 +75,7 @@ export async function fetchCryptoBars(symbol, limit = 60) {
     limit: String(limit),
   });
 
-  const data = await dataFetch(`/v2/crypto/us/bars?${params}`);
+  const data = await dataFetch(`/v1beta3/crypto/us/bars?${params}`);
   const barsMap = data.bars ?? {};
   const bars = barsMap[symbol] ?? [];
   return bars.sort((a, b) => (a.t < b.t ? -1 : 1));

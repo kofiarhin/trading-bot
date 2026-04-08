@@ -41,7 +41,8 @@ function loadEnv() {
       riskPercent: parseFloat(process.env.RISK_PERCENT ?? "0.005"),
       maxDailyLossPercent: parseFloat(process.env.MAX_DAILY_LOSS_PERCENT ?? "0.02"),
       maxOpenPositions: parseInt(process.env.MAX_OPEN_POSITIONS ?? "3", 10),
-      enableCrypto: process.env.ENABLE_CRYPTO === "true",
+      enableStocks: process.env.ENABLE_STOCKS !== "false",
+      enableCrypto: process.env.ENABLE_CRYPTO !== "false",
       runMode: process.env.RUN_MODE ?? "paper",
     },
   };

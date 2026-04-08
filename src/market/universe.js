@@ -20,16 +20,27 @@ export const CRYPTO_UNIVERSE = [
 
 /**
  * Returns the active symbol universe based on config.
- * @param {{ enableCrypto: boolean }} tradingConfig
+ * @param {{ enableStocks?: boolean, enableCrypto?: boolean }} tradingConfig
  * @returns {Array<{ symbol: string, assetClass: "stock"|"crypto" }>}
  */
-export function getUniverse(tradingConfig) {
-  const symbols = STOCK_UNIVERSE.map((symbol) => ({ symbol, assetClass: "stock" }));
+export function getUniverse({ enableStocks = true, enableCrypto = true } = {}) {
+  const seen = new Set();
+  const symbols = [];
 
-  if (tradingConfig.enableCrypto) {
-    for (const symbol of CRYPTO_UNIVERSE) {
-      symbols.push({ symbol, assetClass: "crypto" });
+  function add(symbol, assetClass) {
+    const trimmed = symbol.trim();
+    if (!seen.has(trimmed)) {
+      seen.add(trimmed);
+      symbols.push({ symbol: trimmed, assetClass });
     }
+  }
+
+  if (enableStocks) {
+    for (const s of STOCK_UNIVERSE) add(s, "stock");
+  }
+
+  if (enableCrypto) {
+    for (const s of CRYPTO_UNIVERSE) add(s, "crypto");
   }
 
   return symbols;

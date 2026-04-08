@@ -39,11 +39,21 @@ async function runAutopilot() {
 
   // 3. Build universe and filter by market hours
   const universe = getUniverse(tradingCfg);
+  const stocksTotal = universe.filter((u) => u.assetClass === "stock").length;
+  const cryptoTotal = universe.filter((u) => u.assetClass === "crypto").length;
+  logger.info("Universe loaded", { total: universe.length, stocks: stocksTotal, crypto: cryptoTotal });
+
   const eligible = filterEligible(universe);
-  logger.info("Universe filtered", { total: universe.length, eligible: eligible.length });
+  const stocksEligible = eligible.filter((u) => u.assetClass === "stock").length;
+  const cryptoEligible = eligible.filter((u) => u.assetClass === "crypto").length;
+  logger.info("Universe filtered", {
+    eligible: eligible.length,
+    stocksEligible,
+    cryptoEligible,
+  });
 
   if (eligible.length === 0) {
-    logger.info("No eligible symbols — outside market hours");
+    logger.info("No eligible symbols — outside market hours and crypto disabled or unavailable");
     logCycleComplete({ ...summary, note: "no eligible symbols" });
     return;
   }

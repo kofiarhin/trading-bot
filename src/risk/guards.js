@@ -2,6 +2,7 @@
 // Each guard returns { pass: boolean, reason?: string }.
 import { validatePositionSize } from "./positionSizing.js";
 import { getDailyLoss, isInCooldown } from "./riskState.js";
+import { normalizeSymbol } from "../utils/symbolNorm.js";
 
 /**
  * Runs all risk guards for a strategy decision.
@@ -43,8 +44,9 @@ export function runRiskGuards({
     };
   }
 
-  // 4. Duplicate symbol prevention
-  if (openPositions.includes(symbol)) {
+  // 4. Duplicate symbol prevention (normalize to handle BTC/USD vs BTCUSD)
+  const normSymbol = normalizeSymbol(symbol);
+  if (openPositions.some((s) => normalizeSymbol(s) === normSymbol)) {
     return { pass: false, reason: `already have an open position in ${symbol}` };
   }
 
@@ -56,8 +58,8 @@ export function runRiskGuards({
     };
   }
 
-  // 6. Symbol cooldown
-  if (isInCooldown(symbol)) {
+  // 6. Symbol cooldown (normalize so BTC/USD and BTCUSD share the same cooldown key)
+  if (isInCooldown(normSymbol)) {
     return { pass: false, reason: `${symbol} is in cooldown` };
   }
 
