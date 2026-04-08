@@ -61,5 +61,15 @@
     "errors": 0,
     "timestamp": "2026-04-08T03:23:09.725Z",
     "recordedAt": "2026-04-08T03:23:09.738Z"
+  },
+  {
+    "type": "completed",
+    "scanned": 3,
+    "approved": 2,
+    "placed": 0,
+    "skipped": 3,
+    "errors": 0,
+    "timestamp": "2026-04-08T03:33:49.034Z",
+    "recordedAt": "2026-04-08T03:33:49.036Z"
   }
 ]

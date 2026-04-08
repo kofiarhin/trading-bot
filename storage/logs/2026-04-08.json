@@ -1,0 +1,12 @@
+[
+  {
+    "type": "completed",
+    "scanned": 3,
+    "approved": 0,
+    "placed": 0,
+    "skipped": 3,
+    "errors": 0,
+    "timestamp": "2026-04-08T04:47:15.289Z",
+    "recordedAt": "2026-04-08T04:47:15.289Z"
+  }
+]
