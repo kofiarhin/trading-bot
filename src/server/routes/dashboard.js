@@ -4,6 +4,9 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { getAccount, getOpenPositions } from "../../execution/alpacaTrading.js";
 import { config } from "../../config/env.js";
+import { loadDecisionLog } from "../../journal/decisionLogger.js";
+import { logger } from "../../utils/logger.js";
+import { etDateString } from "../../utils/time.js";
 
 const router = Router();
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -18,20 +21,23 @@ function readJson(filePath) {
   }
 }
 
-function todayDate() {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-}
-
 function getTodayCycles() {
-  return readJson(resolve(STORAGE, "logs", `${todayDate()}.json`)) ?? [];
+  return readJson(resolve(STORAGE, "logs", `${etDateString()}.json`)) ?? [];
 }
 
 function getTodayJournal() {
-  return readJson(resolve(STORAGE, "journal", `${todayDate()}.json`)) ?? [];
+  return readJson(resolve(STORAGE, "journal", `${etDateString()}.json`)) ?? [];
 }
 
-function getTodayDecisions() {
-  return readJson(resolve(STORAGE, "decisions", `${todayDate()}.json`)) ?? [];
+function shouldUseDecisionFallback(value) {
+  if (value == null) return true;
+
+  const normalized = String(value).trim().toLowerCase();
+  return !["0", "false", "no", "none", "off"].includes(normalized);
+}
+
+function getDecisionLogForToday({ fallbackToLatest = false } = {}) {
+  return loadDecisionLog({ date: etDateString(), fallbackToLatest });
 }
 
 function getAllJournal() {
@@ -177,8 +183,19 @@ router.get("/cycles/latest", (req, res) => {
 
 // GET /api/dashboard/decisions
 router.get("/decisions", (req, res) => {
-  const decisions = getTodayDecisions();
-  const mapped = decisions.map((d) => ({
+  const decisionLog = getDecisionLogForToday({
+    fallbackToLatest: shouldUseDecisionFallback(req.query.fallbackLatest ?? req.query.fallback),
+  });
+
+  if (decisionLog.isFallback) {
+    logger.info("Dashboard decisions using latest available file", {
+      requestedDate: decisionLog.requestedDate,
+      servedDate: decisionLog.date,
+      filePath: decisionLog.filePath,
+    });
+  }
+
+  const mapped = decisionLog.records.map((d) => ({
     timestamp: d.timestamp,
     symbol: d.symbol,
     assetClass: formatAssetClass(d.assetClass),
@@ -191,6 +208,8 @@ router.get("/decisions", (req, res) => {
   }));
   // Most recent first
   mapped.reverse();
+  res.set("X-Decisions-Date", decisionLog.date);
+  res.set("X-Decisions-Fallback", decisionLog.isFallback ? "true" : "false");
   res.json(mapped);
 });
 
@@ -304,7 +323,7 @@ router.get("/performance", (req, res) => {
 router.get("/activity", (req, res) => {
   const cycles = getTodayCycles();
   const journal = getTodayJournal();
-  const decisions = getTodayDecisions();
+  const decisions = getDecisionLogForToday().records;
   const events = [];
 
   for (const c of cycles) {

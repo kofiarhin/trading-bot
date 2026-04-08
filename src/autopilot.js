@@ -89,7 +89,27 @@ async function runAutopilot() {
       timeframe: tradingCfg.timeframe,
     });
 
-    logDecision(decision, assetClass);
+    let persistedDecision;
+    try {
+      persistedDecision = logDecision(decision, assetClass);
+    } catch (err) {
+      logger.error("Decision persistence failed", {
+        symbol,
+        assetClass,
+        approved: !!decision.approved,
+        error: err.message,
+      });
+      summary.errors++;
+      continue;
+    }
+
+    logger.info("Decision logged", {
+      symbol,
+      approved: !!decision.approved,
+      assetClass,
+      file: persistedDecision.fileName,
+      totalRecords: persistedDecision.totalRecords,
+    });
 
     if (!decision.approved) {
       logger.info("Strategy rejected", { symbol, reason: decision.reason });

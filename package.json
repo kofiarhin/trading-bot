@@ -14,7 +14,9 @@
     "monitor": "node src/monitor.js",
     "monitor:dry": "node src/monitor.js --dry-run",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
-    "test:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --watch"
+    "test:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "client": "npm run dev --prefix client",
+    "dev": "concurrently \"npm run server\" \"npm run client\""
   },
   "jest": {
     "testEnvironment": "node",
@@ -32,6 +34,7 @@
   },
   "license": "MIT",
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "crawlee": "^3.16.0",
     "cross-env": "^10.1.0",
     "jest": "^30.3.0",
