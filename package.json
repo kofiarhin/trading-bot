@@ -1,19 +1,39 @@
 {
   "name": "trading-bot",
   "version": "1.0.0",
-  "description": "CLI trading assistant for Alpaca paper trading",
+  "description": "Alpaca autopilot trading engine — momentum breakout strategy",
   "type": "module",
   "scripts": {
+    "autopilot": "node -r ./src/config/loadEnv.cjs src/autopilot.js",
+    "autopilot:dry": "node -r ./src/config/loadEnv.cjs src/autopilot.js --dry-run",
+    "worker:15m": "node -r ./src/config/loadEnv.cjs src/worker15m.js",
+    "strategy:simulate": "node -r ./src/config/loadEnv.cjs src/simulateStrategy.js",
     "trade": "node src/index.js",
     "trade:dry": "node src/index.js --dry-run",
     "monitor": "node src/monitor.js",
     "monitor:dry": "node src/monitor.js --dry-run",
-    "scrapers:politicians": "node scrapers/politicians.js",
-    "test": "node --test"
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
+    "test:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --watch"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "transform": {},
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/tests/parser.test.js",
+      "/tests/tradePlanner.test.js",
+      "/tests/tradePlanner.crypto.test.js",
+      "/tests/alpaca.crypto.test.js"
+    ]
   },
   "license": "MIT",
   "devDependencies": {
     "crawlee": "^3.16.0",
+    "cross-env": "^10.1.0",
+    "jest": "^30.3.0",
     "playwright": "^1.59.1"
   }
 }

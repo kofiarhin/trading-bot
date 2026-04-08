@@ -38,9 +38,13 @@ if (!input) {
     "\nUsage: npm run trade -- \"<command>\"\n" +
       "\nExamples:\n" +
       '  npm run trade -- "buy 1 share of apple"\n' +
+      '  npm run trade -- "buy 0.01 btc"\n' +
       '  npm run trade -- "sell apple stock"\n' +
+      '  npm run trade -- "sell eth"\n' +
       '  npm run trade -- "buy $100 of tesla"\n' +
+      '  npm run trade -- "buy $50 of eth"\n' +
       '  npm run trade -- "close my aapl position"\n' +
+      '  npm run trade -- "close my btc position"\n' +
       '  npm run trade:dry -- "sell 2 shares of microsoft"\n'
   );
   process.exit(1);
@@ -58,14 +62,14 @@ if (parsed.action === "exit") {
   process.exit(0);
 }
 
-const { action, symbol, qty, notional } = parsed;
+const { action, assetClass, symbol, qty, notional } = parsed;
 
 let positionQty = null;
 if (action === "sell" || action === "close") {
   if (dryRun) {
-    console.log(`[DRY RUN] Would check position for ${symbol}.`);
+    console.log(`[DRY RUN] Would check ${assetClass} position for ${symbol}.`);
     console.log("[DRY RUN] Assuming a position exists for simulation purposes.");
-    positionQty = 10;
+    positionQty = qty ?? (assetClass === "crypto" ? 1 : 10);
   } else {
     let position;
     try {
@@ -86,6 +90,7 @@ let orderParams;
 try {
   orderParams = buildOrderFromIntent({
     action,
+    assetClass,
     symbol,
     qty,
     notional,
@@ -97,9 +102,10 @@ try {
 
 const summary = formatSummary({
   action,
+  assetClass,
   symbol,
   qty: orderParams.qty,
-  notional,
+  notional: orderParams.notional,
   positionQty,
 });
 console.log(`\n> ${summary}`);

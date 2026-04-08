@@ -1,6 +1,8 @@
 # Trading Bot
 
-A Node.js CLI trading assistant for Alpaca **paper trading**. Type natural language commands to place market orders against your Alpaca paper account.
+A Node.js autopilot trading engine for Alpaca **paper trading**. Scans a configured stock and crypto universe on closed 15-minute candles, evaluates a momentum breakout strategy with ATR-based risk sizing, applies strict risk controls, and places paper orders automatically.
+
+Also includes a manual CLI for placing individual orders by natural language command.
 
 ---
 
@@ -10,126 +12,241 @@ A Node.js CLI trading assistant for Alpaca **paper trading**. Type natural langu
 npm install
 ```
 
-No external packages are required. The bot uses Node.js built-ins only.
-
 ---
 
 ## Environment Setup
-
-Copy the example env file and fill in your Alpaca paper credentials:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env`:
+Edit `.env` with your Alpaca paper credentials:
 
 ```env
-ALPACA_API_KEY=your_paper_key
-ALPACA_API_SECRET=your_paper_secret
+ALPACA_API_KEY=your_paper_api_key
+ALPACA_API_SECRET=your_paper_api_secret
 ALPACA_BASE_URL=https://paper-api.alpaca.markets
+
+DEFAULT_TIMEFRAME=15Min
+RISK_PERCENT=0.005
+MAX_DAILY_LOSS_PERCENT=0.02
+MAX_OPEN_POSITIONS=3
+ENABLE_CRYPTO=false
+RUN_MODE=paper
 ```
 
-Get your paper trading keys from: https://app.alpaca.markets (switch to Paper mode in the dashboard).
+Get your paper trading keys from [app.alpaca.markets](https://app.alpaca.markets) — switch to **Paper** mode in the dashboard.
 
 ---
 
-## Usage
+## Autopilot Commands
+
+### Run one full cycle (scan → strategy → risk → orders)
+
+```bash
+npm run autopilot
+```
+
+This performs the full pipeline once and exits:
+
+```
+Load universe → Fetch bars → Compute indicators → Evaluate strategy
+→ Run risk guards → Place paper orders → Log results → Exit
+```
+
+### Dry run (no orders placed)
+
+```bash
+npm run autopilot:dry
+```
+
+Same pipeline but skips order submission. Logs all decisions and writes journal entries marked as `dry_run`. **Always run this first.**
+
+### Recurring 15-minute worker
+
+```bash
+npm run worker:15m
+```
+
+Starts a long-running process that waits for each 15-minute candle boundary and runs the autopilot cycle automatically. Respects market hours for stocks. Press `Ctrl+C` to stop.
+
+### Strategy simulation only
+
+```bash
+npm run strategy:simulate
+```
+
+Fetches live market data and evaluates the strategy for all symbols. Prints detailed decisions to stdout. No orders, no journal writes. Useful for validating the strategy is working as expected.
+
+---
+
+## How the Autopilot Works
+
+### Strategy — Momentum Breakout + ATR
+
+A trade is approved only when all of the following conditions pass:
+
+1. **Breakout confirmed** — latest close is above the highest high of the last 20 completed candles
+2. **Volume confirmed** — current candle volume exceeds the 20-candle average volume
+3. **ATR valid** — 14-period ATR is computable and positive
+4. **Stop-loss valid** — `stopLoss = entryPrice − (1.5 × ATR)`
+5. **Position size ≥ 1** — `quantity = floor((equity × riskPercent) / riskPerUnit)`
+
+Take-profit target is set at 2R: `takeProfit = entryPrice + (2 × riskPerUnit)`
+
+Default risk per trade is **0.5% of account equity**.
+
+### Risk Controls
+
+All of these must pass before any order is submitted:
+
+| Guard | Default |
+|---|---|
+| Per-trade risk | 0.5% of equity |
+| Daily loss limit | 2% of equity — locks out new trades for the day |
+| Max open positions | 3 |
+| Duplicate symbol | No new entry if symbol already has an open position |
+| Symbol cooldown | 1 trading day (stocks) / 6 hours (crypto) after closing |
+
+### Market Hours
+
+- **Stocks** — Mon–Fri, 9:45 AM–4:00 PM ET (first closed 15-minute candle onward)
+- **Crypto** — 24/7 (set `ENABLE_CRYPTO=true` in `.env` to enable)
+
+### Logs and Journal
+
+Every cycle writes to:
+
+- `storage/logs/YYYY-MM-DD.json` — cycle summaries (scanned, approved, placed, skipped)
+- `storage/journal/YYYY-MM-DD.json` — individual trade records with entry, stop, target, fill, and PnL
+
+---
+
+## Symbol Universe
+
+Edit [src/market/universe.js](src/market/universe.js) to change what the autopilot scans.
+
+### Default stocks
+
+`AAPL`, `MSFT`, `NVDA`, `AMZN`, `META`, `TSLA`, `AMD`, `GOOGL`
+
+### Default crypto (requires `ENABLE_CRYPTO=true`)
+
+`BTC/USD`, `ETH/USD`, `SOL/USD`
+
+---
+
+## Configuration Reference
+
+All settings live in `.env`. See [.env.example](.env.example) for the full list.
+
+| Variable | Default | Description |
+|---|---|---|
+| `ALPACA_API_KEY` | — | Alpaca paper API key |
+| `ALPACA_API_SECRET` | — | Alpaca paper API secret |
+| `ALPACA_BASE_URL` | — | Must be `https://paper-api.alpaca.markets` |
+| `DEFAULT_TIMEFRAME` | `15Min` | Candle timeframe |
+| `RISK_PERCENT` | `0.005` | Fraction of equity risked per trade (0.5%) |
+| `MAX_DAILY_LOSS_PERCENT` | `0.02` | Daily loss lockout threshold (2%) |
+| `MAX_OPEN_POSITIONS` | `3` | Maximum concurrent open positions |
+| `ENABLE_CRYPTO` | `false` | Set to `true` to include crypto in scans |
+| `RUN_MODE` | `paper` | Must stay `paper` in v1 |
+
+---
+
+## Tests
+
+```bash
+npm test
+```
+
+Runs all Jest tests. Coverage includes strategy logic, risk guards, and indicator calculations.
+
+```bash
+npm run test:watch
+```
+
+Re-runs tests on file change.
+
+---
+
+## Manual Trading CLI
+
+The original CLI is still available for placing individual orders by natural language command.
 
 ```bash
 npm run trade -- "<command>"
 ```
 
-### Buy examples
+### Buy
 
 ```bash
 npm run trade -- "buy 1 share of apple"
 npm run trade -- "buy 2 shares of tesla"
 npm run trade -- 'buy $100 of apple'
-npm run trade -- "buy 200 dollars of apple"
-npm run trade -- 'buy $200 share of nvidia'
+npm run trade -- "buy 200 dollars of nvidia"
+npm run trade -- "buy 0.01 btc"
+npm run trade -- 'buy $50 of eth'
 ```
 
-### Sell examples
+### Sell
 
 ```bash
 npm run trade -- "sell apple stock"
-npm run trade -- "sell microsoft stock"
 npm run trade -- "sell 2 shares of apple"
+npm run trade -- "sell eth"
 ```
 
-### Close position examples
+### Close position
 
 ```bash
 npm run trade -- "close my apple position"
-npm run trade -- "close my aapl position"
-npm run trade -- "close my tsla position"
+npm run trade -- "close my btc position"
 ```
 
----
-
-## Shell `$` Escaping Notes (bash/git bash)
-
-If you type:
-
-```bash
-npm run trade -- "buy $200 of nvidia"
-```
-
-bash may expand `$200` unexpectedly. Use one of these instead:
-
-```bash
-npm run trade -- 'buy $200 of nvidia'
-npm run trade -- "buy \$200 of nvidia"
-npm run trade -- "buy 200 dollars of nvidia"
-```
-
----
-
-## Dry Run Mode
-
-Use `--dry-run` (or `npm run trade:dry`) to parse and preview a command without placing any order:
+### Dry run preview
 
 ```bash
 npm run trade:dry -- "sell apple stock"
 npm run trade:dry -- 'buy $100 of tesla'
-npm run trade:dry -- "close my msft position"
 ```
 
-Dry-run output will show the resolved symbol, action, and order parameters without contacting Alpaca.
+### Shell `$` escaping note
 
----
+In bash, wrap dollar-amount commands in single quotes or escape the `$`:
 
-## Supported Stocks
+```bash
+npm run trade -- 'buy $200 of nvidia'     # single quotes — safe
+npm run trade -- "buy \$200 of nvidia"    # escaped — safe
+npm run trade -- "buy 200 dollars of nvidia"  # no $ — safe
+```
 
-| Company   | Aliases accepted                    | Symbol |
-|-----------|--------------------------------------|--------|
-| Apple     | apple, aapl                         | AAPL   |
-| Tesla     | tesla, tsla                         | TSLA   |
-| Microsoft | microsoft, msft                     | MSFT   |
-| Amazon    | amazon, amzn                        | AMZN   |
-| Google    | google, alphabet, googl, goog       | GOOGL  |
-| Meta      | meta, facebook, fb                  | META   |
-| Nvidia    | nvidia, nvda                        | NVDA   |
+### Supported stocks (CLI)
 
----
+| Company | Aliases | Symbol |
+|---|---|---|
+| Apple | apple, aapl | AAPL |
+| Tesla | tesla, tsla | TSLA |
+| Microsoft | microsoft, msft | MSFT |
+| Amazon | amazon, amzn | AMZN |
+| Google | google, alphabet, googl, goog | GOOGL |
+| Meta | meta, facebook, fb | META |
+| Nvidia | nvidia, nvda | NVDA |
 
-## Rejected Commands
+### Supported crypto (CLI)
 
-The bot will reject and exit non-zero for:
-
-- `"buy apple stock"` — buy requires a quantity or dollar amount
-- `"sell buy apple"` — ambiguous, contains both buy and sell
-- `"buy 1 share of bitcoin"` — unknown symbol
-- Sell/close when no position exists for that symbol
+| Asset | Aliases | Symbol |
+|---|---|---|
+| Bitcoin | bitcoin, btc, btc/usd | BTC/USD |
+| Ethereum | ethereum, eth, eth/usd | ETH/USD |
+| Solana | solana, sol, sol/usd | SOL/USD |
+| Dogecoin | dogecoin, doge, doge/usd | DOGE/USD |
 
 ---
 
 ## Safety Notes
 
-- **Paper trading only.** The bot hard-fails if `ALPACA_BASE_URL` is not exactly `https://paper-api.alpaca.markets`.
-- No live endpoint is ever contacted.
-- US equities, market orders only. No crypto, options, or margin logic.
-- `sell <symbol> stock` and `close` liquidate the full open position.
-- `sell <qty> shares of <symbol>` sells only the requested share count.
-- Orders are day orders (`time_in_force: day`).
+- **Paper trading only.** The bot hard-fails at startup if `ALPACA_BASE_URL` is not exactly `https://paper-api.alpaca.markets`.
+- Live trading mode is blocked in v1.
+- Always do a dry run before running live autopilot cycles for the first time.
+- Risk state (daily loss, cooldowns) persists across runs in `storage/riskState.json` and resets each trading day.

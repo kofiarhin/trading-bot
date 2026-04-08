@@ -1,11 +1,49 @@
-export function buildOrderFromIntent({ action, symbol, qty, notional, positionQty }) {
+function formatQuantity(assetClass, qty) {
+  const label = assetClass === "crypto" ? "unit" : "share";
+  return `${qty} ${label}${qty !== 1 ? "s" : ""}`;
+}
+
+export function buildOrderFromIntent({
+  action,
+  assetClass = "stock",
+  symbol,
+  qty,
+  notional,
+  positionQty,
+}) {
   if (action === "buy") {
+    if (qty == null && notional == null) {
+      const quantityExample =
+        assetClass === "crypto" ? `buy 0.01 ${symbol}` : `buy 1 share of ${symbol}`;
+
+      throw new Error(
+        `Buy order for ${symbol} requires a quantity or dollar amount. ` +
+          `Try: "${quantityExample}"` +
+          ` or "buy $100 of ${symbol}".`
+      );
+    }
+
     return {
+      assetClass,
       symbol,
       side: "buy",
       qty: qty ?? null,
       notional: notional ?? null,
     };
+  }
+
+  if (notional != null) {
+    if (assetClass === "crypto") {
+      throw new Error(
+        `Crypto sell orders do not support notional amounts. ` +
+          `Use a quantity or close the full ${symbol} position.`
+      );
+    }
+
+    throw new Error(
+      `Sell orders do not support dollar amounts. ` +
+        `Use a share quantity or sell the full ${symbol} position.`
+    );
   }
 
   const normalizedPositionQty = Number(positionQty);
@@ -15,6 +53,7 @@ export function buildOrderFromIntent({ action, symbol, qty, notional, positionQt
 
   if (action === "close") {
     return {
+      assetClass,
       symbol,
       side: "sell",
       qty: normalizedPositionQty,
@@ -24,12 +63,15 @@ export function buildOrderFromIntent({ action, symbol, qty, notional, positionQt
 
   if (qty != null) {
     if (qty > normalizedPositionQty) {
+      const label = assetClass === "crypto" ? "units" : "shares";
+
       throw new Error(
-        `Cannot sell ${qty} shares of ${symbol}; only ${normalizedPositionQty} shares are open.`
+        `Cannot sell ${qty} ${label} of ${symbol}; only ${normalizedPositionQty} ${label} are open.`
       );
     }
 
     return {
+      assetClass,
       symbol,
       side: "sell",
       qty,
@@ -38,6 +80,7 @@ export function buildOrderFromIntent({ action, symbol, qty, notional, positionQt
   }
 
   return {
+    assetClass,
     symbol,
     side: "sell",
     qty: normalizedPositionQty,
@@ -45,19 +88,19 @@ export function buildOrderFromIntent({ action, symbol, qty, notional, positionQt
   };
 }
 
-export function formatSummary({ action, symbol, qty, notional, positionQty }) {
+export function formatSummary({ action, assetClass = "stock", symbol, qty, notional, positionQty }) {
   if (action === "buy") {
     if (notional != null) return `BUY ${symbol} — notional $${notional}`;
-    return `BUY ${symbol} — ${qty} share${qty !== 1 ? "s" : ""}`;
+    return `BUY ${symbol} — ${formatQuantity(assetClass, qty)}`;
   }
 
   if (action === "close") {
-    return `SELL ${symbol} — ${positionQty} share${positionQty !== 1 ? "s" : ""} (full position)`;
+    return `SELL ${symbol} — ${formatQuantity(assetClass, positionQty)} (full position)`;
   }
 
   if (qty != null) {
-    return `SELL ${symbol} — ${qty} share${qty !== 1 ? "s" : ""}`;
+    return `SELL ${symbol} — ${formatQuantity(assetClass, qty)}`;
   }
 
-  return `SELL ${symbol} — ${positionQty} share${positionQty !== 1 ? "s" : ""} (full position)`;
+  return `SELL ${symbol} — ${formatQuantity(assetClass, positionQty)} (full position)`;
 }

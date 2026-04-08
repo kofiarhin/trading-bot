@@ -1,4 +1,4 @@
-import { resolveSymbol } from "./symbols.js";
+import { resolveAsset, SUPPORTED_ASSET_MESSAGE } from "./symbols.js";
 
 function buildShellExpansionError() {
   return (
@@ -11,11 +11,21 @@ function buildShellExpansionError() {
   );
 }
 
+function cleanSymbolSearch(text) {
+  return text
+    .replace(/\$\s*\d+(?:\.\d+)?/gi, "")
+    .replace(/\d+(?:\.\d+)?\s*dollars?\b/gi, "")
+    .replace(/\d+(?:\.\d+)?\s*shares?\b/gi, "")
+    .replace(/\b(buy|sell|close|my|position|stock|shares?|of|a|the|some)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /**
  * Parses a natural language trading command into a structured intent.
  *
  * Returns:
- *   { action, symbol, qty, notional }
+ *   { action, assetClass, symbol, qty, notional, rawSymbol }
  *   action: "buy" | "sell" | "close" | "exit"
  *
  * Throws a descriptive Error on ambiguous or invalid input.
@@ -25,10 +35,18 @@ export function parseCommand(input) {
     throw new Error("No command provided.");
   }
 
-  const raw = input.trim().toLowerCase();
+  const original = input.trim();
+  const raw = original.toLowerCase();
 
   if (/^(exit|quit|q)$/.test(raw)) {
-    return { action: "exit", symbol: null, qty: null, notional: null };
+    return {
+      action: "exit",
+      assetClass: null,
+      symbol: null,
+      qty: null,
+      notional: null,
+      rawSymbol: null,
+    };
   }
 
   const hasBuy = /\bbuy\b/.test(raw);
@@ -88,38 +106,31 @@ export function parseCommand(input) {
     }
   }
 
-  const cleaned = raw
-    .replace(/\$\s*\d+(?:\.\d+)?/, "")
-    .replace(/\d+(?:\.\d+)?\s*dollars?/, "")
-    .replace(/\d+(?:\.\d+)?\s*shares?/, "")
-    .replace(/\b(buy|sell|close|my|position|stock|shares?|of|a|the|some)\b/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
+  const cleanedOriginal = cleanSymbolSearch(original);
+  const cleaned = cleanSymbolSearch(raw);
+  const tokensOriginal = cleanedOriginal.split(/\s+/).filter(Boolean);
   const tokens = cleaned.split(/\s+/).filter(Boolean);
-  let symbol = null;
 
-  for (const token of tokens) {
-    const resolved = resolveSymbol(token);
+  let symbol = null;
+  let assetClass = null;
+  let rawSymbol = null;
+
+  for (const [index, token] of tokens.entries()) {
+    const resolved = resolveAsset(token);
     if (resolved) {
-      symbol = resolved;
+      symbol = resolved.symbol;
+      assetClass = resolved.assetClass;
+      rawSymbol = tokensOriginal[index] ?? token;
       break;
     }
   }
 
   if (!symbol) {
     throw new Error(
-      `Could not resolve a known stock symbol from: "${input}". ` +
-        `Supported companies: Apple, Tesla, Microsoft, Amazon, Google, Meta, Nvidia (or their tickers).`
+      `Could not resolve a supported stock or crypto symbol from: "${input}". ` +
+        SUPPORTED_ASSET_MESSAGE
     );
   }
 
-  if (action === "buy" && qty === null && notional === null) {
-    throw new Error(
-      `Buy command requires a share quantity or dollar amount. ` +
-        `Try: "buy 1 share of ${symbol}" or "buy $100 of ${symbol}".`
-    );
-  }
-
-  return { action, symbol, qty, notional };
+  return { action, assetClass, symbol, qty, notional, rawSymbol };
 }

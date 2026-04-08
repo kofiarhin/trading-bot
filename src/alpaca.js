@@ -61,7 +61,7 @@ async function alpacaFetch(path, options = {}) {
  */
 export async function getPosition(symbol) {
   try {
-    const position = await alpacaFetch(`/v2/positions/${symbol}`);
+    const position = await alpacaFetch(`/v2/positions/${encodeURIComponent(symbol)}`);
     return position;
   } catch (err) {
     // Alpaca returns 404 when there is no open position
@@ -71,23 +71,35 @@ export async function getPosition(symbol) {
 }
 
 /**
- * Submits a market order to Alpaca paper trading.
- * Provide either qty (shares) or notional (dollars), not both.
- * @param {{ symbol: string, side: "buy"|"sell", qty?: number, notional?: number }}
- * @returns {Promise<object>}
+ * Builds an Alpaca market order payload.
+ * Crypto orders use `gtc`; stock orders use `day`.
+ * @param {{ symbol: string, assetClass?: "stock"|"crypto", side: "buy"|"sell", qty?: number, notional?: number }} order
+ * @returns {object}
  */
-export async function submitMarketOrder({ symbol, side, qty, notional }) {
+export function buildMarketOrderPayload({
+  symbol,
+  assetClass = "stock",
+  side,
+  qty,
+  notional,
+}) {
   if (!symbol || !side) throw new Error("symbol and side are required.");
-  if (qty == null && notional == null)
+  if (qty == null && notional == null) {
     throw new Error("Either qty or notional must be provided.");
-  if (qty != null && notional != null)
+  }
+  if (qty != null && notional != null) {
     throw new Error("Provide qty OR notional, not both.");
+  }
+  if (side === "sell" && notional != null) {
+    throw new Error("Sell market orders do not support notional amounts.");
+  }
 
+  const normalizedAssetClass = assetClass === "crypto" ? "crypto" : "stock";
   const body = {
     symbol,
     side,
     type: "market",
-    time_in_force: "day",
+    time_in_force: normalizedAssetClass === "crypto" ? "gtc" : "day",
   };
 
   if (qty != null) {
@@ -96,6 +108,17 @@ export async function submitMarketOrder({ symbol, side, qty, notional }) {
     body.notional = String(notional);
   }
 
+  return body;
+}
+
+/**
+ * Submits a market order to Alpaca paper trading.
+ * Provide either qty (shares) or notional (dollars), not both.
+ * @param {{ symbol: string, assetClass?: "stock"|"crypto", side: "buy"|"sell", qty?: number, notional?: number }}
+ * @returns {Promise<object>}
+ */
+export async function submitMarketOrder(order) {
+  const body = buildMarketOrderPayload(order);
   return alpacaFetch("/v2/orders", {
     method: "POST",
     body: JSON.stringify(body),
