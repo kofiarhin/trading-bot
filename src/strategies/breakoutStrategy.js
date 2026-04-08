@@ -13,6 +13,8 @@ import { calcATR } from "../indicators/atr.js";
 import { calcHighestHigh } from "../indicators/highestHigh.js";
 import { calcAverageVolume } from "../indicators/averageVolume.js";
 
+const STRATEGY_NAME = "momentum_breakout_atr_v1";
+
 const DEFAULTS = {
   breakoutLookback: 20,
   volumeLookback: 20,
@@ -53,8 +55,33 @@ export function evaluateBreakout({
   const opts = { ...DEFAULTS, ...options };
   const timestamp = new Date().toISOString();
 
+  // Metrics accumulated as we compute them — included in every decision return.
+  let closePrice = null;
+  let breakoutLevel = null;
+  let atr = null;
+  let volumeRatio = null;
+  let distanceToBreakoutPct = null;
+
   function reject(reason) {
-    return { approved: false, symbol, reason, timestamp };
+    return {
+      approved: false,
+      symbol,
+      assetClass,
+      timeframe,
+      strategyName: STRATEGY_NAME,
+      reason,
+      timestamp,
+      closePrice,
+      breakoutLevel,
+      atr,
+      volumeRatio,
+      distanceToBreakoutPct,
+      entryPrice: null,
+      stopLoss: null,
+      takeProfit: null,
+      quantity: null,
+      riskAmount: null,
+    };
   }
 
   if (!Array.isArray(bars) || bars.length < opts.breakoutLookback + 2) {
@@ -62,13 +89,16 @@ export function evaluateBreakout({
   }
 
   const latestBar = bars[bars.length - 1];
-  const entryPrice = latestBar.c;
+  closePrice = latestBar.c;
+  const entryPrice = closePrice;
   const currentVolume = latestBar.v;
 
   // --- Highest high (breakout level) ---
-  const breakoutLevel = calcHighestHigh(bars, opts.breakoutLookback);
-  if (breakoutLevel === null) return reject("could not compute breakout level");
-  if (entryPrice <= breakoutLevel) {
+  const rawBreakoutLevel = calcHighestHigh(bars, opts.breakoutLookback);
+  if (rawBreakoutLevel === null) return reject("could not compute breakout level");
+  breakoutLevel = parseFloat(rawBreakoutLevel.toFixed(4));
+  distanceToBreakoutPct = parseFloat((((entryPrice - breakoutLevel) / breakoutLevel) * 100).toFixed(4));
+  if (entryPrice <= rawBreakoutLevel) {
     return reject(
       `no breakout: close ${entryPrice} ≤ highest high ${breakoutLevel.toFixed(4)}`
     );
@@ -77,7 +107,7 @@ export function evaluateBreakout({
   // --- Volume confirmation ---
   const avgVolume = calcAverageVolume(bars, opts.volumeLookback);
   if (avgVolume === null || avgVolume === 0) return reject("could not compute average volume");
-  const volumeRatio = currentVolume / avgVolume;
+  volumeRatio = parseFloat((currentVolume / avgVolume).toFixed(4));
   if (volumeRatio < opts.minVolRatio) {
     return reject(
       `volume confirmation failed: ratio ${volumeRatio.toFixed(2)} < ${opts.minVolRatio}`
@@ -85,8 +115,9 @@ export function evaluateBreakout({
   }
 
   // --- ATR ---
-  const atr = calcATR(bars, opts.atrPeriod);
-  if (atr === null || atr <= 0) return reject("invalid ATR");
+  const rawAtr = calcATR(bars, opts.atrPeriod);
+  if (rawAtr === null || rawAtr <= 0) return reject("invalid ATR");
+  atr = parseFloat(rawAtr.toFixed(4));
 
   // --- Stop-loss ---
   const stopLoss = entryPrice - opts.atrMultiplier * atr;
@@ -107,12 +138,15 @@ export function evaluateBreakout({
     symbol,
     assetClass,
     timeframe,
+    strategyName: STRATEGY_NAME,
+    closePrice,
     entryPrice,
     stopLoss: parseFloat(stopLoss.toFixed(4)),
     takeProfit: parseFloat(takeProfit.toFixed(4)),
-    atr: parseFloat(atr.toFixed(4)),
-    breakoutLevel: parseFloat(breakoutLevel.toFixed(4)),
-    volumeRatio: parseFloat(volumeRatio.toFixed(4)),
+    atr,
+    breakoutLevel,
+    volumeRatio,
+    distanceToBreakoutPct,
     riskPerUnit: parseFloat(riskPerUnit.toFixed(4)),
     quantity,
     riskAmount: parseFloat(riskAmount.toFixed(4)),

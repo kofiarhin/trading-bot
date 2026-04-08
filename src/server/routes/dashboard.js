@@ -5,6 +5,8 @@ import { fileURLToPath } from "url";
 import { getAccount, getOpenPositions } from "../../execution/alpacaTrading.js";
 import { config } from "../../config/env.js";
 import { loadDecisionLog } from "../../journal/decisionLogger.js";
+import { getOpenTrades } from "../../journal/openTradesStore.js";
+import { normalizeSymbol } from "../../utils/symbolNorm.js";
 import { logger } from "../../utils/logger.js";
 import { etDateString } from "../../utils/time.js";
 
@@ -200,11 +202,18 @@ router.get("/decisions", (req, res) => {
     symbol: d.symbol,
     assetClass: formatAssetClass(d.assetClass),
     decision: d.approved ? "Approved" : "Rejected",
+    strategyName: d.strategyName ?? null,
     reason: d.reason,
-    closePrice: d.closePrice,
-    breakoutLevel: d.breakoutLevel,
-    atr: d.atr,
-    volumeRatio: d.volumeRatio,
+    closePrice: d.closePrice ?? null,
+    breakoutLevel: d.breakoutLevel ?? null,
+    atr: d.atr ?? null,
+    volumeRatio: d.volumeRatio ?? null,
+    distanceToBreakoutPct: d.distanceToBreakoutPct ?? null,
+    entryPrice: d.entryPrice ?? null,
+    stopLoss: d.stopLoss ?? null,
+    takeProfit: d.takeProfit ?? null,
+    quantity: d.quantity ?? null,
+    riskAmount: d.riskAmount ?? null,
   }));
   // Most recent first
   mapped.reverse();
@@ -235,17 +244,27 @@ router.get("/signals", (req, res) => {
 // GET /api/dashboard/positions/open
 router.get("/positions/open", async (req, res) => {
   try {
-    const positions = await getOpenPositions();
+    const [positions, openTrades] = await Promise.all([
+      getOpenPositions(),
+      Promise.resolve(getOpenTrades()),
+    ]);
     const journal = getTodayJournal();
 
-    // Build a lookup from journal for stop/target/risk/strategy/openedAt
+    // Build lookups keyed by normalized symbol for cross-day and crypto compatibility
+    const tradeLookup = {};
+    for (const t of openTrades) {
+      tradeLookup[normalizeSymbol(t.symbol)] = t;
+    }
+
     const journalLookup = {};
     for (const e of journal) {
-      journalLookup[e.symbol] = e;
+      journalLookup[normalizeSymbol(e.symbol)] = e;
     }
 
     const mapped = positions.map((p) => {
-      const je = journalLookup[p.symbol] ?? null;
+      const key = normalizeSymbol(p.symbol);
+      const stored = tradeLookup[key] ?? null;
+      const je = journalLookup[key] ?? null;
       return {
         symbol: p.symbol,
         assetClass: formatAssetClass(p.asset_class),
@@ -256,11 +275,12 @@ router.get("/positions/open", async (req, res) => {
         unrealizedPnl: parseFloat(p.unrealized_pl),
         unrealizedPnlPct: parseFloat(p.unrealized_plpc) * 100,
         side: p.side,
-        stopLoss: je?.stopLoss ?? null,
-        takeProfit: je?.takeProfit ?? null,
-        openedAt: je?.signalTime ?? je?.recordedAt ?? null,
-        riskAmount: je?.riskAmount ?? null,
-        strategyName: je?.strategyName ?? null,
+        // openTradesStore takes priority; today's journal as fallback
+        strategyName: stored?.strategyName ?? je?.strategyName ?? null,
+        openedAt: stored?.openedAt ?? je?.signalTime ?? je?.recordedAt ?? null,
+        stopLoss: stored?.stopLoss ?? je?.stopLoss ?? null,
+        takeProfit: stored?.takeProfit ?? je?.takeProfit ?? null,
+        riskAmount: stored?.riskAmount ?? je?.riskAmount ?? null,
       };
     });
     res.json(mapped);

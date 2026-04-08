@@ -2,6 +2,8 @@
 import { submitOrder, getAccount } from "./alpacaTrading.js";
 import { logger } from "../utils/logger.js";
 import { config } from "../config/env.js";
+import { saveOpenTrade } from "../journal/openTradesStore.js";
+import { normalizeSymbol } from "../utils/symbolNorm.js";
 
 /**
  * Submits a paper trade order with pre-flight safety checks.
@@ -55,6 +57,22 @@ export async function placeOrder({ decision, dryRun = false }) {
     });
 
     logger.info("Order accepted", { symbol, orderId: response.id, status: response.status });
+
+    saveOpenTrade({
+      symbol,
+      normalizedSymbol: normalizeSymbol(symbol),
+      assetClass,
+      strategyName: decision.strategyName ?? "momentum_breakout_atr_v1",
+      source: "autopilot",
+      openedAt: new Date().toISOString(),
+      entryPrice,
+      stopLoss,
+      takeProfit,
+      riskAmount: decision.riskAmount ?? null,
+      quantity,
+      orderId: response.id ?? null,
+    });
+
     return {
       submitted: true,
       orderId: response.id,

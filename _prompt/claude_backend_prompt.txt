@@ -1,0 +1,226 @@
+You are updating an existing Node.js trading bot codebase.
+
+Goal:
+Implement the next backend upgrade in one pass:
+
+1. decision metrics on rejected decisions
+2. durable open trades store
+3. positions enrichment merge using the open trades store
+
+This is a backend-only improvement. The frontend already has the table columns and is waiting for real data.
+
+Current state:
+- Recent Decisions now shows rejected decisions
+- Close Price and Breakout Level are partially appearing
+- ATR and Volume Ratio are still empty
+- Open Positions table has columns for:
+  - Strategy
+  - Opened
+  - Stop
+  - Target
+  - Risk $
+  but those values still show "—"
+- dashboard currently enriches positions using only today’s journal, which is not enough
+
+What needs to be fixed:
+- rejected decisions must include structured metrics
+- approved decisions should also use the same normalized shape
+- decisions endpoint must return metrics directly
+- create a durable open-trades store
+- save open trades when a trade is successfully placed
+- merge Alpaca open positions with the open-trades store
+- preserve current architecture as much as possible
+
+Important rules:
+- Do not explain first
+- Inspect the current real files
+- Return full updated files only
+- Do not include unchanged files
+- Keep code copy-paste ready
+- Preserve dry-run behavior
+- Preserve paper trading only
+- Keep existing storage-folder approach
+- Be defensive with file handling
+- Normalize symbols consistently
+- Avoid breaking existing dashboard endpoints
+
+Files likely involved:
+- src/strategies/breakoutStrategy.js
+- src/journal/decisionLogger.js
+- src/journal/tradeJournal.js
+- src/execution/orderManager.js
+- src/server/routes/dashboard.js
+- src/utils/normalizeSymbol.js
+- add new file: src/journal/openTradesStore.js
+- possibly update any helper file needed for symbol normalization or safe storage access
+
+PART 1 — Decision metrics
+
+Current problem:
+Rejected decisions only return a reason string, which is why the dashboard shows:
+- close and breakout partially
+- ATR and vol ratio as empty
+- no consistent structured metrics
+
+Required implementation:
+Make both approved and rejected decisions use a normalized decision object shape.
+
+Required decision shape:
+{
+  approved: boolean,
+  symbol: string,
+  assetClass: "stock" | "crypto",
+  timeframe: string,
+  strategyName: string | null,
+  reason: string,
+  timestamp: string,
+
+  closePrice: number | null,
+  breakoutLevel: number | null,
+  atr: number | null,
+  volumeRatio: number | null,
+  distanceToBreakoutPct: number | null,
+
+  entryPrice: number | null,
+  stopLoss: number | null,
+  takeProfit: number | null,
+  quantity: number | null,
+  riskAmount: number | null
+}
+
+Required strategy behavior:
+In breakoutStrategy.js, rejected decisions must include metrics where available.
+
+Examples:
+- no breakout rejection should include:
+  - closePrice
+  - breakoutLevel
+  - atr
+  - volumeRatio
+  - distanceToBreakoutPct
+
+Formula:
+distanceToBreakoutPct =
+  breakoutLevel ? ((closePrice - breakoutLevel) / breakoutLevel) * 100 : null;
+
+Approved decisions should also include:
+- closePrice
+- breakoutLevel
+- atr
+- volumeRatio
+- distanceToBreakoutPct
+- strategyName
+
+If a value is not available, return null, not undefined.
+
+Update decisionLogger.js so it persists all these fields for every decision.
+
+Update dashboard decisions route so it returns these structured fields directly.
+Do not parse the reason string to reconstruct metrics.
+
+PART 2 — Durable open trades store
+
+Current problem:
+Open Positions is still showing:
+- Strategy —
+- Opened —
+- Stop —
+- Target —
+- Risk —
+
+because dashboard is only enriching positions from today’s journal.
+
+Required implementation:
+Create a durable open trades state store.
+
+New file:
+- src/journal/openTradesStore.js
+
+Storage location:
+- storage/trades/open.json
+
+Required open trade shape:
+{
+  symbol: string,
+  normalizedSymbol: string,
+  assetClass: "stock" | "crypto",
+  strategyName: string,
+  source: "autopilot",
+  openedAt: string,
+  entryPrice: number | null,
+  stopLoss: number | null,
+  takeProfit: number | null,
+  riskAmount: number | null,
+  quantity: number | null,
+  status: "open",
+  orderId: string | null
+}
+
+Required exported functions:
+getOpenTrades()
+saveOpenTrade(trade)
+removeOpenTrade(normalizedSymbol)
+findOpenTrade(normalizedSymbol)
+
+Rules:
+- ensure storage/trades exists
+- open.json should always contain an array
+- upsert by normalizedSymbol
+- do not create duplicates
+- use normalized symbols consistently
+
+PART 3 — Save open trades on successful order placement
+
+In orderManager.js:
+When an approved trade is successfully placed in paper mode, save it to openTradesStore.
+
+Use the approved decision object to populate:
+- symbol
+- normalizedSymbol
+- assetClass
+- strategyName
+- entryPrice
+- stopLoss
+- takeProfit
+- riskAmount
+- quantity
+- openedAt
+- orderId if available
+
+Do not write to openTradesStore in dry-run mode.
+
+PART 4 — Merge positions with open trades
+
+In dashboard route:
+Replace enrichment based only on today’s journal.
+
+New enrichment flow:
+1. fetch Alpaca open positions
+2. fetch open trades from openTradesStore
+3. normalize symbols for both sources
+4. merge by normalized symbol
+
+Use Alpaca as source of truth for:
+- current price
+- market value
+- unrealized pnl
+- pnl %
+- broker quantity if needed
+
+Use openTradesStore as source of truth for:
+- strategyName
+- openedAt
+- stopLoss
+- takeProfit
+- riskAmount
+- entryPrice if you prefer strategy-tracked entry
+
+Backward compatibility:
+- if a position has no matching open trade metadata, still return it safely with nulls
+- do not break existing manually-opened positions
+
+Acceptance criteria:
+- rejected decisions include structured metrics
+- dashboard columns populate correctly
+- openTradesStore works
+- positions are enriched correctly

@@ -28,5 +28,45 @@
     "errors": 0,
     "timestamp": "2026-04-08T07:02:02.026Z",
     "recordedAt": "2026-04-08T07:02:02.027Z"
+  },
+  {
+    "type": "completed",
+    "scanned": 3,
+    "approved": 0,
+    "placed": 0,
+    "skipped": 3,
+    "errors": 0,
+    "timestamp": "2026-04-08T07:33:28.695Z",
+    "recordedAt": "2026-04-08T07:33:28.696Z"
+  },
+  {
+    "type": "completed",
+    "scanned": 3,
+    "approved": 0,
+    "placed": 0,
+    "skipped": 3,
+    "errors": 0,
+    "timestamp": "2026-04-08T07:34:08.614Z",
+    "recordedAt": "2026-04-08T07:34:08.614Z"
+  },
+  {
+    "type": "completed",
+    "scanned": 3,
+    "approved": 0,
+    "placed": 0,
+    "skipped": 3,
+    "errors": 0,
+    "timestamp": "2026-04-08T07:51:01.772Z",
+    "recordedAt": "2026-04-08T07:51:01.782Z"
+  },
+  {
+    "type": "completed",
+    "scanned": 3,
+    "approved": 0,
+    "placed": 0,
+    "skipped": 3,
+    "errors": 0,
+    "timestamp": "2026-04-08T07:51:10.511Z",
+    "recordedAt": "2026-04-08T07:51:10.512Z"
   }
 ]
