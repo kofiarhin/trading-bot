@@ -35,6 +35,20 @@ async function dataFetch(path) {
 }
 
 /**
+ * Computes a UTC start/end window wide enough to cover `bars + bufferBars`
+ * 15-minute bars, looking back from now.
+ */
+function getLookbackWindow({ bars, minutesPerBar = 15, bufferBars = 20 }) {
+  const now = new Date();
+  const totalMinutes = (bars + bufferBars) * minutesPerBar;
+  const start = new Date(now.getTime() - totalMinutes * 60 * 1000);
+  return {
+    start: start.toISOString(),
+    end: now.toISOString(),
+  };
+}
+
+/**
  * Fetches recent 15-minute bars for a stock symbol.
  * Returns an array of bar objects sorted oldest → newest.
  * Each bar: { t, o, h, l, c, v }
@@ -44,11 +58,14 @@ async function dataFetch(path) {
  * @returns {Promise<Array<{ t: string, o: number, h: number, l: number, c: number, v: number }>>}
  */
 export async function fetchStockBars(symbol, limit = 60) {
+  const { start, end } = getLookbackWindow({ bars: limit });
   const params = new URLSearchParams({
     timeframe: "15Min",
     limit: String(limit),
     adjustment: "raw",
     feed: "iex",
+    start,
+    end,
   });
 
   const data = await dataFetch(
@@ -69,10 +86,13 @@ export async function fetchStockBars(symbol, limit = 60) {
  * @returns {Promise<Array<{ t: string, o: number, h: number, l: number, c: number, v: number }>>}
  */
 export async function fetchCryptoBars(symbol, limit = 60) {
+  const { start, end } = getLookbackWindow({ bars: limit });
   const params = new URLSearchParams({
     symbols: symbol,
     timeframe: "15Min",
     limit: String(limit),
+    start,
+    end,
   });
 
   const data = await dataFetch(`/v1beta3/crypto/us/bars?${params}`);

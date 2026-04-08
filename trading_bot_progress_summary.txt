@@ -1,0 +1,124 @@
+Trading Bot Autopilot — Progress Summary & Next Steps
+
+1. What Has Been Successfully Achieved
+
+The trading bot has successfully transitioned from a basic execution tool into a structured, data-driven autopilot trading engine.
+
+Key milestones completed:
+
+- Stocks and crypto are now enabled by default
+- Unified market-data pipeline implemented (stocks + crypto)
+- Market-hours logic correctly separates:
+  - Stocks → session-based (market hours only)
+  - Crypto → 24/7 eligibility
+- Alpaca integration working for both asset classes
+- Historical data fetching fixed (correct time window + sufficient bars)
+- Strategy engine implemented:
+  - Momentum Breakout + ATR
+- Risk guard framework implemented:
+  - position limits
+  - validation rules
+  - duplicate prevention
+- Dry-run mode working safely (no orders placed)
+- Structured logging implemented across the pipeline
+- Autopilot command executes full:
+  - scan → evaluate → decision flow
+
+
+2. Current System Behavior
+
+The system now executes the following pipeline:
+
+Load account
+→ Load open positions
+→ Build universe (stocks + crypto)
+→ Filter by eligibility (market hours + asset rules)
+→ Fetch market data (bars)
+→ Validate data
+→ Compute indicators
+→ Run strategy
+→ Apply risk guards
+→ Log decisions
+→ Exit
+
+Current outcome:
+- The bot evaluates real-time market data
+- Trades are rejected correctly when conditions are not met
+- No system-level failures in the pipeline
+
+
+3. Validation of System Health
+
+Recent execution confirms:
+
+- Crypto is successfully scanned outside stock market hours
+- Strategy is actively evaluating live market conditions
+- Rejections are logical (e.g. no breakout)
+- No crashes or data-fetch failures remain
+- Autopilot flow is stable and consistent
+
+Example:
+Strategy rejected {"symbol":"BTC/USD","reason":"no breakout"}
+
+This is expected and correct behavior.
+
+
+4. Next Goal
+
+Achieve and verify a full trade lifecycle:
+
+Target flow:
+
+- Detect a valid breakout signal
+- Approve trade based on strategy
+- Calculate position size (risk-based)
+- Set stop-loss and take-profit
+- Execute paper trade (or log in dry-run)
+- Record trade in journal
+- Monitor position
+- Exit via stop-loss or take-profit
+
+
+5. Immediate Objective
+
+Trigger and validate the first approved trade under real market conditions.
+
+signal → approval → sizing → execution → logging
+
+
+6. Recommended Next Steps
+
+Short-term actions:
+
+- Run autopilot during active market hours
+- Expand symbol universe if needed
+- Add richer strategy logging (close, breakout level, ATR, volume ratio)
+- Verify risk guards with current open positions
+- Confirm duplicate prevention works (BTC/USD vs BTCUSD)
+
+Next system upgrade:
+
+- Implement position monitoring:
+  - stop-loss execution
+  - take-profit execution
+  - optional stale trade exit
+
+
+7. Summary
+
+The system is no longer in a broken or experimental state.
+
+It is now a functioning, real-time trading decision engine.
+
+Remaining work focuses on:
+- validation
+- refinement
+- execution accuracy
+- performance evaluation
+
+Final State:
+
+You have successfully built:
+- a multi-asset (stocks + crypto) autopilot engine
+- a real-time strategy evaluation system
+- a safe, risk-controlled execution pipeline
