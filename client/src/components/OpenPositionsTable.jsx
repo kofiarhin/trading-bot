@@ -1,0 +1,83 @@
+import { useOpenPositions } from "../hooks/queries/useDashboard.js";
+
+function fmt(n, d = 2) {
+  if (n == null) return "—";
+  return Number(n).toLocaleString("en-US", {
+    minimumFractionDigits: d,
+    maximumFractionDigits: d,
+  });
+}
+
+function PnlCell({ value }) {
+  if (value == null) return <td className="px-4 py-3 text-right text-slate-400">—</td>;
+  const color = value > 0 ? "text-emerald-400" : value < 0 ? "text-red-400" : "text-slate-400";
+  const sign = value > 0 ? "+" : "";
+  return (
+    <td className={`px-4 py-3 text-right font-mono ${color}`}>
+      {sign}${fmt(value)}
+    </td>
+  );
+}
+
+export default function OpenPositionsTable() {
+  const { data: positions = [], isLoading } = useOpenPositions();
+
+  return (
+    <div className="rounded-xl bg-slate-800 border border-slate-700 overflow-hidden">
+      <div className="px-5 py-4 border-b border-slate-700 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wide">
+          Open Positions
+        </h2>
+        {positions.length > 0 && (
+          <span className="text-xs text-slate-400">{positions.length} position{positions.length !== 1 ? "s" : ""}</span>
+        )}
+      </div>
+
+      {isLoading ? (
+        <p className="p-5 text-slate-500 text-sm">Loading...</p>
+      ) : positions.length === 0 ? (
+        <p className="p-5 text-slate-500 text-sm">No open positions.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-slate-400 uppercase tracking-wide border-b border-slate-700">
+                <th className="px-4 py-3 text-left">Symbol</th>
+                <th className="px-4 py-3 text-left">Class</th>
+                <th className="px-4 py-3 text-right">Qty</th>
+                <th className="px-4 py-3 text-right">Entry</th>
+                <th className="px-4 py-3 text-right">Current</th>
+                <th className="px-4 py-3 text-right">Market Value</th>
+                <th className="px-4 py-3 text-right">Unrealized PnL</th>
+                <th className="px-4 py-3 text-right">PnL %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {positions.map((p, i) => {
+                const pnlPct = p.unrealizedPnlPct;
+                const pctColor = pnlPct > 0 ? "text-emerald-400" : pnlPct < 0 ? "text-red-400" : "text-slate-400";
+                return (
+                  <tr
+                    key={i}
+                    className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors"
+                  >
+                    <td className="px-4 py-3 font-mono font-semibold text-white">{p.symbol}</td>
+                    <td className="px-4 py-3 text-slate-400 capitalize">{p.assetClass}</td>
+                    <td className="px-4 py-3 text-right font-mono">{fmt(p.qty, 4)}</td>
+                    <td className="px-4 py-3 text-right font-mono">${fmt(p.entryPrice)}</td>
+                    <td className="px-4 py-3 text-right font-mono">${fmt(p.currentPrice)}</td>
+                    <td className="px-4 py-3 text-right font-mono">${fmt(p.marketValue)}</td>
+                    <PnlCell value={p.unrealizedPnl} />
+                    <td className={`px-4 py-3 text-right font-mono ${pctColor}`}>
+                      {pnlPct != null ? `${pnlPct > 0 ? "+" : ""}${fmt(pnlPct, 2)}%` : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
