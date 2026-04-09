@@ -57,7 +57,7 @@ export function isDryRunEnabled(options = {}) {
     return options.dryRun;
   }
 
-  if (process.argv.includes('--dry')) {
+  if (process.argv.includes('--dry') || process.argv.includes('--dry-run')) {
     return true;
   }
 

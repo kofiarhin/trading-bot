@@ -71,6 +71,10 @@ export async function checkOpenTradesForExit(openTrades) {
     return [];
   }
 
+  function isValidExitLevel(value) {
+    return typeof value === "number" && Number.isFinite(value) && value > 0;
+  }
+
   const exits = [];
 
   for (const trade of trades) {
@@ -86,10 +90,10 @@ export async function checkOpenTradesForExit(openTrades) {
     const stopLoss = trade.stopLoss ?? trade.stop ?? null;
     const takeProfit = trade.takeProfit ?? trade.target ?? null;
 
-    if (stopLoss != null && currentPrice <= stopLoss) {
+    if (isValidExitLevel(stopLoss) && currentPrice <= stopLoss) {
       logger.info("Stop loss hit", { symbol: key, currentPrice, stopLoss });
       exits.push({ tradeId: trade.tradeId, symbol: trade.symbol, shouldExit: true, reason: "stop_loss", currentPrice });
-    } else if (takeProfit != null && currentPrice >= takeProfit) {
+    } else if (isValidExitLevel(takeProfit) && currentPrice >= takeProfit) {
       logger.info("Take profit hit", { symbol: key, currentPrice, takeProfit });
       exits.push({ tradeId: trade.tradeId, symbol: trade.symbol, shouldExit: true, reason: "take_profit", currentPrice });
     }

@@ -1,0 +1,122 @@
+You are working inside the existing trading bot repository. Make the fixes directly in the codebase. Do not redesign the app. Do not add fluff. Implement the minimum safe, production-leaning fix to resolve the current exit-engine bugs and align entry/exit lifecycle behavior.
+
+## Context
+
+The current repo has these confirmed problems:
+
+1. Dry-run mode is NOT being honored when running:
+npm run autopilot:dry
+
+This script runs:
+node -r ./src/config/loadEnv.cjs src/autopilot.js --dry-run
+
+But actual broker close orders are still being sent because the current dry-run detection only checks `--dry`, not `--dry-run`.
+
+2. False take-profit exits are happening because some open trades have `takeProfit: 0`, and the exit engine currently treats `0` as a valid target because it only checks `takeProfit != null`.
+
+3. The repo currently has schema drift across entry, journal, and exit logic:
+- some places use `stop` / `target` / `qty` / `risk` / `strategy`
+- others use `stopLoss` / `takeProfit` / `quantity` / `riskAmount` / `strategyName`
+
+4. Entry and exit are using different order paths:
+- `src/autopilot.js` uses `./execution/placeOrder.js`
+- exits use `./execution/orderManager.js`
+
+---
+
+# Goals
+
+Implement a safe full fix for:
+- dry-run protection
+- invalid stop/target handling
+- open-trade schema normalization
+- regression tests for exit behavior
+
+---
+
+# Required changes
+
+## 1) Fix dry-run detection globally
+
+Update `src/lib/alpaca.js` so `isDryRunEnabled()` detects both:
+- --dry-run
+- --dry
+
+Keep env-based detection.
+
+---
+
+## 2) Ensure dry-run prevents ALL exit side effects
+
+In dry-run:
+- do NOT send broker orders
+- do NOT mutate journal
+- do NOT remove open trades
+- ONLY log simulated actions
+
+---
+
+## 3) Fix invalid stop/target handling
+
+In `positionMonitor.js`:
+
+Add:
+function isValidExitLevel(value) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
+Only trigger exits when levels are valid.
+
+---
+
+## 4) Normalize trade data safely
+
+Support both:
+- stopLoss / stop
+- takeProfit / target
+- quantity / qty
+- riskAmount / risk
+- strategyName / strategy
+
+Do normalization at read boundaries.
+
+---
+
+## 5) Make closeTrade robust
+
+- Compute pnl and pnlPct
+- Support legacy fields
+- Fail clearly on invalid data
+- Respect dry-run fully
+
+---
+
+## 6) Add tests (Jest)
+
+Test:
+- dry-run does not mutate state
+- takeProfit = 0 does not exit
+- stopLoss = 0 does not exit
+- valid exits work
+- legacy fields still work
+
+---
+
+## 7) Validation
+
+After implementation:
+
+npm run autopilot:dry
+
+Must:
+- NOT hit broker
+- NOT mutate trades
+- ONLY log simulated actions
+
+---
+
+## Output
+
+Provide:
+- changed files list
+- validation steps

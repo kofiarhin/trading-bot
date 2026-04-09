@@ -481,5 +481,113 @@
     "placed": 0,
     "startedAt": "2026-04-09T15:44:03.008Z",
     "completedAt": "2026-04-09T15:44:04.958Z"
+  },
+  {
+    "id": "17e96c7f-5fdc-48a1-b05e-878f958bd6d9",
+    "type": "cycle_start",
+    "timestamp": "2026-04-09T16:28:34.029Z",
+    "cycleId": "17e96c7f-5fdc-48a1-b05e-878f958bd6d9",
+    "dryRun": true,
+    "startedAt": "2026-04-09T16:28:34.027Z"
+  },
+  {
+    "id": "decision_recorded-1775752116046",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-09T16:28:36.046Z",
+    "decisionId": "97bd4674-3af4-4412-b988-c70c2ff6edd5",
+    "symbol": "AAPL",
+    "approved": false,
+    "strategy": "breakout",
+    "metrics": {
+      "close": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "cycle_complete-1775752116355",
+    "type": "cycle_complete",
+    "timestamp": "2026-04-09T16:28:36.355Z",
+    "cycleId": "17e96c7f-5fdc-48a1-b05e-878f958bd6d9",
+    "dryRun": true,
+    "scanned": 1,
+    "approved": 0,
+    "placed": 0,
+    "startedAt": "2026-04-09T16:28:34.027Z",
+    "completedAt": "2026-04-09T16:28:36.355Z"
+  },
+  {
+    "id": "b9b4cf67-649a-4d7c-b224-730f4187a548",
+    "type": "cycle_start",
+    "timestamp": "2026-04-09T16:28:54.164Z",
+    "cycleId": "b9b4cf67-649a-4d7c-b224-730f4187a548",
+    "dryRun": false,
+    "startedAt": "2026-04-09T16:28:54.163Z"
+  },
+  {
+    "id": "decision_recorded-1775752135228",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-09T16:28:55.228Z",
+    "decisionId": "59d321a4-5c43-4a62-893f-67b6fda63fca",
+    "symbol": "AAPL",
+    "approved": false,
+    "strategy": "breakout",
+    "metrics": {
+      "close": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "cycle_complete-1775752135429",
+    "type": "cycle_complete",
+    "timestamp": "2026-04-09T16:28:55.429Z",
+    "cycleId": "b9b4cf67-649a-4d7c-b224-730f4187a548",
+    "dryRun": false,
+    "scanned": 1,
+    "approved": 0,
+    "placed": 0,
+    "startedAt": "2026-04-09T16:28:54.163Z",
+    "completedAt": "2026-04-09T16:28:55.429Z"
+  },
+  {
+    "id": "c2029be3-d5ef-44e2-afe1-530040f7cf9e",
+    "type": "cycle_start",
+    "timestamp": "2026-04-09T16:30:46.405Z",
+    "cycleId": "c2029be3-d5ef-44e2-afe1-530040f7cf9e",
+    "dryRun": true,
+    "startedAt": "2026-04-09T16:30:46.404Z"
+  },
+  {
+    "id": "decision_recorded-1775752247496",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-09T16:30:47.496Z",
+    "decisionId": "c484df63-11e0-4a92-83bc-09e00daabaea",
+    "symbol": "AAPL",
+    "approved": false,
+    "strategy": "breakout",
+    "metrics": {
+      "close": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "cycle_complete-1775752247702",
+    "type": "cycle_complete",
+    "timestamp": "2026-04-09T16:30:47.702Z",
+    "cycleId": "c2029be3-d5ef-44e2-afe1-530040f7cf9e",
+    "dryRun": true,
+    "scanned": 1,
+    "approved": 0,
+    "placed": 0,
+    "startedAt": "2026-04-09T16:30:46.404Z",
+    "completedAt": "2026-04-09T16:30:47.702Z"
   }
 ]

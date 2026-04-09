@@ -101,6 +101,49 @@ describe("positionMonitor.checkOpenTradesForExit", () => {
 
     expect(exits).toHaveLength(0);
   });
+
+  it("does NOT exit when takeProfit is 0", async () => {
+    getOpenPositions.mockResolvedValue([
+      { symbol: "AAPL", qty: "10", avg_entry_price: "200", current_price: "225", unrealized_pl: "250", market_value: "2250" },
+    ]);
+
+    const exits = await checkOpenTradesForExit([makeTrade({ takeProfit: 0 })]);
+
+    expect(exits).toHaveLength(0);
+  });
+
+  it("does NOT exit when stopLoss is 0", async () => {
+    getOpenPositions.mockResolvedValue([
+      { symbol: "AAPL", qty: "10", avg_entry_price: "200", current_price: "185", unrealized_pl: "-150", market_value: "1850" },
+    ]);
+
+    const exits = await checkOpenTradesForExit([makeTrade({ stopLoss: 0 })]);
+
+    expect(exits).toHaveLength(0);
+  });
+
+  it("does NOT exit when stop and target are both 0 (broker_sync orphan)", async () => {
+    getOpenPositions.mockResolvedValue([
+      { symbol: "AAPL", qty: "10", avg_entry_price: "200", current_price: "185", unrealized_pl: "-150", market_value: "1850" },
+    ]);
+
+    const exits = await checkOpenTradesForExit([makeTrade({ stopLoss: undefined, stop: 0, takeProfit: undefined, target: 0 })]);
+
+    expect(exits).toHaveLength(0);
+  });
+
+  it("uses legacy stop/target fields when stopLoss/takeProfit are absent", async () => {
+    getOpenPositions.mockResolvedValue([
+      { symbol: "AAPL", qty: "10", avg_entry_price: "200", current_price: "185", unrealized_pl: "-150", market_value: "1850" },
+    ]);
+
+    const exits = await checkOpenTradesForExit([
+      makeTrade({ stopLoss: undefined, takeProfit: undefined, stop: 190, target: 220 }),
+    ]);
+
+    expect(exits).toHaveLength(1);
+    expect(exits[0].reason).toBe("stop_loss");
+  });
 });
 
 describe("orderManager.closeTrade", () => {
@@ -125,6 +168,22 @@ describe("orderManager.closeTrade", () => {
     expect(result.closed).toBe(false);
     expect(result.dryRun).toBe(true);
     expect(closePosition).not.toHaveBeenCalled();
+  });
+
+  it("does not call broker or mutate journal when dryRun param is true", async () => {
+    const result = await closeTrade({
+      tradeId: "trade-123",
+      symbol: "AAPL",
+      exitPrice: 185,
+      reason: "stop_loss",
+      dryRun: true,
+    });
+
+    expect(result.closed).toBe(false);
+    expect(result.dryRun).toBe(true);
+    expect(closePosition).not.toHaveBeenCalled();
+    expect(removeOpenTrade).not.toHaveBeenCalled();
+    expect(addClosedTrade).not.toHaveBeenCalled();
   });
 
   it("closes at broker, calculates PnL, removes from open and archives as closed", async () => {

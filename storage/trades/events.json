@@ -64,5 +64,29 @@
     "strategy": "broker_sync",
     "brokerOrderId": null,
     "source": "broker_sync"
+  },
+  {
+    "id": "4b8e3faf-c0d9-4dc5-93a6-148d49ce7759",
+    "type": "trade_closed",
+    "tradeId": "30ba9abb-841c-40c6-9bb1-31066a95fae1",
+    "symbol": "NVDA",
+    "timestamp": "2026-04-09T16:28:35.428Z",
+    "status": "closed",
+    "strategy": "broker_sync",
+    "reason": "broker_sync",
+    "brokerOrderId": null,
+    "pnl": 1533.55
+  },
+  {
+    "id": "5194e94b-7d6d-4117-8d80-5544ac51af9e",
+    "type": "trade_closed",
+    "tradeId": "3b8c999b-99ff-4048-b2ab-1376d9ca8432",
+    "symbol": "TSLA",
+    "timestamp": "2026-04-09T16:28:35.440Z",
+    "status": "closed",
+    "strategy": "broker_sync",
+    "reason": "broker_sync",
+    "brokerOrderId": null,
+    "pnl": -78.83
   }
 ]

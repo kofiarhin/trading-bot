@@ -1,5 +1,6 @@
 // Order manager — safety checks + submission + journal lifecycle.
 import { submitOrder, closePosition } from "./alpacaTrading.js";
+import { isDryRunEnabled } from "../lib/alpaca.js";
 import { logger } from "../utils/logger.js";
 import { config } from "../config/env.js";
 import {
@@ -173,7 +174,7 @@ export async function placeOrder({ decision, dryRun = false }) {
 export async function closeTrade({ tradeId, symbol, exitPrice: currentPrice, reason, dryRun = false }) {
   const normalizedSym = normalizeSymbol(symbol);
 
-  if (dryRun || process.env.DRY_RUN === "true") {
+  if (dryRun || isDryRunEnabled()) {
     logger.info("[DRY RUN] Would close trade", { symbol: normalizedSym, reason, currentPrice });
     return { closed: false, dryRun: true, exitReason: reason };
   }
