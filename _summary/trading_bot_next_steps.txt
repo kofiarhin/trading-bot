@@ -1,0 +1,96 @@
+TRADING BOT – CURRENT OBJECTIVE & NEXT ACTION PLAN
+
+OBJECTIVE
+We are building a fully stateful trading system where the pipeline works end-to-end:
+
+decision → approval → order execution → trade journal → dashboard
+
+The goal is to ensure that:
+- Approved trades are actually placed
+- Trades are recorded in the journal
+- The dashboard reflects real, enriched trade data (strategy, stop, target, risk)
+- No positions are incorrectly marked as orphaned
+
+---
+
+CURRENT ISSUE
+The system shows:
+- approved: 1
+- placed: 0
+
+Root causes identified:
+1. Testing was done using BTC, which already has an open position → blocked by duplicate-position guard (correct behavior)
+2. Dry-run mode was used → prevents real order placement
+3. Temporary override was targeting the wrong symbol
+
+---
+
+WHAT WE ARE FIXING
+We are NOT changing core logic.
+
+We are:
+- Using a clean test symbol (SOL/USD) that is NOT already held
+- Keeping all risk guards and duplicate-position checks intact
+- Ensuring the override runs in the active execution path (autopilot.js)
+- Running the system in real (paper) mode, not dry-run
+
+---
+
+NEXT COURSE OF ACTION
+
+STEP 1 – Update test override
+- Replace BTC override with SOL/USD (and SOLUSD)
+- Ensure it exists inside the active decision builder in src/autopilot.js
+
+STEP 2 – Run correct command
+- Use: npm run autopilot
+- Do NOT use: npm run autopilot:dry
+
+STEP 3 – Verify execution
+Terminal should show:
+approved: 1
+placed: 1
+
+STEP 4 – Validate journal
+Check:
+storage/trades/open.json
+storage/trades/events.json
+
+You should see a new SOL trade recorded.
+
+STEP 5 – Validate dashboard
+Refresh UI and confirm:
+- SOL position is NOT orphaned
+- Strategy is populated
+- Stop is populated
+- Target is populated
+- Risk is populated
+
+---
+
+SUCCESS STATE
+
+The system should now behave like:
+
+decision → approved → placed → journal stored → dashboard enriched
+
+This confirms the pipeline is working end-to-end.
+
+---
+
+NEXT AFTER THIS WORKS
+
+Once validated, the next upgrades will be:
+- Pending → Open trade reconciliation (handling fills correctly)
+- Orphan auto-healing
+- Multi-position / scaling logic
+- Production-grade risk enforcement
+
+---
+
+SUMMARY
+
+We are not debugging randomly anymore.
+We are validating the full lifecycle of the trading system with a controlled test.
+
+This step ensures the system actually executes trades and persists them correctly before moving to more advanced features.

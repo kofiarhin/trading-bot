@@ -337,5 +337,77 @@
     "placed": 0,
     "startedAt": "2026-04-09T06:03:18.058Z",
     "completedAt": "2026-04-09T06:03:19.375Z"
+  },
+  {
+    "id": "5369766d-8031-4330-b351-5cf95a14bcd1",
+    "type": "cycle_start",
+    "timestamp": "2026-04-09T14:49:44.147Z",
+    "cycleId": "5369766d-8031-4330-b351-5cf95a14bcd1",
+    "dryRun": false,
+    "startedAt": "2026-04-09T14:49:44.146Z"
+  },
+  {
+    "id": "decision_recorded-1775746185386",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-09T14:49:45.386Z",
+    "decisionId": "4e897aba-cb7f-41d1-ac6e-93e6d6adb9ba",
+    "symbol": "AAPL",
+    "approved": false,
+    "strategy": "breakout",
+    "metrics": {
+      "close": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "cycle_complete-1775746185597",
+    "type": "cycle_complete",
+    "timestamp": "2026-04-09T14:49:45.597Z",
+    "cycleId": "5369766d-8031-4330-b351-5cf95a14bcd1",
+    "dryRun": false,
+    "scanned": 1,
+    "approved": 0,
+    "placed": 0,
+    "startedAt": "2026-04-09T14:49:44.146Z",
+    "completedAt": "2026-04-09T14:49:45.597Z"
+  },
+  {
+    "id": "790eb64b-bdc9-4df8-ba58-1adb3dfe23ee",
+    "type": "cycle_start",
+    "timestamp": "2026-04-09T14:49:55.351Z",
+    "cycleId": "790eb64b-bdc9-4df8-ba58-1adb3dfe23ee",
+    "dryRun": false,
+    "startedAt": "2026-04-09T14:49:55.350Z"
+  },
+  {
+    "id": "decision_recorded-1775746196248",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-09T14:49:56.248Z",
+    "decisionId": "bd0faf61-987d-4cdd-babf-6a0fac9d546a",
+    "symbol": "AAPL",
+    "approved": false,
+    "strategy": "breakout",
+    "metrics": {
+      "close": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "cycle_complete-1775746196457",
+    "type": "cycle_complete",
+    "timestamp": "2026-04-09T14:49:56.457Z",
+    "cycleId": "790eb64b-bdc9-4df8-ba58-1adb3dfe23ee",
+    "dryRun": false,
+    "scanned": 1,
+    "approved": 0,
+    "placed": 0,
+    "startedAt": "2026-04-09T14:49:55.350Z",
+    "completedAt": "2026-04-09T14:49:56.457Z"
   }
 ]
