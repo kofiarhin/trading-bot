@@ -388,5 +388,28 @@
     "blockers": [
       "insufficient_market_data"
     ]
+  },
+  {
+    "id": "3849834c-ba78-498b-86ef-56d87834e1de",
+    "symbol": "AAPL",
+    "strategy": "breakout",
+    "timestamp": "2026-04-09T21:11:06.331Z",
+    "approved": false,
+    "side": "buy",
+    "status": "rejected",
+    "reason": "breakout_not_confirmed",
+    "close": 260.44,
+    "breakoutLevel": 260.78,
+    "atr": 0.51,
+    "volumeRatio": 3.63,
+    "distanceToBreakoutPct": -0.13,
+    "stop": 259.67,
+    "target": 261.98,
+    "risk": 0.77,
+    "riskPerShare": 0.77,
+    "qty": 665,
+    "blockers": [
+      "signal_not_confirmed"
+    ]
   }
 ]

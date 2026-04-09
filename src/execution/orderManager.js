@@ -361,28 +361,3 @@ export default {
   placeOrder,
   closeTrade,
 };
-import '../journal/tradeStorageCompat.js';
-import {
-  normalizeExecutionArgs,
-  normalizeExecutionResult,
-} from '../journal/normalizeTrade.js';
-
-function resolveEntryExecutor(placeOrderModule) {
-  if (typeof placeOrderModule?.placeOrder === 'function') {
-    return placeOrderModule.placeOrder;
-  }
-
-  if (typeof placeOrderModule?.default === 'function') {
-    return placeOrderModule.default;
-  }
-
-  throw new Error('Canonical orderManager.placeOrder could not resolve the legacy entry executor');
-}
-
-export async function placeOrder(...args) {
-  const placeOrderModule = await import('./placeOrder.js');
-  const executeEntry = resolveEntryExecutor(placeOrderModule);
-  const result = await executeEntry(...normalizeExecutionArgs(args));
-
-  return normalizeExecutionResult(result);
-}

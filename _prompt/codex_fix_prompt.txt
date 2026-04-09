@@ -1,0 +1,118 @@
+Fix the current syntax error introduced during the execution-layer refactor.
+
+## Problem
+
+Running:
+
+npm run autopilot:dry
+
+currently fails with:
+
+SyntaxError: Identifier 'placeOrder' has already been declared
+
+The error is in:
+
+src/execution/orderManager.js
+
+The file now contains two exported `placeOrder` functions:
+1. the real canonical implementation near the top
+2. a second wrapper appended near the bottom
+
+That duplicate declaration must be removed.
+
+---
+
+## Required fix
+
+### 1. Keep `orderManager.js` as the canonical execution layer
+
+`src/execution/orderManager.js` must contain only:
+- one exported `placeOrder(...)`
+- one exported `closeTrade(...)`
+
+Keep the original canonical implementation of `placeOrder` and `closeTrade`.
+
+---
+
+### 2. Remove the duplicate bottom block from `orderManager.js`
+
+Delete the duplicated wrapper block near the bottom that does things like:
+
+import '../journal/tradeStorageCompat.js';
+import {
+  normalizeExecutionArgs,
+  normalizeExecutionResult,
+} from '../journal/normalizeTrade.js';
+
+function resolveEntryExecutor(placeOrderModule) {
+  ...
+}
+
+export async function placeOrder(...args) {
+  ...
+}
+
+This block must be removed entirely from `orderManager.js`.
+
+---
+
+### 3. Ensure `orderManager.js` ends cleanly
+
+It should end with:
+
+export default {
+  placeOrder,
+  closeTrade,
+};
+
+Do not leave any second `placeOrder` declaration in that file.
+
+---
+
+### 4. If compatibility is needed, make `src/execution/placeOrder.js` the wrapper
+
+If the project still imports `src/execution/placeOrder.js` anywhere, convert that file into a thin compatibility wrapper around the canonical order manager.
+
+Expected shape:
+
+import { placeOrder } from './orderManager.js';
+
+export default async function legacyPlaceOrder(...args) {
+  return placeOrder(...args);
+}
+
+export { placeOrder };
+
+Only do this if needed for compatibility.
+
+---
+
+### 5. Avoid circular imports
+
+Do NOT create a loop where:
+- `orderManager.js` imports `placeOrder.js`
+- and `placeOrder.js` imports `orderManager.js`
+
+Correct direction:
+- `placeOrder.js` may wrap `orderManager.js`
+- `orderManager.js` must NOT call back into `placeOrder.js`
+
+---
+
+### 6. Validation requirements
+
+After the fix:
+
+- npm run autopilot:dry must start without syntax errors
+- src/execution/orderManager.js must export only one `placeOrder`
+- entry execution must still go through the canonical `orderManager.placeOrder`
+- no circular import issues
+
+---
+
+## Output format
+
+Make the fix directly in the repo, then provide:
+1. changed files list
+2. a short note on what was removed
+3. exact validation commands to run

@@ -286,3 +286,6 @@ export function shouldNormalizeTradeFile(filePath = '') {
 }
 
 export { CANONICAL_TRADE_FIELDS };
+
+// Alias used by tradeJournal.js and orderManager.js
+export const normalizeTradeForWrite = normalizeTradeForStorage;
