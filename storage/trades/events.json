@@ -1,0 +1,46 @@
+[
+  {
+    "id": "e3825a52-5785-4a46-af8d-e239d13069bf",
+    "type": "trade_open",
+    "tradeId": "f863146f-641d-4a4f-9f42-99a1a65d2a5d",
+    "symbol": "AAPL",
+    "timestamp": "2026-04-09T04:54:39.167Z",
+    "status": "open",
+    "strategy": "broker_sync",
+    "brokerOrderId": null,
+    "source": "broker_sync"
+  },
+  {
+    "id": "23ee94d8-4285-410a-bc8c-89fc9b6e9168",
+    "type": "trade_open",
+    "tradeId": "51ad2e2b-65c3-4587-9c74-6436276f126c",
+    "symbol": "BTCUSD",
+    "timestamp": "2026-04-09T04:54:39.177Z",
+    "status": "open",
+    "strategy": "broker_sync",
+    "brokerOrderId": null,
+    "source": "broker_sync"
+  },
+  {
+    "id": "24396126-d685-4421-a3e3-d49bc94d0f19",
+    "type": "trade_open",
+    "tradeId": "2935f155-7b1d-4ef0-a2e9-886d86a4966d",
+    "symbol": "NVDA",
+    "timestamp": "2026-04-09T04:54:39.185Z",
+    "status": "open",
+    "strategy": "broker_sync",
+    "brokerOrderId": null,
+    "source": "broker_sync"
+  },
+  {
+    "id": "cff1f1f5-4582-4240-8f01-d135da95ed96",
+    "type": "trade_open",
+    "tradeId": "9511041e-fb93-488a-a677-b176913c01ae",
+    "symbol": "TSLA",
+    "timestamp": "2026-04-09T04:54:39.191Z",
+    "status": "open",
+    "strategy": "broker_sync",
+    "brokerOrderId": null,
+    "source": "broker_sync"
+  }
+]

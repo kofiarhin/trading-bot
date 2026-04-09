@@ -1,0 +1,197 @@
+[
+  {
+    "type": "completed",
+    "scanned": 3,
+    "approved": 1,
+    "placed": 0,
+    "skipped": 3,
+    "errors": 0,
+    "closed": 0,
+    "timestamp": "2026-04-09T04:21:44.500Z",
+    "recordedAt": "2026-04-09T04:21:44.500Z"
+  },
+  {
+    "id": "595eb157-9cde-457f-a3bd-2b942fbdab2b",
+    "type": "cycle_start",
+    "timestamp": "2026-04-09T04:49:39.408Z",
+    "cycleId": "595eb157-9cde-457f-a3bd-2b942fbdab2b",
+    "dryRun": false,
+    "startedAt": "2026-04-09T04:49:39.406Z"
+  },
+  {
+    "id": "72013c10-47db-4b4d-afeb-2d40cc0de649",
+    "type": "cycle_start",
+    "timestamp": "2026-04-09T04:49:55.835Z",
+    "cycleId": "72013c10-47db-4b4d-afeb-2d40cc0de649",
+    "dryRun": false,
+    "startedAt": "2026-04-09T04:49:55.834Z"
+  },
+  {
+    "id": "bed889f0-cab2-4cba-bdf6-a352a483a76b",
+    "type": "cycle_start",
+    "timestamp": "2026-04-09T04:50:23.688Z",
+    "cycleId": "bed889f0-cab2-4cba-bdf6-a352a483a76b",
+    "dryRun": false,
+    "startedAt": "2026-04-09T04:50:23.685Z"
+  },
+  {
+    "id": "85b02f9a-51ba-4b6b-a61b-d5c7b5355c8e",
+    "type": "cycle_start",
+    "timestamp": "2026-04-09T04:50:34.574Z",
+    "cycleId": "85b02f9a-51ba-4b6b-a61b-d5c7b5355c8e",
+    "dryRun": false,
+    "startedAt": "2026-04-09T04:50:34.571Z"
+  },
+  {
+    "id": "4615642e-6181-4e86-9462-6e1997bde58c",
+    "type": "cycle_start",
+    "timestamp": "2026-04-09T04:53:05.318Z",
+    "cycleId": "4615642e-6181-4e86-9462-6e1997bde58c",
+    "dryRun": false,
+    "startedAt": "2026-04-09T04:53:05.317Z"
+  },
+  {
+    "id": "dfb9bf1c-4c41-4e2a-9d86-08d540c08580",
+    "type": "cycle_start",
+    "timestamp": "2026-04-09T04:54:38.510Z",
+    "cycleId": "dfb9bf1c-4c41-4e2a-9d86-08d540c08580",
+    "dryRun": false,
+    "startedAt": "2026-04-09T04:54:38.507Z"
+  },
+  {
+    "id": "decision_recorded-1775710479534",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-09T04:54:39.534Z",
+    "decisionId": "45af2a4a-0677-49b6-adfd-8dc2ff4bcd06",
+    "symbol": "AAPL",
+    "approved": false,
+    "strategy": "breakout",
+    "metrics": {
+      "close": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "cycle_complete-1775710479736",
+    "type": "cycle_complete",
+    "timestamp": "2026-04-09T04:54:39.736Z",
+    "cycleId": "dfb9bf1c-4c41-4e2a-9d86-08d540c08580",
+    "dryRun": false,
+    "scanned": 1,
+    "approved": 0,
+    "placed": 0,
+    "startedAt": "2026-04-09T04:54:38.507Z",
+    "completedAt": "2026-04-09T04:54:39.736Z"
+  },
+  {
+    "id": "2194b80d-c80f-46c3-82f4-666df22eb8b5",
+    "type": "cycle_start",
+    "timestamp": "2026-04-09T04:55:09.886Z",
+    "cycleId": "2194b80d-c80f-46c3-82f4-666df22eb8b5",
+    "dryRun": false,
+    "startedAt": "2026-04-09T04:55:09.885Z"
+  },
+  {
+    "id": "decision_recorded-1775710510798",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-09T04:55:10.798Z",
+    "decisionId": "2a29f960-32c4-4946-8b14-e823d6904b84",
+    "symbol": "AAPL",
+    "approved": false,
+    "strategy": "breakout",
+    "metrics": {
+      "close": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "cycle_complete-1775710511004",
+    "type": "cycle_complete",
+    "timestamp": "2026-04-09T04:55:11.004Z",
+    "cycleId": "2194b80d-c80f-46c3-82f4-666df22eb8b5",
+    "dryRun": false,
+    "scanned": 1,
+    "approved": 0,
+    "placed": 0,
+    "startedAt": "2026-04-09T04:55:09.885Z",
+    "completedAt": "2026-04-09T04:55:11.004Z"
+  },
+  {
+    "id": "e5e7573d-6760-40fd-8ab5-cbebb27ae20f",
+    "type": "cycle_start",
+    "timestamp": "2026-04-09T04:55:18.856Z",
+    "cycleId": "e5e7573d-6760-40fd-8ab5-cbebb27ae20f",
+    "dryRun": false,
+    "startedAt": "2026-04-09T04:55:18.854Z"
+  },
+  {
+    "id": "decision_recorded-1775710519768",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-09T04:55:19.768Z",
+    "decisionId": "677ad2d9-bc3a-453c-871a-a12b75663b2d",
+    "symbol": "AAPL",
+    "approved": false,
+    "strategy": "breakout",
+    "metrics": {
+      "close": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "cycle_complete-1775710519971",
+    "type": "cycle_complete",
+    "timestamp": "2026-04-09T04:55:19.971Z",
+    "cycleId": "e5e7573d-6760-40fd-8ab5-cbebb27ae20f",
+    "dryRun": false,
+    "scanned": 1,
+    "approved": 0,
+    "placed": 0,
+    "startedAt": "2026-04-09T04:55:18.854Z",
+    "completedAt": "2026-04-09T04:55:19.971Z"
+  },
+  {
+    "id": "266e93bd-62de-4fc7-afc8-afe7dc9b9bb7",
+    "type": "cycle_start",
+    "timestamp": "2026-04-09T04:56:23.864Z",
+    "cycleId": "266e93bd-62de-4fc7-afc8-afe7dc9b9bb7",
+    "dryRun": false,
+    "startedAt": "2026-04-09T04:56:23.863Z"
+  },
+  {
+    "id": "decision_recorded-1775710584751",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-09T04:56:24.751Z",
+    "decisionId": "b1acd744-2ab9-4510-8f0e-1805d59bf0f0",
+    "symbol": "AAPL",
+    "approved": false,
+    "strategy": "breakout",
+    "metrics": {
+      "close": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "cycle_complete-1775710584976",
+    "type": "cycle_complete",
+    "timestamp": "2026-04-09T04:56:24.976Z",
+    "cycleId": "266e93bd-62de-4fc7-afc8-afe7dc9b9bb7",
+    "dryRun": false,
+    "scanned": 1,
+    "approved": 0,
+    "placed": 0,
+    "startedAt": "2026-04-09T04:56:23.863Z",
+    "completedAt": "2026-04-09T04:56:24.976Z"
+  }
+]

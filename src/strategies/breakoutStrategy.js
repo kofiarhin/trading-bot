@@ -20,8 +20,8 @@ const DEFAULTS = {
   volumeLookback: 20,
   atrPeriod: 14,
   atrMultiplier: 1.5,
-  targetMultiple: 2,    // 2R
-  minVolRatio: 1.0,     // current vol must exceed avg (≥1.0x)
+  targetMultiple: 2, // 2R
+  minVolRatio: 1.0, // current vol must exceed avg (≥1.0x)
 };
 
 /**
@@ -99,7 +99,8 @@ export function evaluateBreakout({
 
   // --- Highest high (breakout level) ---
   const rawBreakoutLevel = calcHighestHigh(bars, opts.breakoutLookback);
-  if (rawBreakoutLevel === null) return reject("could not compute breakout level");
+  if (rawBreakoutLevel === null)
+    return reject("could not compute breakout level");
   breakoutLevel = toMetric(rawBreakoutLevel);
 
   // --- Volume confirmation metric ---
@@ -118,6 +119,45 @@ export function evaluateBreakout({
     ? toMetric(((breakoutLevel - entryPrice) / breakoutLevel) * 100)
     : null;
 
+  // --- TEMP TEST OVERRIDE ---
+  // Remove this block after journal pipeline validation.
+  if (symbol === "BTC/USD" || symbol === "BTCUSD") {
+    if (rawAtr === null || rawAtr <= 0) {
+      return reject("test override failed: invalid ATR");
+    }
+
+    const stopLoss = entryPrice - rawAtr;
+    const riskPerUnit = entryPrice - stopLoss;
+    const takeProfit = entryPrice + riskPerUnit * opts.targetMultiple;
+    const riskAmount = accountEquity * riskPercent;
+    const quantity =
+      assetClass === "crypto"
+        ? parseFloat((riskAmount / riskPerUnit).toFixed(8))
+        : Math.max(1, Math.floor(riskAmount / riskPerUnit));
+
+    return {
+      approved: true,
+      symbol,
+      assetClass,
+      timeframe,
+      strategyName: STRATEGY_NAME,
+      closePrice,
+      entryPrice: toMetric(entryPrice),
+      stopLoss: toMetric(stopLoss),
+      takeProfit: toMetric(takeProfit),
+      atr,
+      breakoutLevel,
+      volumeRatio,
+      distanceToBreakoutPct,
+      riskPerUnit: toMetric(riskPerUnit),
+      quantity,
+      riskAmount: toMetric(riskAmount),
+      reason:
+        "TEMP TEST OVERRIDE: force-approved BTC for journal pipeline validation",
+      timestamp,
+    };
+  }
+
   if (entryPrice <= rawBreakoutLevel) {
     const reasonStr =
       distanceToBreakoutPct !== null
@@ -127,10 +167,11 @@ export function evaluateBreakout({
   }
 
   // --- Volume confirmation ---
-  if (avgVolume === null || avgVolume === 0) return reject("could not compute average volume");
+  if (avgVolume === null || avgVolume === 0)
+    return reject("could not compute average volume");
   if (volumeRatio < opts.minVolRatio) {
     return reject(
-      `volume confirmation failed: ratio ${volumeRatio.toFixed(2)} < ${opts.minVolRatio}`
+      `volume confirmation failed: ratio ${volumeRatio.toFixed(2)} < ${opts.minVolRatio}`,
     );
   }
 
@@ -148,8 +189,12 @@ export function evaluateBreakout({
   // --- Position sizing ---
   const riskAmount = accountEquity * riskPercent;
   if (riskAmount <= 0) return reject("invalid risk amount");
-  const quantity = Math.floor(riskAmount / riskPerUnit);
-  if (quantity < 1) return reject("position size rounds to zero");
+  const quantity =
+    assetClass === "crypto"
+      ? parseFloat((riskAmount / riskPerUnit).toFixed(8))
+      : Math.floor(riskAmount / riskPerUnit);
+  if (assetClass !== "crypto" && quantity < 1) return reject("position size rounds to zero");
+  if (quantity <= 0) return reject("position size rounds to zero");
 
   return {
     approved: true,

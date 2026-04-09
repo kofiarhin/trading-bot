@@ -1,298 +1,327 @@
-// Autopilot — one full market-scan-to-order cycle.
-// Usage: node src/autopilot.js [--dry-run]
-import { config } from "./config/env.js";
-import { getUniverse } from "./market/universe.js";
-import { filterEligible } from "./market/marketHours.js";
-import { fetchBars, validateBars } from "./market/alpacaMarketData.js";
-import { evaluateBreakout } from "./strategies/breakoutStrategy.js";
-import { runRiskGuards } from "./risk/guards.js";
-import { placeOrder, closeTrade } from "./execution/orderManager.js";
-import { getAccount } from "./execution/alpacaTrading.js";
-import { getOpenSymbols, checkOpenTradesForExit } from "./positions/positionMonitor.js";
-import { appendTradeEntry, buildJournalEntry } from "./journal/tradeJournal.js";
-import { markTradeClosed } from "./journal/journalUtils.js";
-import { removeOpenTrade } from "./journal/openTradesStore.js";
-import { appendClosedTrade } from "./journal/closedTradesStore.js";
-import { logCycleComplete } from "./journal/cycleLogger.js";
-import { logDecision } from "./journal/decisionLogger.js";
-import { normalizeSymbol } from "./utils/symbolNorm.js";
-import { logger } from "./utils/logger.js";
+import 'dotenv/config';
 
-const dryRun = process.argv.includes("--dry-run");
+import { randomUUID } from 'node:crypto';
 
-// Maps positionMonitor exitReason strings to spec-compliant journal exitReason values.
-function toJournalExitReason(exitReason) {
-  const map = {
-    stopLoss: "stop_hit",
-    takeProfit: "target_hit",
-    stop_hit: "stop_hit",
-    target_hit: "target_hit",
-    broker_sync_close: "broker_sync_close",
-  };
-  return map[exitReason] ?? "unknown";
+import placeOrder from './execution/placeOrder.js';
+import { getAccount, getBarsForSymbols, getOrders, getPositions, isDryRunEnabled } from './lib/alpaca.js';
+import { appendDailyRecord, appendLogEvent, getStoragePath, nowIso, readJson } from './lib/storage.js';
+import {
+  createPendingTrade,
+  getOpenTrades,
+  markTradeOpen,
+  syncTradesWithBroker,
+} from './journal/tradeJournal.js';
+
+function toNumber(value, fallback = 0) {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : fallback;
 }
 
-async function runAutopilot() {
-  logger.info(`Autopilot cycle starting${dryRun ? " [DRY RUN]" : ""}`);
+function roundPrice(value) {
+  return Number(toNumber(value, 0).toFixed(2));
+}
 
-  const tradingCfg = config.trading;
-  const summary = { scanned: 0, approved: 0, placed: 0, skipped: 0, errors: 0, closed: 0 };
-
-  // 1. Fetch account info
-  let account;
-  try {
-    account = await getAccount();
-  } catch (err) {
-    logger.error("Failed to fetch account", { error: err.message });
-    process.exit(1);
+function average(values) {
+  if (!values.length) {
+    return 0;
   }
 
-  const accountEquity = parseFloat(account.equity);
-  logger.info("Account loaded", { equity: accountEquity, status: account.status });
+  return values.reduce((total, value) => total + value, 0) / values.length;
+}
 
-  // 2. Monitor exits — check open trades before placing new ones
-  logger.info("Checking open trades for exit conditions");
-  let exitCandidates = [];
-  try {
-    exitCandidates = await checkOpenTradesForExit();
-  } catch (err) {
-    logger.error("Exit check failed", { error: err.message });
+function getConfiguredSymbols() {
+  const rawSymbols =
+    process.env.AUTOPILOT_SYMBOLS ??
+    process.env.SYMBOLS ??
+    process.env.WATCHLIST ??
+    process.env.TICKERS ??
+    'AAPL';
+
+  return [...new Set(rawSymbols.split(',').map((symbol) => symbol.trim().toUpperCase()).filter(Boolean))];
+}
+
+function calculateAtr(bars, period = 14) {
+  if (!bars.length) {
+    return 0;
   }
 
-  logger.info("Exit check complete", { candidates: exitCandidates.length });
+  const startIndex = Math.max(1, bars.length - period);
+  const trueRanges = [];
 
-  // 3. Execute exits
-  for (const { trade, exitReason, currentPrice, orphaned } of exitCandidates) {
-    const symbol = trade.normalizedSymbol ?? normalizeSymbol(trade.symbol);
-    const journalExitReason = toJournalExitReason(exitReason);
-
-    // Orphaned: journal open but no broker position — close journal record only
-    if (orphaned) {
-      logger.warn("Closing orphaned journal trade (no broker position)", { symbol, tradeId: trade.tradeId });
-
-      if (trade.tradeId) {
-        try {
-          markTradeClosed(trade.tradeId, {
-            exitReason: "broker_sync_close",
-            exitPrice: null,
-            closedAt: new Date().toISOString(),
-          });
-          summary.closed++;
-        } catch (err) {
-          logger.error("Failed to close orphaned journal trade", { symbol, error: err.message });
-          summary.errors++;
-        }
-      } else {
-        // Legacy record — remove from open store + append to closed
-        appendClosedTrade({
-          symbol: trade.symbol,
-          normalizedSymbol: symbol,
-          assetClass: trade.assetClass ?? null,
-          strategyName: trade.strategyName ?? null,
-          openedAt: trade.openedAt ?? null,
-          closedAt: new Date().toISOString(),
-          entryPrice: trade.entryPrice,
-          exitPrice: null,
-          quantity: trade.quantity ?? 1,
-          pnl: null,
-          pnlPct: null,
-          exitReason: "broker_sync_close",
-        });
-        removeOpenTrade(symbol);
-        summary.closed++;
-      }
-      continue;
-    }
-
-    logger.info("Executing exit", { symbol, exitReason, currentPrice });
-
-    const result = await closeTrade({ trade, exitReason, currentPrice, dryRun });
-
-    if (dryRun) {
-      logger.info("[DRY RUN] Exit logged — no state mutation", { symbol, exitReason });
-      continue;
-    }
-
-    if (!result.closed) {
-      logger.error("Exit failed", { symbol, error: result.error });
-      summary.errors++;
-      continue;
-    }
-
-    const exitPrice = result.exitPrice ?? currentPrice;
-
-    // Use markTradeClosed for journal-backed trades (have tradeId)
-    if (trade.tradeId) {
-      try {
-        markTradeClosed(trade.tradeId, {
-          exitReason: journalExitReason,
-          exitPrice,
-          closedAt: new Date().toISOString(),
-          brokerExitOrderId: result.orderId ?? null,
-        });
-      } catch (err) {
-        logger.error("Failed to mark trade closed in journal", {
-          symbol,
-          tradeId: trade.tradeId,
-          error: err.message,
-        });
-        summary.errors++;
-        continue;
-      }
-    } else {
-      // Legacy record without tradeId — use old path for backward compat
-      const pnl = (exitPrice - trade.entryPrice) * (trade.quantity ?? 1);
-      const pnlPct = trade.entryPrice
-        ? ((exitPrice - trade.entryPrice) / trade.entryPrice) * 100
-        : null;
-
-      appendClosedTrade({
-        symbol: trade.symbol,
-        normalizedSymbol: normalizeSymbol(symbol),
-        assetClass: trade.assetClass ?? null,
-        strategyName: trade.strategyName ?? null,
-        openedAt: trade.openedAt ?? null,
-        closedAt: new Date().toISOString(),
-        entryPrice: trade.entryPrice,
-        exitPrice,
-        quantity: trade.quantity ?? 1,
-        pnl,
-        pnlPct,
-        exitReason: journalExitReason,
-      });
-
-      removeOpenTrade(symbol);
-    }
-
-    summary.closed++;
-    logger.info("Trade closed and archived", { symbol, exitReason: journalExitReason, exitPrice });
+  for (let index = startIndex; index < bars.length; index += 1) {
+    const currentBar = bars[index];
+    const previousBar = bars[index - 1] ?? currentBar;
+    const intrabarRange = currentBar.high - currentBar.low;
+    const highToPreviousClose = Math.abs(currentBar.high - previousBar.close);
+    const lowToPreviousClose = Math.abs(currentBar.low - previousBar.close);
+    trueRanges.push(Math.max(intrabarRange, highToPreviousClose, lowToPreviousClose));
   }
 
-  // 4. Load current open positions (after exits)
-  const openSymbols = await getOpenSymbols();
-  logger.info("Open positions loaded", { count: openSymbols.length, symbols: openSymbols });
+  return average(trueRanges);
+}
 
-  // 5. Build universe and filter by market hours
-  const universe = getUniverse(tradingCfg);
-  const stocksTotal = universe.filter((u) => u.assetClass === "stock").length;
-  const cryptoTotal = universe.filter((u) => u.assetClass === "crypto").length;
-  logger.info("Universe loaded", { total: universe.length, stocks: stocksTotal, crypto: cryptoTotal });
+function buildDecision(symbol, bars, account) {
+  const timestamp = nowIso();
 
-  const eligible = filterEligible(universe);
-  const stocksEligible = eligible.filter((u) => u.assetClass === "stock").length;
-  const cryptoEligible = eligible.filter((u) => u.assetClass === "crypto").length;
-  logger.info("Universe filtered", {
-    eligible: eligible.length,
-    stocksEligible,
-    cryptoEligible,
+  if (!Array.isArray(bars) || bars.length < 21) {
+    return {
+      id: randomUUID(),
+      symbol,
+      strategy: 'breakout',
+      timestamp,
+      approved: false,
+      side: 'buy',
+      status: 'rejected',
+      reason: 'insufficient_market_data',
+      close: 0,
+      breakoutLevel: 0,
+      atr: 0,
+      volumeRatio: 0,
+      distanceToBreakoutPct: 0,
+      stop: 0,
+      target: 0,
+      risk: 0,
+      qty: 0,
+      blockers: ['insufficient_market_data'],
+    };
+  }
+
+  const recentBars = bars.slice(-21);
+  const priorBars = recentBars.slice(0, -1);
+  const currentBar = recentBars[recentBars.length - 1];
+  const breakoutLevel = Math.max(...priorBars.map((bar) => toNumber(bar.high, 0)));
+  const atr = calculateAtr(bars.slice(-15));
+  const averageVolume = average(priorBars.slice(-10).map((bar) => toNumber(bar.volume, 0)));
+  const volumeRatio = averageVolume ? toNumber(currentBar.volume, 0) / averageVolume : 0;
+  const close = toNumber(currentBar.close, 0);
+  const distanceToBreakoutPct = breakoutLevel ? ((close - breakoutLevel) / breakoutLevel) * 100 : 0;
+  const stop = roundPrice(close - atr * 1.5);
+  const target = roundPrice(close + atr * 3);
+  const riskPerShare = Math.max(roundPrice(close - stop), 0.01);
+  const riskBudget = toNumber(account?.equity, 100000) * 0.005;
+  const quantity = Math.max(1, Math.floor(riskBudget / riskPerShare));
+  const approved = close >= breakoutLevel && volumeRatio >= 1.2 && atr > 0;
+  const blockers = approved ? [] : ['signal_not_confirmed'];
+
+  return {
+    id: randomUUID(),
+    symbol,
+    strategy: 'breakout',
+    timestamp,
+    approved,
+    side: 'buy',
+    status: approved ? 'approved' : 'rejected',
+    reason: approved ? 'breakout_confirmed' : 'breakout_not_confirmed',
+    close: roundPrice(close),
+    breakoutLevel: roundPrice(breakoutLevel),
+    atr: roundPrice(atr),
+    volumeRatio: Number(volumeRatio.toFixed(2)),
+    distanceToBreakoutPct: Number(distanceToBreakoutPct.toFixed(2)),
+    stop,
+    target,
+    risk: riskPerShare,
+    riskPerShare,
+    qty: quantity,
+    blockers,
+  };
+}
+
+async function getRiskState() {
+  return readJson(getStoragePath('riskState.json'), {
+    dailyLossPct: 0,
+    halted: false,
+  });
+}
+
+async function evaluateExecutionGuards(decision, brokerPositions) {
+  const blockers = [];
+  const openTrades = await getOpenTrades();
+  const riskState = await getRiskState();
+  const maxPositions = toNumber(process.env.MAX_POSITIONS, 3);
+  const dailyLossLimit = toNumber(process.env.DAILY_LOSS_LIMIT_PCT, 2);
+
+  const hasMatchingBrokerPosition = brokerPositions.some((position) => position.symbol === decision.symbol);
+  const hasMatchingJournalTrade = openTrades.some(
+    (trade) => trade.symbol === decision.symbol && ['pending', 'open'].includes(trade.status),
+  );
+
+  if (hasMatchingBrokerPosition || hasMatchingJournalTrade) {
+    blockers.push('duplicate_position_guard');
+  }
+
+  const activeSymbols = new Set([
+    ...brokerPositions.map((position) => position.symbol),
+    ...openTrades.filter((trade) => ['pending', 'open'].includes(trade.status)).map((trade) => trade.symbol),
+  ]);
+
+  if (activeSymbols.size >= maxPositions) {
+    blockers.push('max_positions_guard');
+  }
+
+  if (riskState.halted || toNumber(riskState.dailyLossPct, 0) >= dailyLossLimit) {
+    blockers.push('daily_loss_guard');
+  }
+
+  return {
+    allowed: blockers.length === 0,
+    blockers,
+  };
+}
+
+async function recordDecision(decision) {
+  await appendDailyRecord('decisions', decision);
+  await appendLogEvent('decision_recorded', {
+    decisionId: decision.id,
+    symbol: decision.symbol,
+    approved: decision.approved,
+    strategy: decision.strategy,
+    metrics: {
+      close: decision.close,
+      breakoutLevel: decision.breakoutLevel,
+      atr: decision.atr,
+      volumeRatio: decision.volumeRatio,
+      distanceToBreakoutPct: decision.distanceToBreakoutPct,
+    },
+  });
+}
+
+async function recordApproval(decision, blockers) {
+  await appendLogEvent(blockers.length ? 'decision_blocked' : 'decision_approved', {
+    decisionId: decision.id,
+    symbol: decision.symbol,
+    strategy: decision.strategy,
+    blockers,
+  });
+}
+
+export async function runAutopilotCycle(options = {}) {
+  const dryRun = isDryRunEnabled(options);
+  const cycleId = randomUUID();
+  const startedAt = nowIso();
+
+  await appendLogEvent('cycle_start', {
+    id: cycleId,
+    cycleId,
+    dryRun,
+    startedAt,
   });
 
-  if (eligible.length === 0) {
-    logger.info("No eligible symbols — outside market hours and crypto disabled or unavailable");
-    logCycleComplete({ ...summary, note: "no eligible symbols" });
-    return;
+  const account = await getAccount();
+  const symbols = getConfiguredSymbols();
+  const brokerPositionsBefore = await getPositions();
+  const brokerOrdersBefore = await getOrders({ status: 'all', limit: 200, nested: true, direction: 'desc' });
+
+  await syncTradesWithBroker({
+    brokerPositions: brokerPositionsBefore,
+    brokerOrders: brokerOrdersBefore,
+  });
+
+  const barsBySymbol = await getBarsForSymbols(symbols, { timeframe: '15Min', limit: 60 });
+  const decisions = symbols.map((symbol) => buildDecision(symbol, barsBySymbol[symbol] ?? [], account));
+
+  for (const decision of decisions) {
+    await recordDecision(decision);
   }
 
-  // 6. Per-symbol: fetch → validate → evaluate → risk check → order
-  for (const { symbol, assetClass } of eligible) {
-    summary.scanned++;
+  let approvedCount = 0;
+  let placedCount = 0;
+  const placements = [];
 
-    let bars;
-    try {
-      bars = await fetchBars(symbol, assetClass, 60);
-    } catch (err) {
-      logger.error("Failed to fetch bars", { symbol, error: err.message });
-      summary.errors++;
-      continue;
-    }
-
-    const dataCheck = validateBars(bars, 25);
-    if (!dataCheck.valid) {
-      logger.warn("Data validation failed", { symbol, reason: dataCheck.reason });
-      summary.skipped++;
-      continue;
-    }
-
-    // Evaluate strategy
-    const decision = evaluateBreakout({
-      symbol,
-      assetClass,
-      bars,
-      accountEquity,
-      riskPercent: tradingCfg.riskPercent,
-      timeframe: tradingCfg.timeframe,
-    });
-
-    let persistedDecision;
-    try {
-      persistedDecision = logDecision(decision, assetClass);
-    } catch (err) {
-      logger.error("Decision persistence failed", {
-        symbol,
-        assetClass,
-        approved: !!decision.approved,
-        error: err.message,
-      });
-      summary.errors++;
-      continue;
-    }
-
-    logger.info("Decision logged", {
-      symbol,
-      approved: !!decision.approved,
-      assetClass,
-      file: persistedDecision.fileName,
-      totalRecords: persistedDecision.totalRecords,
-    });
-
+  for (const decision of decisions) {
     if (!decision.approved) {
-      logger.info("Strategy rejected", { symbol, reason: decision.reason });
-      summary.skipped++;
       continue;
     }
 
-    logger.info("Strategy approved", {
-      symbol,
-      entryPrice: decision.entryPrice,
-      stopLoss: decision.stopLoss,
-      takeProfit: decision.takeProfit,
-      quantity: decision.quantity,
-    });
-    summary.approved++;
+    const brokerPositions = await getPositions();
+    const guardResult = await evaluateExecutionGuards(decision, brokerPositions);
+    decision.blockers = guardResult.blockers;
 
-    // Risk guards
-    const guard = runRiskGuards({
+    await recordApproval(decision, guardResult.blockers);
+
+    if (!guardResult.allowed) {
+      continue;
+    }
+
+    approvedCount += 1;
+
+    const placement = await placeOrder(decision, { dryRun });
+    placements.push({ decision, placement });
+
+    if (!placement.placed) {
+      await appendLogEvent('order_skipped', {
+        decisionId: decision.id,
+        symbol: decision.symbol,
+        reason: placement.message,
+        dryRun: placement.dryRun,
+      });
+      continue;
+    }
+
+    placedCount += 1;
+
+    await appendLogEvent('order_submitted', {
+      decisionId: decision.id,
+      symbol: decision.symbol,
+      brokerOrderId: placement.order?.id ?? null,
+      qty: decision.qty,
+    });
+
+    const pendingTrade = await createPendingTrade({
       decision,
-      openPositions: openSymbols,
-      accountEquity,
-      maxDailyLossPercent: tradingCfg.maxDailyLossPercent,
-      maxOpenPositions: tradingCfg.maxOpenPositions,
+      order: placement.order,
+      source: 'autopilot',
     });
 
-    if (!guard.pass) {
-      logger.warn("Risk guard rejected", { symbol, reason: guard.reason });
-      summary.skipped++;
-      continue;
-    }
+    const brokerPositionsAfterPlacement = await getPositions();
+    const matchingBrokerPosition = brokerPositionsAfterPlacement.find(
+      (position) => position.symbol === decision.symbol,
+    );
 
-    // Place order — decision carries all the context placeOrder needs
-    const orderResult = await placeOrder({ decision, dryRun });
-
-    // Legacy daily journal entry (kept for backward compat with existing signals/performance routes)
-    const entry = buildJournalEntry(decision, orderResult);
-    appendTradeEntry(entry);
-
-    if (orderResult.submitted) {
-      openSymbols.push(symbol); // Track locally to avoid duplicate in same cycle
-      summary.placed++;
+    if (matchingBrokerPosition || placement.order?.status === 'filled') {
+      await markTradeOpen({
+        tradeId: pendingTrade.tradeId,
+        order: placement.order,
+        brokerPosition: matchingBrokerPosition,
+      });
     }
   }
 
-  logCycleComplete(summary);
-  logger.info("Autopilot cycle complete", summary);
+  const brokerPositionsAfter = await getPositions();
+  const brokerOrdersAfter = await getOrders({ status: 'all', limit: 200, nested: true, direction: 'desc' });
+
+  await syncTradesWithBroker({
+    brokerPositions: brokerPositionsAfter,
+    brokerOrders: brokerOrdersAfter,
+  });
+
+  const summary = {
+    cycleId,
+    dryRun,
+    scanned: decisions.length,
+    approved: approvedCount,
+    placed: placedCount,
+    startedAt,
+    completedAt: nowIso(),
+  };
+
+  await appendLogEvent('cycle_complete', summary);
+
+  console.log(`approved: ${summary.approved}`);
+  console.log(`placed: ${summary.placed}`);
+
+  return {
+    summary,
+    decisions,
+    placements,
+  };
 }
 
-runAutopilot().catch((err) => {
-  logger.error("Autopilot crashed", { error: err.message, stack: err.stack });
-  process.exit(1);
-});
+export default runAutopilotCycle;
+
+const executedFile = process.argv[1]?.replace(/\\/g, '/');
+if (executedFile?.endsWith('/src/autopilot.js')) {
+  runAutopilotCycle().catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  });
+}

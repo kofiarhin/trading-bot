@@ -1,129 +1,190 @@
-import { readFileSync, existsSync } from "fs";
-import { resolve, dirname } from "path";
-import { fileURLToPath } from "url";
-import { parseCommand } from "./parser.js";
-import { getPosition, submitMarketOrder } from "./alpaca.js";
-import { buildOrderFromIntent, formatSummary } from "./tradePlanner.js";
+import 'dotenv/config';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const envPath = resolve(__dirname, "../.env");
+import express from 'express';
 
-if (existsSync(envPath)) {
-  const lines = readFileSync(envPath, "utf-8").split("\n");
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eqIndex = trimmed.indexOf("=");
-    if (eqIndex === -1) continue;
-    const key = trimmed.slice(0, eqIndex).trim();
-    const value = trimmed.slice(eqIndex + 1).trim();
-    if (key && !(key in process.env)) {
-      process.env[key] = value;
-    }
-  }
-}
+import { getPositions } from './lib/alpaca.js';
+import { getDailyStoragePath, readJson, sortByTimestampDescending } from './lib/storage.js';
+import {
+  getClosedTrades,
+  getOpenTrades,
+  getTradeEvents,
+  mergeBrokerPositionsWithJournal,
+} from './journal/tradeJournal.js';
 
-function fail(message) {
-  console.error(`\nError: ${message}\n`);
-  process.exit(1);
-}
+const port = Number(process.env.PORT ?? 5000);
 
-const args = process.argv.slice(2);
-const dryRun = args.includes("--dry-run");
-const commandArgs = args.filter((a) => a !== "--dry-run");
-const input = commandArgs.join(" ").trim();
+function createCorsMiddleware() {
+  return (request, response, next) => {
+    response.setHeader('Access-Control-Allow-Origin', process.env.CORS_ORIGIN ?? '*');
+    response.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+    response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-if (!input) {
-  console.error(
-    "\nUsage: npm run trade -- \"<command>\"\n" +
-      "\nExamples:\n" +
-      '  npm run trade -- "buy 1 share of apple"\n' +
-      '  npm run trade -- "buy 0.01 btc"\n' +
-      '  npm run trade -- "sell apple stock"\n' +
-      '  npm run trade -- "sell eth"\n' +
-      '  npm run trade -- "buy $100 of tesla"\n' +
-      '  npm run trade -- "buy $50 of eth"\n' +
-      '  npm run trade -- "close my aapl position"\n' +
-      '  npm run trade -- "close my btc position"\n' +
-      '  npm run trade:dry -- "sell 2 shares of microsoft"\n'
-  );
-  process.exit(1);
-}
-
-let parsed;
-try {
-  parsed = parseCommand(input);
-} catch (err) {
-  fail(err.message);
-}
-
-if (parsed.action === "exit") {
-  console.log("Goodbye.");
-  process.exit(0);
-}
-
-const { action, assetClass, symbol, qty, notional } = parsed;
-
-let positionQty = null;
-if (action === "sell" || action === "close") {
-  if (dryRun) {
-    console.log(`[DRY RUN] Would check ${assetClass} position for ${symbol}.`);
-    console.log("[DRY RUN] Assuming a position exists for simulation purposes.");
-    positionQty = qty ?? (assetClass === "crypto" ? 1 : 10);
-  } else {
-    let position;
-    try {
-      position = await getPosition(symbol);
-    } catch (err) {
-      fail(`Failed to fetch position: ${err.message}`);
+    if (request.method === 'OPTIONS') {
+      response.status(204).end();
+      return;
     }
 
-    if (!position) {
-      fail(`No open position found for ${symbol}. Order not placed.`);
-    }
-
-    positionQty = Math.abs(parseFloat(position.qty));
-  }
+    next();
+  };
 }
 
-let orderParams;
-try {
-  orderParams = buildOrderFromIntent({
-    action,
-    assetClass,
-    symbol,
-    qty,
-    notional,
-    positionQty,
+async function loadDailyDecisions(date) {
+  return readJson(getDailyStoragePath('decisions', date), []);
+}
+
+async function loadDailyLogs(date) {
+  return readJson(getDailyStoragePath('logs', date), []);
+}
+
+async function buildActivityFeed() {
+  const [logs, decisions, tradeEvents] = await Promise.all([
+    loadDailyLogs(new Date()),
+    loadDailyDecisions(new Date()),
+    getTradeEvents(),
+  ]);
+
+  const decisionEvents = decisions.map((decision) => ({
+    id: `decision-${decision.id}`,
+    type: decision.approved ? 'decision_approved' : 'decision_rejected',
+    timestamp: decision.timestamp,
+    symbol: decision.symbol,
+    strategy: decision.strategy,
+    decisionId: decision.id,
+    metrics: {
+      close: decision.close,
+      breakoutLevel: decision.breakoutLevel,
+      atr: decision.atr,
+      volumeRatio: decision.volumeRatio,
+      distanceToBreakoutPct: decision.distanceToBreakoutPct,
+    },
+  }));
+
+  return sortByTimestampDescending([...logs, ...decisionEvents, ...tradeEvents]).slice(0, 200);
+}
+
+async function buildDashboardPayload() {
+  const [brokerPositions, openTrades, closedTrades, tradeEvents, decisions, activity] = await Promise.all([
+    getPositions().catch(() => []),
+    getOpenTrades(),
+    getClosedTrades(),
+    getTradeEvents(),
+    loadDailyDecisions(new Date()),
+    buildActivityFeed(),
+  ]);
+
+  const positions = await mergeBrokerPositionsWithJournal(brokerPositions);
+
+  return {
+    positions,
+    trades: {
+      open: openTrades,
+      closed: closedTrades,
+      events: tradeEvents,
+    },
+    decisions: sortByTimestampDescending(decisions),
+    activity,
+  };
+}
+
+export function createApp() {
+  const app = express();
+
+  app.use(createCorsMiddleware());
+  app.use(express.json());
+
+  app.get('/api/health', (_request, response) => {
+    response.json({ ok: true });
   });
-} catch (err) {
-  fail(err.message);
+
+  app.get(['/api/positions', '/api/open-positions'], async (_request, response, next) => {
+    try {
+      const brokerPositions = await getPositions().catch(() => []);
+      const positions = await mergeBrokerPositionsWithJournal(brokerPositions);
+      response.json(positions);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get(['/api/trades/open', '/api/journal/open'], async (_request, response, next) => {
+    try {
+      response.json(await getOpenTrades());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get(['/api/trades/closed', '/api/journal/closed'], async (_request, response, next) => {
+    try {
+      response.json(await getClosedTrades());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get(['/api/trades/events', '/api/journal/events'], async (_request, response, next) => {
+    try {
+      response.json(await getTradeEvents());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/api/journal', async (_request, response, next) => {
+    try {
+      response.json({
+        open: await getOpenTrades(),
+        closed: await getClosedTrades(),
+        events: await getTradeEvents(),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get(['/api/decisions', '/api/signals'], async (_request, response, next) => {
+    try {
+      response.json(sortByTimestampDescending(await loadDailyDecisions(new Date())));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get(['/api/activity', '/api/feed'], async (_request, response, next) => {
+    try {
+      response.json(await buildActivityFeed());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get(['/api/dashboard', '/api/status'], async (_request, response, next) => {
+    try {
+      response.json(await buildDashboardPayload());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.use((error, _request, response, _next) => {
+    response.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown server error',
+    });
+  });
+
+  return app;
 }
 
-const summary = formatSummary({
-  action,
-  assetClass,
-  symbol,
-  qty: orderParams.qty,
-  notional: orderParams.notional,
-  positionQty,
-});
-console.log(`\n> ${summary}`);
-
-if (dryRun) {
-  console.log("\n[DRY RUN] Order parameters:");
-  console.log(JSON.stringify(orderParams, null, 2));
-  console.log("\n[DRY RUN] No order was placed.\n");
-  process.exit(0);
+export function startServer() {
+  const app = createApp();
+  return app.listen(port, () => {
+    console.log(`API listening on ${port}`);
+  });
 }
 
-let response;
-try {
-  response = await submitMarketOrder(orderParams);
-} catch (err) {
-  fail(`Order failed: ${err.message}`);
-}
+export default createApp;
 
-console.log("\nAlpaca response:");
-console.log(JSON.stringify(response, null, 2));
-console.log();
+const executedFile = process.argv[1]?.replace(/\\/g, '/');
+if (executedFile?.endsWith('/src/index.js')) {
+  startServer();
+}

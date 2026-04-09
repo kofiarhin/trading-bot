@@ -189,5 +189,16 @@
     "closed": 0,
     "timestamp": "2026-04-09T03:42:03.120Z",
     "recordedAt": "2026-04-09T03:42:03.121Z"
+  },
+  {
+    "type": "completed",
+    "scanned": 3,
+    "approved": 1,
+    "placed": 0,
+    "skipped": 3,
+    "errors": 0,
+    "closed": 0,
+    "timestamp": "2026-04-09T03:51:34.282Z",
+    "recordedAt": "2026-04-09T03:51:34.283Z"
   }
 ]
