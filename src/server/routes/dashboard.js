@@ -6,6 +6,7 @@ import { getAccount, getOpenPositions } from "../../execution/alpacaTrading.js";
 import { config } from "../../config/env.js";
 import { loadDecisionLog } from "../../journal/decisionLogger.js";
 import { getOpenTrades } from "../../journal/openTradesStore.js";
+import { getClosedTrades } from "../../journal/closedTradesStore.js";
 import { normalizeSymbol } from "../../utils/symbolNorm.js";
 import { logger } from "../../utils/logger.js";
 import { etDateString } from "../../utils/time.js";
@@ -283,20 +284,22 @@ router.get("/positions/open", async (req, res) => {
 
 // GET /api/dashboard/positions/closed
 router.get("/positions/closed", (req, res) => {
-  const closed = getAllJournal()
-    .filter((e) => e.exitPrice != null)
+  const closed = getClosedTrades()
     .map((e) => ({
       symbol: e.symbol,
+      normalizedSymbol: e.normalizedSymbol,
       assetClass: formatAssetClass(e.assetClass),
-      entryPrice: e.entryPriceFilled ?? e.entryPricePlanned,
+      strategyName: e.strategyName ?? null,
+      openedAt: e.openedAt ?? null,
+      closedAt: e.closedAt ?? null,
+      entryPrice: e.entryPrice,
       exitPrice: e.exitPrice,
       quantity: e.quantity,
       pnl: e.pnl,
+      pnlPct: e.pnlPct ?? null,
       exitReason: e.exitReason,
-      signalTime: e.signalTime,
-      recordedAt: e.recordedAt,
     }))
-    .sort((a, b) => new Date(b.recordedAt) - new Date(a.recordedAt))
+    .sort((a, b) => new Date(b.closedAt) - new Date(a.closedAt))
     .slice(0, 100);
 
   res.json(closed);
@@ -336,7 +339,33 @@ router.get("/activity", (req, res) => {
   const cycles = getTodayCycles();
   const journal = getTodayJournal();
   const decisions = getDecisionLogForToday().records;
+  const closedTrades = getClosedTrades();
   const events = [];
+
+  // Exit events from closed trades store
+  const todayStr = etDateString();
+  for (const t of closedTrades) {
+    if (!t.closedAt || !t.closedAt.startsWith(todayStr)) continue;
+    if (t.exitReason === "stopLoss") {
+      events.push({
+        type: "stop_loss_hit",
+        label: `Stop loss hit — ${t.symbol} closed @ ${t.exitPrice} | PnL: ${t.pnl != null ? t.pnl.toFixed(2) : "—"}`,
+        timestamp: t.closedAt,
+      });
+    } else if (t.exitReason === "takeProfit") {
+      events.push({
+        type: "take_profit_hit",
+        label: `Take profit hit — ${t.symbol} closed @ ${t.exitPrice} | PnL: ${t.pnl != null ? t.pnl.toFixed(2) : "—"}`,
+        timestamp: t.closedAt,
+      });
+    } else {
+      events.push({
+        type: "trade_closed",
+        label: `Trade closed — ${t.symbol} @ ${t.exitPrice} (${t.exitReason ?? "manual"}) | PnL: ${t.pnl != null ? t.pnl.toFixed(2) : "—"}`,
+        timestamp: t.closedAt,
+      });
+    }
+  }
 
   for (const c of cycles) {
     if (c.type === "completed") {

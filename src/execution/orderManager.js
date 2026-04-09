@@ -1,5 +1,5 @@
 // Order manager — safety checks + submission + logging.
-import { submitOrder } from "./alpacaTrading.js";
+import { submitOrder, closePosition } from "./alpacaTrading.js";
 import { logger } from "../utils/logger.js";
 import { config } from "../config/env.js";
 import { saveOpenTrade } from "../journal/openTradesStore.js";
@@ -93,5 +93,47 @@ export async function placeOrder({ decision, dryRun = false }) {
   } catch (err) {
     logger.error("Order failed", { symbol, error: err.message });
     return { submitted: false, error: err.message, payload };
+  }
+}
+
+/**
+ * Closes an open position at market price.
+ * Returns { closed: boolean, exitPrice?: number, orderId?: string, error?: string }
+ *
+ * @param {{
+ *   trade: object,       open trade record from openTradesStore
+ *   exitReason: string,  "stopLoss" | "takeProfit"
+ *   currentPrice: number,
+ *   dryRun: boolean,
+ * }} params
+ */
+export async function closeTrade({ trade, exitReason, currentPrice, dryRun = false }) {
+  const symbol = trade.normalizedSymbol ?? trade.symbol;
+
+  if (dryRun) {
+    logger.info("[DRY RUN] Would close position", { symbol, exitReason, currentPrice });
+    return { closed: false, dryRun: true, exitReason, currentPrice };
+  }
+
+  logger.info("Closing position", { symbol, exitReason, currentPrice });
+
+  try {
+    const response = await closePosition(symbol);
+    const exitPrice = response.filled_avg_price
+      ? parseFloat(response.filled_avg_price)
+      : currentPrice;
+
+    logger.info("Position closed", { symbol, exitReason, exitPrice, orderId: response.id });
+
+    return {
+      closed: true,
+      exitPrice,
+      orderId: response.id ?? null,
+      orderStatus: response.status,
+      exitReason,
+    };
+  } catch (err) {
+    logger.error("Close position failed", { symbol, exitReason, error: err.message });
+    return { closed: false, error: err.message, exitReason };
   }
 }

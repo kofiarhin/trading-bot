@@ -1,0 +1,188 @@
+TRADING BOT PROJECT BRIEF
+
+OBJECTIVE
+Build a complete automated trading system that can:
+- analyze real-time market data (stocks + crypto)
+- make trading decisions based on strategy
+- execute trades (paper mode)
+- manage open positions (risk + exits)
+- provide full visibility through a dashboard
+
+---
+
+SYSTEM OVERVIEW
+
+The system operates in repeating cycles (every 15 minutes) and consists of four core engines:
+
+1. Market Scan Engine
+2. Decision Engine
+3. Execution Engine
+4. State / Journal Engine
+
+A frontend dashboard sits on top of these to visualize activity.
+
+---
+
+FULL SYSTEM FLOW
+
+1. SYSTEM START
+- Load environment configuration
+- Connect to Alpaca
+- Validate API + trading mode
+- Load settings (risk, strategy, assets)
+
+2. WAIT FOR CYCLE
+- Align execution with 15-minute candle closes
+- Example: 10:00, 10:15, 10:30, 10:45
+
+3. START CYCLE
+- Initialize cycle context
+- Record timestamp and mode (dry-run or live)
+
+4. LOAD ACCOUNT + POSITIONS
+- Fetch account data (equity, buying power)
+- Fetch open positions from broker
+
+5. LOAD INTERNAL STATE
+- Load open trades store
+- Load decision history
+- Load journal files
+
+6. MONITOR OPEN POSITIONS (EXIT ENGINE)
+For each open trade:
+- Fetch latest price
+- If price <= stop loss → SELL
+- If price >= take profit → SELL
+- Update records and remove closed trades
+
+7. BUILD MARKET UNIVERSE
+- Stocks (session-based)
+- Crypto (24/7)
+
+8. FILTER ELIGIBLE SYMBOLS
+- Remove stocks outside market hours
+- Keep crypto active always
+
+9. FETCH MARKET DATA
+- Retrieve 15-minute bars
+- Ensure enough history for indicators
+
+10. VALIDATE DATA
+- Check bar completeness
+- Ensure no missing or corrupt data
+
+11. COMPUTE INDICATORS
+- ATR (volatility)
+- Breakout level (highest high)
+- Volume averages
+- Distance to breakout
+
+12. RUN STRATEGY
+Evaluate each symbol:
+- If conditions met → APPROVED
+- Else → REJECTED
+
+Each decision includes:
+- close price
+- breakout level
+- ATR
+- volume ratio
+- distance %
+
+13. APPLY RISK GUARDS
+- Max open positions
+- Daily loss limits
+- Duplicate trades
+- Position sizing checks
+
+14. LOG DECISIONS
+- Store approved + rejected decisions
+- Persist to storage
+- Feed dashboard
+
+15. EXECUTE TRADES (ENTRY ENGINE)
+If not dry-run:
+- Place paper trade via Alpaca
+- Save trade to openTradesStore
+
+16. UPDATE STATE
+- Append to trade journal
+- Update open trades
+- Log activity feed
+
+17. END CYCLE
+- Log summary:
+  - scanned
+  - approved
+  - rejected
+  - placed
+  - errors
+
+18. WAIT FOR NEXT CYCLE
+
+---
+
+TRADE LIFECYCLE
+
+ENTRY
+- Strategy approves setup
+- Trade is executed
+- Trade stored in openTradesStore
+
+OPEN POSITION
+- Dashboard shows:
+  - symbol
+  - entry
+  - stop
+  - target
+  - risk
+  - pnl
+
+EXIT
+- Stop loss or target hit
+- Trade closed automatically
+- Moved to closed trade history
+- PnL realized
+
+---
+
+CURRENT SYSTEM STATUS
+
+COMPLETED
+- Market scanning
+- Strategy evaluation
+- Decision logging
+- Dashboard visualization
+
+IN PROGRESS
+- Decision metrics completion (ATR, volume)
+- Open trades store
+- Position exit engine
+
+---
+
+NEXT MILESTONE
+
+Build Position Exit Engine:
+- monitor trades each cycle
+- trigger stop loss
+- trigger take profit
+- close positions automatically
+- persist closed trades
+
+---
+
+FINAL GOAL
+
+A fully autonomous trading system that:
+- makes data-driven decisions
+- manages risk automatically
+- executes trades safely
+- provides full transparency
+- supports continuous improvement
+
+---
+
+CORE LOOP (SIMPLIFIED)
+
+wait → monitor positions → scan market → evaluate strategy → apply risk → execute trades → update state → repeat

@@ -84,3 +84,13 @@ export async function submitOrder({ symbol, qty, side, assetClass = "stock" }) {
   };
   return tradingFetch("/v2/orders", { method: "POST", body: JSON.stringify(body) });
 }
+
+/**
+ * Closes an entire position by symbol via Alpaca's close-position endpoint.
+ * Returns the resulting order object.
+ * @param {string} symbol  — normalized symbol (e.g. "AAPL", "BTCUSD")
+ * @returns {Promise<object>}
+ */
+export async function closePosition(symbol) {
+  return tradingFetch(`/v2/positions/${encodeURIComponent(symbol)}`, { method: "DELETE" });
+}

@@ -6,12 +6,15 @@ import { filterEligible } from "./market/marketHours.js";
 import { fetchBars, validateBars } from "./market/alpacaMarketData.js";
 import { evaluateBreakout } from "./strategies/breakoutStrategy.js";
 import { runRiskGuards } from "./risk/guards.js";
-import { placeOrder } from "./execution/orderManager.js";
+import { placeOrder, closeTrade } from "./execution/orderManager.js";
 import { getAccount } from "./execution/alpacaTrading.js";
-import { getOpenSymbols } from "./positions/positionMonitor.js";
+import { getOpenSymbols, checkOpenTradesForExit } from "./positions/positionMonitor.js";
 import { appendTradeEntry, buildJournalEntry } from "./journal/tradeJournal.js";
+import { removeOpenTrade } from "./journal/openTradesStore.js";
+import { appendClosedTrade } from "./journal/closedTradesStore.js";
 import { logCycleComplete } from "./journal/cycleLogger.js";
 import { logDecision } from "./journal/decisionLogger.js";
+import { normalizeSymbol } from "./utils/symbolNorm.js";
 import { logger } from "./utils/logger.js";
 
 const dryRun = process.argv.includes("--dry-run");
@@ -20,7 +23,7 @@ async function runAutopilot() {
   logger.info(`Autopilot cycle starting${dryRun ? " [DRY RUN]" : ""}`);
 
   const tradingCfg = config.trading;
-  const summary = { scanned: 0, approved: 0, placed: 0, skipped: 0, errors: 0 };
+  const summary = { scanned: 0, approved: 0, placed: 0, skipped: 0, errors: 0, closed: 0 };
 
   // 1. Fetch account info
   let account;
@@ -34,11 +37,65 @@ async function runAutopilot() {
   const accountEquity = parseFloat(account.equity);
   logger.info("Account loaded", { equity: accountEquity, status: account.status });
 
-  // 2. Load open positions
+  // 2. Monitor exits — check open trades before placing new ones
+  logger.info("Checking open trades for exit conditions");
+  let exitCandidates = [];
+  try {
+    exitCandidates = await checkOpenTradesForExit();
+  } catch (err) {
+    logger.error("Exit check failed", { error: err.message });
+  }
+
+  logger.info("Exit check complete", { candidates: exitCandidates.length });
+
+  // 3. Execute exits
+  for (const { trade, exitReason, currentPrice } of exitCandidates) {
+    const symbol = trade.normalizedSymbol ?? trade.symbol;
+    logger.info("Executing exit", { symbol, exitReason, currentPrice });
+
+    const result = await closeTrade({ trade, exitReason, currentPrice, dryRun });
+
+    if (dryRun) {
+      logger.info("[DRY RUN] Exit logged — no state mutation", { symbol, exitReason });
+      continue;
+    }
+
+    if (!result.closed) {
+      logger.error("Exit failed", { symbol, error: result.error });
+      summary.errors++;
+      continue;
+    }
+
+    const exitPrice = result.exitPrice ?? currentPrice;
+    const pnl = (exitPrice - trade.entryPrice) * (trade.quantity ?? 1);
+    const pnlPct = trade.entryPrice ? ((exitPrice - trade.entryPrice) / trade.entryPrice) * 100 : null;
+
+    appendClosedTrade({
+      symbol: trade.symbol,
+      normalizedSymbol: normalizeSymbol(symbol),
+      assetClass: trade.assetClass ?? null,
+      strategyName: trade.strategyName ?? null,
+      openedAt: trade.openedAt ?? null,
+      closedAt: new Date().toISOString(),
+      entryPrice: trade.entryPrice,
+      exitPrice,
+      quantity: trade.quantity ?? 1,
+      pnl,
+      pnlPct,
+      exitReason,
+    });
+
+    removeOpenTrade(symbol);
+    summary.closed++;
+
+    logger.info("Trade closed and archived", { symbol, exitReason, exitPrice, pnl });
+  }
+
+  // 4. Load current open positions (after exits)
   const openSymbols = await getOpenSymbols();
   logger.info("Open positions loaded", { count: openSymbols.length, symbols: openSymbols });
 
-  // 3. Build universe and filter by market hours
+  // 5. Build universe and filter by market hours
   const universe = getUniverse(tradingCfg);
   const stocksTotal = universe.filter((u) => u.assetClass === "stock").length;
   const cryptoTotal = universe.filter((u) => u.assetClass === "crypto").length;
@@ -59,7 +116,7 @@ async function runAutopilot() {
     return;
   }
 
-  // 4. Per-symbol: fetch → validate → evaluate → risk check → order
+  // 6. Per-symbol: fetch → validate → evaluate → risk check → order
   for (const { symbol, assetClass } of eligible) {
     summary.scanned++;
 
