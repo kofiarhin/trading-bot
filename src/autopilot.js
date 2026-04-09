@@ -108,7 +108,7 @@ function buildDecision(symbol, bars, account) {
     symbol,
     strategy: 'breakout',
     timestamp,
-    approved,
+  approved,
     side: 'buy',
     status: approved ? 'approved' : 'rejected',
     reason: approved ? 'breakout_confirmed' : 'breakout_not_confirmed',
@@ -325,3 +325,4 @@ if (executedFile?.endsWith('/src/autopilot.js')) {
     process.exitCode = 1;
   });
 }
+ 

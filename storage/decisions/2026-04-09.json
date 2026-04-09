@@ -146,5 +146,93 @@
     "blockers": [
       "insufficient_market_data"
     ]
+  },
+  {
+    "id": "0774103d-e611-453e-a1b6-2e4c1cc1ce02",
+    "symbol": "AAPL",
+    "strategy": "breakout",
+    "timestamp": "2026-04-09T04:58:27.665Z",
+    "approved": false,
+    "side": "buy",
+    "status": "rejected",
+    "reason": "insufficient_market_data",
+    "close": 0,
+    "breakoutLevel": 0,
+    "atr": 0,
+    "volumeRatio": 0,
+    "distanceToBreakoutPct": 0,
+    "stop": 0,
+    "target": 0,
+    "risk": 0,
+    "qty": 0,
+    "blockers": [
+      "insufficient_market_data"
+    ]
+  },
+  {
+    "id": "3a0c105e-3504-40b8-a993-217efaf91fca",
+    "symbol": "AAPL",
+    "strategy": "breakout",
+    "timestamp": "2026-04-09T04:58:53.892Z",
+    "approved": false,
+    "side": "buy",
+    "status": "rejected",
+    "reason": "insufficient_market_data",
+    "close": 0,
+    "breakoutLevel": 0,
+    "atr": 0,
+    "volumeRatio": 0,
+    "distanceToBreakoutPct": 0,
+    "stop": 0,
+    "target": 0,
+    "risk": 0,
+    "qty": 0,
+    "blockers": [
+      "insufficient_market_data"
+    ]
+  },
+  {
+    "id": "2e0ef3e9-6c93-4869-8b9b-91451648e93e",
+    "symbol": "AAPL",
+    "strategy": "breakout",
+    "timestamp": "2026-04-09T06:03:03.842Z",
+    "approved": false,
+    "side": "buy",
+    "status": "rejected",
+    "reason": "insufficient_market_data",
+    "close": 0,
+    "breakoutLevel": 0,
+    "atr": 0,
+    "volumeRatio": 0,
+    "distanceToBreakoutPct": 0,
+    "stop": 0,
+    "target": 0,
+    "risk": 0,
+    "qty": 0,
+    "blockers": [
+      "insufficient_market_data"
+    ]
+  },
+  {
+    "id": "e23efe75-e60a-4be4-9fb3-2c2f0508b279",
+    "symbol": "AAPL",
+    "strategy": "breakout",
+    "timestamp": "2026-04-09T06:03:19.154Z",
+    "approved": false,
+    "side": "buy",
+    "status": "rejected",
+    "reason": "insufficient_market_data",
+    "close": 0,
+    "breakoutLevel": 0,
+    "atr": 0,
+    "volumeRatio": 0,
+    "distanceToBreakoutPct": 0,
+    "stop": 0,
+    "target": 0,
+    "risk": 0,
+    "qty": 0,
+    "blockers": [
+      "insufficient_market_data"
+    ]
   }
 ]
