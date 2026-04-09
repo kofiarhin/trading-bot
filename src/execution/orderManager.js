@@ -2,7 +2,14 @@
 import { submitOrder, closePosition } from "./alpacaTrading.js";
 import { logger } from "../utils/logger.js";
 import { config } from "../config/env.js";
-import { createPendingTrade, markTradeOpen, markTradeCanceled } from "../journal/journalUtils.js";
+import {
+  createPendingTrade,
+  markTradeOpen,
+  markTradeCanceled,
+  getOpenTradeById,
+  removeOpenTrade,
+  addClosedTrade,
+} from "../journal/tradeJournal.js";
 import { normalizeSymbol } from "../utils/symbolNorm.js";
 
 /**
@@ -21,31 +28,30 @@ export async function placeOrder({ decision, dryRun = false }) {
   const {
     symbol,
     quantity,
+    qty,
     assetClass,
     entryPrice,
     stopLoss,
+    stop,
     takeProfit,
+    target,
     riskAmount,
-    riskPerUnit,
     strategyName,
-    timeframe,
-    reason,
-    timestamp: decisionTimestamp,
-    atr,
-    breakoutLevel,
-    volumeRatio,
-    distanceToBreakoutPct,
-    closePrice,
+    strategy,
   } = decision;
+
+  const resolvedQty = quantity ?? qty;
+  const resolvedStopLoss = stopLoss ?? stop;
+  const resolvedTakeProfit = takeProfit ?? target;
 
   const payload = {
     symbol,
-    qty: quantity,
+    qty: resolvedQty,
     side: "buy",
     assetClass,
     entryPrice,
-    stopLoss,
-    takeProfit,
+    stopLoss: resolvedStopLoss,
+    takeProfit: resolvedTakeProfit,
   };
 
   // Safety: paper mode only
@@ -56,9 +62,9 @@ export async function placeOrder({ decision, dryRun = false }) {
   }
 
   // Safety: quantity > 0
-  if (!quantity || quantity < 1) {
+  if (!resolvedQty || resolvedQty < 1) {
     const error = "quantity must be >= 1";
-    logger.error("Order blocked — invalid quantity", { symbol, quantity });
+    logger.error("Order blocked — invalid quantity", { symbol, qty: resolvedQty });
     return { submitted: false, error, payload };
   }
 
@@ -68,31 +74,18 @@ export async function placeOrder({ decision, dryRun = false }) {
   }
 
   // Create pending trade record before order submission
-  let tradeId = null;
+  let pendingTrade = null;
   try {
-    const pendingTrade = createPendingTrade({
-      symbol,
-      assetClass,
-      side: "long",
-      strategyName: strategyName ?? "momentum_breakout_atr_v1",
-      entryPrice,
-      stopLoss,
-      takeProfit,
-      quantity,
-      riskAmount,
-      riskPerUnit,
-      timeframe,
-      decisionTimestamp,
-      entryReason: reason ?? null,
-      metrics: {
-        closePrice: closePrice ?? null,
-        breakoutLevel: breakoutLevel ?? null,
-        atr: atr ?? null,
-        volumeRatio: volumeRatio ?? null,
-        distanceToBreakoutPct: distanceToBreakoutPct ?? null,
+    pendingTrade = await createPendingTrade({
+      decision: {
+        ...decision,
+        qty: resolvedQty,
+        stop: resolvedStopLoss,
+        target: resolvedTakeProfit,
+        strategy: strategyName ?? strategy ?? "momentum_breakout_atr_v1",
       },
+      source: "autopilot",
     });
-    tradeId = pendingTrade.tradeId;
   } catch (journalErr) {
     logger.error("Failed to create pending trade — aborting order", {
       symbol,
@@ -101,12 +94,13 @@ export async function placeOrder({ decision, dryRun = false }) {
     return { submitted: false, error: journalErr.message, payload };
   }
 
-  logger.info("Submitting order", { symbol, qty: quantity, entryPrice, tradeId });
+  const tradeId = pendingTrade.tradeId;
+  logger.info("Submitting order", { symbol, qty: resolvedQty, entryPrice, tradeId });
 
   try {
     const response = await submitOrder({
       symbol,
-      qty: quantity,
+      qty: resolvedQty,
       side: "buy",
       assetClass,
     });
@@ -119,20 +113,13 @@ export async function placeOrder({ decision, dryRun = false }) {
 
     if (isFilled) {
       try {
-        markTradeOpen(tradeId, {
-          openedAt: new Date().toISOString(),
-          entryPrice: response.filled_avg_price
-            ? parseFloat(response.filled_avg_price)
-            : entryPrice,
-          quantity,
-          brokerOrderId: response.id ?? null,
+        await markTradeOpen({
+          tradeId,
+          order: response,
+          source: "autopilot",
         });
       } catch (openErr) {
-        logger.error("Failed to mark trade open after fill", {
-          symbol,
-          tradeId,
-          error: openErr.message,
-        });
+        logger.error("Failed to mark trade open after fill", { symbol, tradeId, error: openErr.message });
       }
     } else {
       // Order accepted but not yet filled — update brokerOrderId on pending record
@@ -159,7 +146,7 @@ export async function placeOrder({ decision, dryRun = false }) {
     logger.error("Order failed", { symbol, tradeId, error: err.message });
 
     try {
-      markTradeCanceled(tradeId, err.message);
+      await markTradeCanceled({ tradeId, reason: err.message });
     } catch (cancelErr) {
       logger.warn("Failed to cancel pending trade after order failure (non-fatal)", {
         tradeId,
@@ -172,43 +159,82 @@ export async function placeOrder({ decision, dryRun = false }) {
 }
 
 /**
- * Closes an open position at market price.
+ * Closes an open trade: submits market close to broker, calculates PnL, archives in journal.
  * Returns { closed, exitPrice?, orderId?, orderStatus?, exitReason, error?, dryRun? }
  *
  * @param {{
- *   trade: object,       open trade record from openTradesStore
- *   exitReason: string,  "stopLoss" | "takeProfit" | "stop_hit" | "target_hit"
- *   currentPrice: number,
- *   dryRun: boolean,
+ *   tradeId: string,
+ *   symbol: string,
+ *   exitPrice: number,    current market price (used as fallback if broker fill unavailable)
+ *   reason: string,       "stop_loss" | "take_profit" | "manual"
+ *   dryRun?: boolean,
  * }} params
  */
-export async function closeTrade({ trade, exitReason, currentPrice, dryRun = false }) {
-  const symbol = trade.normalizedSymbol ?? normalizeSymbol(trade.symbol);
+export async function closeTrade({ tradeId, symbol, exitPrice: currentPrice, reason, dryRun = false }) {
+  const normalizedSym = normalizeSymbol(symbol);
 
-  if (dryRun) {
-    logger.info("[DRY RUN] Would close position", { symbol, exitReason, currentPrice });
-    return { closed: false, dryRun: true, exitReason, currentPrice };
+  if (dryRun || process.env.DRY_RUN === "true") {
+    logger.info("[DRY RUN] Would close trade", { symbol: normalizedSym, reason, currentPrice });
+    return { closed: false, dryRun: true, exitReason: reason };
   }
 
-  logger.info("Closing position", { symbol, exitReason, currentPrice });
+  logger.info("Closing position", { symbol: normalizedSym, reason, currentPrice });
+
+  let fillPrice = currentPrice;
+  let orderId = null;
+  let orderStatus = null;
 
   try {
-    const response = await closePosition(symbol);
-    const exitPrice = response.filled_avg_price
-      ? parseFloat(response.filled_avg_price)
-      : currentPrice;
-
-    logger.info("Position closed", { symbol, exitReason, exitPrice, orderId: response.id });
-
-    return {
-      closed: true,
-      exitPrice,
-      orderId: response.id ?? null,
-      orderStatus: response.status,
-      exitReason,
-    };
+    const response = await closePosition(normalizedSym);
+    fillPrice = response.filled_avg_price ? parseFloat(response.filled_avg_price) : currentPrice;
+    orderId = response.id ?? null;
+    orderStatus = response.status ?? null;
+    logger.info("Position closed at broker", { symbol: normalizedSym, fillPrice, orderId });
   } catch (err) {
-    logger.error("Close position failed", { symbol, exitReason, error: err.message });
-    return { closed: false, error: err.message, exitReason };
+    logger.error("Close position failed at broker", { symbol: normalizedSym, reason, error: err.message });
+    return { closed: false, error: err.message, exitReason: reason };
   }
+
+  // Archive in journal
+  try {
+    const trade = await getOpenTradeById(tradeId);
+    if (!trade) {
+      logger.warn("closeTrade: trade not found in journal, skipping archive", { tradeId, symbol });
+      return { closed: true, exitPrice: fillPrice, orderId, orderStatus, exitReason: reason };
+    }
+
+    const qty = trade.quantity ?? trade.qty ?? 0;
+    const entry = trade.entryPrice ?? 0;
+    const pnl = entry && qty ? (fillPrice - entry) * qty : null;
+    const pnlPct = entry && pnl != null ? ((fillPrice - entry) / entry) * 100 : null;
+
+    const closedTrade = {
+      ...trade,
+      status: "closed",
+      exitPrice: fillPrice,
+      pnl: pnl != null ? Number(pnl.toFixed(2)) : null,
+      pnlPct: pnlPct != null ? Number(pnlPct.toFixed(4)) : null,
+      exitReason: reason,
+      closedAt: new Date().toISOString(),
+    };
+
+    await removeOpenTrade(tradeId);
+    await addClosedTrade(closedTrade);
+
+    logger.info("Trade archived as closed", { tradeId, symbol, exitReason: reason, pnl: closedTrade.pnl });
+  } catch (journalErr) {
+    logger.error("Failed to archive closed trade in journal (broker close already submitted)", {
+      tradeId,
+      symbol,
+      error: journalErr.message,
+    });
+  }
+
+  return {
+    closed: true,
+    exitPrice: fillPrice,
+    orderId,
+    orderStatus,
+    exitReason: reason,
+  };
 }

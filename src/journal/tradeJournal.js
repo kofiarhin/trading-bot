@@ -434,13 +434,53 @@ export async function mergeBrokerPositionsWithJournal(brokerPositions = []) {
   return [...mergedBrokerPositions, ...pendingTrades];
 }
 
+export async function getOpenTradeById(tradeId) {
+  const trades = await readJson(openTradesPath, []);
+  return trades.find((t) => t.tradeId === tradeId) ?? null;
+}
+
+export async function addOpenTrade(trade) {
+  const trades = await readJson(openTradesPath, []);
+  const idx = trades.findIndex((t) => t.tradeId === trade.tradeId);
+  const updated = idx >= 0
+    ? trades.map((t, i) => (i === idx ? { ...t, ...trade, updatedAt: nowIso() } : t))
+    : [...trades, { ...trade, updatedAt: nowIso() }];
+  await writeJson(openTradesPath, updated);
+  return trade;
+}
+
+export async function removeOpenTrade(tradeId) {
+  const trades = await readJson(openTradesPath, []);
+  await writeJson(openTradesPath, trades.filter((t) => t.tradeId !== tradeId));
+}
+
+export async function addClosedTrade(trade) {
+  const closed = await readJson(closedTradesPath, []);
+  const filtered = closed.filter((t) => t.tradeId !== trade.tradeId);
+  await writeJson(closedTradesPath, [...filtered, trade]);
+  return trade;
+}
+
+export async function markTradeCanceled({ tradeId, reason = 'canceled' }) {
+  const trades = await readJson(openTradesPath, []);
+  const updated = trades.map((t) =>
+    t.tradeId === tradeId ? { ...t, status: 'canceled', cancelReason: reason, updatedAt: nowIso() } : t,
+  );
+  await writeJson(openTradesPath, updated);
+}
+
 export default {
   createPendingTrade,
   markTradeOpen,
   markTradeClosed,
+  markTradeCanceled,
   syncTradesWithBroker,
   mergeBrokerPositionsWithJournal,
   getOpenTrades,
+  getOpenTradeById,
+  addOpenTrade,
+  removeOpenTrade,
+  addClosedTrade,
   getClosedTrades,
   getTradeEvents,
 };

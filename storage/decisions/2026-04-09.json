@@ -278,5 +278,27 @@
     "blockers": [
       "insufficient_market_data"
     ]
+  },
+  {
+    "id": "2b7a93cd-1573-4137-9079-225bdd56a711",
+    "symbol": "AAPL",
+    "strategy": "breakout",
+    "timestamp": "2026-04-09T15:03:10.822Z",
+    "approved": false,
+    "side": "buy",
+    "status": "rejected",
+    "reason": "insufficient_market_data",
+    "close": 0,
+    "breakoutLevel": 0,
+    "atr": 0,
+    "volumeRatio": 0,
+    "distanceToBreakoutPct": 0,
+    "stop": 0,
+    "target": 0,
+    "risk": 0,
+    "qty": 0,
+    "blockers": [
+      "insufficient_market_data"
+    ]
   }
 ]

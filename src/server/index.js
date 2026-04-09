@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dashboardRoutes from "./routes/dashboard.js";
 import tradesRoutes from "./routes/trades.js";
+import positionsRoutes from "./routes/positions.js";
 
 const app = express();
 const PORT = process.env.PORT ?? 5000;
@@ -12,6 +13,7 @@ app.use(express.json());
 
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/trades", tradesRoutes);
+app.use("/api/positions", positionsRoutes);
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 

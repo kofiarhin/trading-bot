@@ -11,6 +11,8 @@ import {
   markTradeOpen,
   syncTradesWithBroker,
 } from './journal/tradeJournal.js';
+import { checkOpenTradesForExit } from './positions/positionMonitor.js';
+import { closeTrade } from './execution/orderManager.js';
 
 function toNumber(value, fallback = 0) {
   const numericValue = Number(value);
@@ -194,6 +196,23 @@ async function recordApproval(decision, blockers) {
   });
 }
 
+async function handleExits(dryRun) {
+  const openTrades = await getOpenTrades();
+  const exitDecisions = await checkOpenTradesForExit(openTrades);
+
+  for (const exit of exitDecisions) {
+    if (!exit.shouldExit) continue;
+
+    await closeTrade({
+      tradeId: exit.tradeId,
+      symbol: exit.symbol,
+      exitPrice: exit.currentPrice,
+      reason: exit.reason,
+      dryRun,
+    });
+  }
+}
+
 export async function runAutopilotCycle(options = {}) {
   const dryRun = isDryRunEnabled(options);
   const cycleId = randomUUID();
@@ -215,6 +234,8 @@ export async function runAutopilotCycle(options = {}) {
     brokerPositions: brokerPositionsBefore,
     brokerOrders: brokerOrdersBefore,
   });
+
+  await handleExits(dryRun);
 
   const barsBySymbol = await getBarsForSymbols(symbols, { timeframe: '15Min', limit: 60 });
   const decisions = symbols.map((symbol) => buildDecision(symbol, barsBySymbol[symbol] ?? [], account));
