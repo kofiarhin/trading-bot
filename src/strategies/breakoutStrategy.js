@@ -62,6 +62,10 @@ export function evaluateBreakout({
   let volumeRatio = null;
   let distanceToBreakoutPct = null;
 
+  function toMetric(value) {
+    return Number.isFinite(value) ? parseFloat(value.toFixed(4)) : null;
+  }
+
   function reject(reason) {
     return {
       approved: false,
@@ -96,8 +100,24 @@ export function evaluateBreakout({
   // --- Highest high (breakout level) ---
   const rawBreakoutLevel = calcHighestHigh(bars, opts.breakoutLookback);
   if (rawBreakoutLevel === null) return reject("could not compute breakout level");
-  breakoutLevel = parseFloat(rawBreakoutLevel.toFixed(4));
-  distanceToBreakoutPct = parseFloat((((entryPrice - breakoutLevel) / breakoutLevel) * 100).toFixed(4));
+  breakoutLevel = toMetric(rawBreakoutLevel);
+
+  // --- Volume confirmation metric ---
+  const avgVolume = calcAverageVolume(bars, opts.volumeLookback);
+  if (avgVolume !== null && avgVolume !== 0) {
+    volumeRatio = toMetric(currentVolume / avgVolume);
+  }
+
+  // --- ATR metric ---
+  const rawAtr = calcATR(bars, opts.atrPeriod);
+  if (rawAtr !== null && rawAtr > 0) {
+    atr = toMetric(rawAtr);
+  }
+
+  distanceToBreakoutPct = breakoutLevel
+    ? toMetric(((entryPrice - breakoutLevel) / breakoutLevel) * 100)
+    : null;
+
   if (entryPrice <= rawBreakoutLevel) {
     return reject(
       `no breakout: close ${entryPrice} ≤ highest high ${breakoutLevel.toFixed(4)}`
@@ -105,9 +125,7 @@ export function evaluateBreakout({
   }
 
   // --- Volume confirmation ---
-  const avgVolume = calcAverageVolume(bars, opts.volumeLookback);
   if (avgVolume === null || avgVolume === 0) return reject("could not compute average volume");
-  volumeRatio = parseFloat((currentVolume / avgVolume).toFixed(4));
   if (volumeRatio < opts.minVolRatio) {
     return reject(
       `volume confirmation failed: ratio ${volumeRatio.toFixed(2)} < ${opts.minVolRatio}`
@@ -115,9 +133,7 @@ export function evaluateBreakout({
   }
 
   // --- ATR ---
-  const rawAtr = calcATR(bars, opts.atrPeriod);
   if (rawAtr === null || rawAtr <= 0) return reject("invalid ATR");
-  atr = parseFloat(rawAtr.toFixed(4));
 
   // --- Stop-loss ---
   const stopLoss = entryPrice - opts.atrMultiplier * atr;
@@ -141,15 +157,15 @@ export function evaluateBreakout({
     strategyName: STRATEGY_NAME,
     closePrice,
     entryPrice,
-    stopLoss: parseFloat(stopLoss.toFixed(4)),
-    takeProfit: parseFloat(takeProfit.toFixed(4)),
+    stopLoss: toMetric(stopLoss),
+    takeProfit: toMetric(takeProfit),
     atr,
     breakoutLevel,
     volumeRatio,
     distanceToBreakoutPct,
-    riskPerUnit: parseFloat(riskPerUnit.toFixed(4)),
+    riskPerUnit: toMetric(riskPerUnit),
     quantity,
-    riskAmount: parseFloat(riskAmount.toFixed(4)),
+    riskAmount: toMetric(riskAmount),
     reason: "15m breakout confirmed by volume",
     timestamp,
   };

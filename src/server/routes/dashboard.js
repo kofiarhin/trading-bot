@@ -244,17 +244,8 @@ router.get("/signals", (req, res) => {
 // GET /api/dashboard/positions/open
 router.get("/positions/open", async (req, res) => {
   try {
-    const [positions, openTrades] = await Promise.all([
-      getOpenPositions(),
-      Promise.resolve(getOpenTrades()),
-    ]);
+    const [positions, openTrades] = await Promise.all([getOpenPositions(), getOpenTrades()]);
     const journal = getTodayJournal();
-
-    // Build lookups keyed by normalized symbol for cross-day and crypto compatibility
-    const tradeLookup = {};
-    for (const t of openTrades) {
-      tradeLookup[normalizeSymbol(t.symbol)] = t;
-    }
 
     const journalLookup = {};
     for (const e of journal) {
@@ -262,9 +253,10 @@ router.get("/positions/open", async (req, res) => {
     }
 
     const mapped = positions.map((p) => {
-      const key = normalizeSymbol(p.symbol);
-      const stored = tradeLookup[key] ?? null;
-      const je = journalLookup[key] ?? null;
+      const normalized = normalizeSymbol(p.symbol);
+      const trade = openTrades.find((t) => t.normalizedSymbol === normalized) ?? null;
+      const je = journalLookup[normalized] ?? null;
+
       return {
         symbol: p.symbol,
         assetClass: formatAssetClass(p.asset_class),
@@ -276,11 +268,11 @@ router.get("/positions/open", async (req, res) => {
         unrealizedPnlPct: parseFloat(p.unrealized_plpc) * 100,
         side: p.side,
         // openTradesStore takes priority; today's journal as fallback
-        strategyName: stored?.strategyName ?? je?.strategyName ?? null,
-        openedAt: stored?.openedAt ?? je?.signalTime ?? je?.recordedAt ?? null,
-        stopLoss: stored?.stopLoss ?? je?.stopLoss ?? null,
-        takeProfit: stored?.takeProfit ?? je?.takeProfit ?? null,
-        riskAmount: stored?.riskAmount ?? je?.riskAmount ?? null,
+        strategyName: trade?.strategyName ?? je?.strategyName ?? null,
+        openedAt: trade?.openedAt ?? je?.signalTime ?? je?.recordedAt ?? null,
+        stopLoss: trade?.stopLoss ?? je?.stopLoss ?? null,
+        takeProfit: trade?.takeProfit ?? je?.takeProfit ?? null,
+        riskAmount: trade?.riskAmount ?? je?.riskAmount ?? null,
       };
     });
     res.json(mapped);

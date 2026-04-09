@@ -11,6 +11,20 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const TRADES_DIR = resolve(__dirname, "../../storage/trades");
 const OPEN_TRADES_PATH = resolve(TRADES_DIR, "open.json");
 
+function normalizeTradeRecord(trade) {
+  if (!trade || typeof trade !== "object") return null;
+
+  const symbol = trade.symbol ?? trade.normalizedSymbol ?? null;
+  if (!symbol) return null;
+
+  return {
+    ...trade,
+    symbol,
+    normalizedSymbol: normalizeSymbol(trade.normalizedSymbol ?? symbol),
+    status: trade.status ?? "open",
+  };
+}
+
 function ensureDir() {
   if (!existsSync(TRADES_DIR)) mkdirSync(TRADES_DIR, { recursive: true });
 }
@@ -19,7 +33,8 @@ function readTrades() {
   if (!existsSync(OPEN_TRADES_PATH)) return [];
   try {
     const parsed = JSON.parse(readFileSync(OPEN_TRADES_PATH, "utf-8"));
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(normalizeTradeRecord).filter(Boolean);
   } catch (err) {
     logger.error("Failed to read open trades store", { error: err.message });
     return [];
@@ -42,9 +57,15 @@ export function getOpenTrades() {
  */
 export function saveOpenTrade(trade) {
   const trades = readTrades();
-  const key = normalizeSymbol(trade.symbol);
-  const idx = trades.findIndex((t) => normalizeSymbol(t.symbol) === key);
-  const record = { ...trade, status: "open" };
+  const record = normalizeTradeRecord(trade);
+
+  if (!record) {
+    throw new Error("Open trade requires a symbol");
+  }
+
+  const key = record.normalizedSymbol;
+  const idx = trades.findIndex((t) => t.normalizedSymbol === key);
+
   if (idx >= 0) {
     trades[idx] = record;
   } else {
@@ -60,7 +81,7 @@ export function saveOpenTrade(trade) {
  */
 export function removeOpenTrade(symbol) {
   const key = normalizeSymbol(symbol);
-  const trades = readTrades().filter((t) => normalizeSymbol(t.symbol) !== key);
+  const trades = readTrades().filter((t) => t.normalizedSymbol !== key);
   writeTrades(trades);
 }
 
@@ -71,5 +92,5 @@ export function removeOpenTrade(symbol) {
  */
 export function findOpenTrade(symbol) {
   const key = normalizeSymbol(symbol);
-  return readTrades().find((t) => normalizeSymbol(t.symbol) === key) ?? null;
+  return readTrades().find((t) => t.normalizedSymbol === key) ?? null;
 }

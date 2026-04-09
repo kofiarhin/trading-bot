@@ -60,6 +60,11 @@ describe("evaluateBreakout", () => {
     const result = evaluateBreakout({ ...BASE_PARAMS, bars });
     expect(result.approved).toBe(false);
     expect(result.reason).toMatch(/no breakout/);
+    expect(result.closePrice).toEqual(expect.any(Number));
+    expect(result.breakoutLevel).toEqual(expect.any(Number));
+    expect(result.atr).toEqual(expect.any(Number));
+    expect(result.volumeRatio).toEqual(expect.any(Number));
+    expect(result.distanceToBreakoutPct).toEqual(expect.any(Number));
   });
 
   it("rejects when volume is too low", () => {
@@ -67,6 +72,11 @@ describe("evaluateBreakout", () => {
     const result = evaluateBreakout({ ...BASE_PARAMS, bars });
     expect(result.approved).toBe(false);
     expect(result.reason).toMatch(/volume/);
+    expect(result.closePrice).toEqual(expect.any(Number));
+    expect(result.breakoutLevel).toEqual(expect.any(Number));
+    expect(result.atr).toEqual(expect.any(Number));
+    expect(result.volumeRatio).toBeLessThan(1);
+    expect(result.distanceToBreakoutPct).toEqual(expect.any(Number));
   });
 
   it("rejects when bar history is insufficient", () => {
@@ -91,10 +101,15 @@ describe("evaluateBreakout", () => {
       approved: true,
       symbol: "AAPL",
       timeframe: "15Min",
+      strategyName: "momentum_breakout_atr_v1",
+      closePrice: expect.any(Number),
       entryPrice: expect.any(Number),
+      breakoutLevel: expect.any(Number),
       stopLoss: expect.any(Number),
       takeProfit: expect.any(Number),
       atr: expect.any(Number),
+      volumeRatio: expect.any(Number),
+      distanceToBreakoutPct: expect.any(Number),
       quantity: expect.any(Number),
       timestamp: expect.any(String),
     });
