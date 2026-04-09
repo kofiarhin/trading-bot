@@ -115,13 +115,15 @@ export function evaluateBreakout({
   }
 
   distanceToBreakoutPct = breakoutLevel
-    ? toMetric(((entryPrice - breakoutLevel) / breakoutLevel) * 100)
+    ? toMetric(((breakoutLevel - entryPrice) / breakoutLevel) * 100)
     : null;
 
   if (entryPrice <= rawBreakoutLevel) {
-    return reject(
-      `no breakout: close ${entryPrice} ≤ highest high ${breakoutLevel.toFixed(4)}`
-    );
+    const reasonStr =
+      distanceToBreakoutPct !== null
+        ? `no breakout (${distanceToBreakoutPct.toFixed(2)}% below level)`
+        : "no breakout";
+    return reject(reasonStr);
   }
 
   // --- Volume confirmation ---

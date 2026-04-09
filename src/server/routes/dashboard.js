@@ -7,6 +7,7 @@ import { config } from "../../config/env.js";
 import { loadDecisionLog } from "../../journal/decisionLogger.js";
 import { getOpenTrades } from "../../journal/openTradesStore.js";
 import { getClosedTrades } from "../../journal/closedTradesStore.js";
+import { getTradeEvents } from "../../journal/tradeEventsStore.js";
 import { normalizeSymbol } from "../../utils/symbolNorm.js";
 import { logger } from "../../utils/logger.js";
 import { etDateString } from "../../utils/time.js";
@@ -253,29 +254,85 @@ router.get("/positions/open", async (req, res) => {
       journalLookup[normalizeSymbol(e.symbol)] = e;
     }
 
+    // Build a lookup map for journal trades by normalizedSymbol
+    // to detect multiple matches (ambiguous — orphan)
+    const tradesByNorm = {};
+    for (const t of openTrades) {
+      if (t.status === "canceled") continue; // skip non-active
+      const key = t.normalizedSymbol;
+      if (!tradesByNorm[key]) tradesByNorm[key] = [];
+      tradesByNorm[key].push(t);
+    }
+
+    // Match each broker position to a journal trade
     const mapped = positions.map((p) => {
       const normalized = normalizeSymbol(p.symbol);
-      const trade = openTrades.find((t) => t.normalizedSymbol === normalized) ?? null;
+      const matchingTrades = tradesByNorm[normalized] ?? [];
       const je = journalLookup[normalized] ?? null;
 
+      // Priority matching: brokerOrderId → tradeId → symbol (single match only)
+      let trade = null;
+      let orphaned = false;
+
+      if (matchingTrades.length === 1) {
+        trade = matchingTrades[0];
+      } else if (matchingTrades.length > 1) {
+        // Ambiguous — multiple open journal trades for same symbol
+        orphaned = true;
+        logger.warn("Ambiguous journal match for broker position — marking orphaned", {
+          symbol: p.symbol,
+          matchCount: matchingTrades.length,
+        });
+      }
+      // matchingTrades.length === 0 → no journal record, orphaned
+
+      if (!trade && !orphaned && matchingTrades.length === 0) {
+        orphaned = true;
+      }
+
+      const currentPrice = parseFloat(p.current_price);
+      const unrealizedPnl = parseFloat(p.unrealized_pl);
+      const unrealizedPnlPct = parseFloat(p.unrealized_plpc) * 100;
+
       return {
+        tradeId: trade?.tradeId ?? null,
         symbol: p.symbol,
+        asset: formatAssetClass(p.asset_class),
+        // Keep assetClass for backward compat
         assetClass: formatAssetClass(p.asset_class),
-        qty: parseFloat(p.qty),
-        entryPrice: parseFloat(p.avg_entry_price),
-        currentPrice: parseFloat(p.current_price),
-        marketValue: parseFloat(p.market_value),
-        unrealizedPnl: parseFloat(p.unrealized_pl),
-        unrealizedPnlPct: parseFloat(p.unrealized_plpc) * 100,
-        side: p.side,
-        // openTradesStore takes priority; today's journal as fallback
+        side: p.side ?? trade?.side ?? "long",
+        strategy: trade?.strategyName ?? je?.strategyName ?? null,
+        // Keep strategyName for backward compat
         strategyName: trade?.strategyName ?? je?.strategyName ?? null,
         openedAt: trade?.openedAt ?? je?.signalTime ?? je?.recordedAt ?? null,
+        qty: parseFloat(p.qty),
+        entry: parseFloat(p.avg_entry_price),
+        // Keep entryPrice for backward compat
+        entryPrice: parseFloat(p.avg_entry_price),
+        current: currentPrice,
+        // Keep currentPrice for backward compat
+        currentPrice,
+        stop: trade?.stopLoss ?? je?.stopLoss ?? null,
+        // Keep stopLoss for backward compat
         stopLoss: trade?.stopLoss ?? je?.stopLoss ?? null,
+        target: trade?.takeProfit ?? je?.takeProfit ?? null,
+        // Keep takeProfit for backward compat
         takeProfit: trade?.takeProfit ?? je?.takeProfit ?? null,
-        riskAmount: trade?.riskAmount ?? je?.riskAmount ?? null,
+        risk: trade?.plannedRiskAmount ?? trade?.riskAmount ?? je?.riskAmount ?? null,
+        // Keep riskAmount for backward compat
+        riskAmount: trade?.plannedRiskAmount ?? trade?.riskAmount ?? je?.riskAmount ?? null,
+        riskPerUnit: trade?.riskPerUnit ?? null,
+        entryReason: trade?.entryReason ?? null,
+        status: trade?.status ?? (orphaned ? "orphaned" : "open"),
+        unrealizedPnl,
+        unrealizedPnlPct,
+        brokerMarketValue: parseFloat(p.market_value),
+        // Keep marketValue for backward compat
+        marketValue: parseFloat(p.market_value),
+        orphaned,
       };
     });
+
     res.json(mapped);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -346,23 +403,54 @@ router.get("/activity", (req, res) => {
   const todayStr = etDateString();
   for (const t of closedTrades) {
     if (!t.closedAt || !t.closedAt.startsWith(todayStr)) continue;
-    if (t.exitReason === "stopLoss") {
+    if (t.exitReason === "stop_hit" || t.exitReason === "stopLoss") {
       events.push({
         type: "stop_loss_hit",
         label: `Stop loss hit — ${t.symbol} closed @ ${t.exitPrice} | PnL: ${t.pnl != null ? t.pnl.toFixed(2) : "—"}`,
         timestamp: t.closedAt,
       });
-    } else if (t.exitReason === "takeProfit") {
+    } else if (t.exitReason === "target_hit" || t.exitReason === "takeProfit") {
       events.push({
         type: "take_profit_hit",
         label: `Take profit hit — ${t.symbol} closed @ ${t.exitPrice} | PnL: ${t.pnl != null ? t.pnl.toFixed(2) : "—"}`,
         timestamp: t.closedAt,
       });
+    } else if (t.exitReason === "broker_sync_close") {
+      events.push({
+        type: "broker_sync_close",
+        label: `Broker sync close — ${t.symbol} (no matching broker position)`,
+        timestamp: t.closedAt,
+      });
     } else {
       events.push({
         type: "trade_closed",
-        label: `Trade closed — ${t.symbol} @ ${t.exitPrice} (${t.exitReason ?? "manual"}) | PnL: ${t.pnl != null ? t.pnl.toFixed(2) : "—"}`,
+        label: `Trade closed — ${t.symbol} @ ${t.exitPrice ?? "—"} (${t.exitReason ?? "manual"}) | PnL: ${t.pnl != null ? t.pnl.toFixed(2) : "—"}`,
         timestamp: t.closedAt,
+      });
+    }
+  }
+
+  // Journal lifecycle events (trade_opened, orphan_detected, sync_warning)
+  const tradeEvents = getTradeEvents();
+  for (const e of tradeEvents) {
+    if (!e.timestamp || !e.timestamp.startsWith(todayStr)) continue;
+    if (e.type === "trade_opened") {
+      events.push({
+        type: "trade_opened",
+        label: `Trade opened — ${e.symbol}`,
+        timestamp: e.timestamp,
+      });
+    } else if (e.type === "orphan_detected") {
+      events.push({
+        type: "orphan_detected",
+        label: `Orphaned position — ${e.symbol}: missing journal metadata`,
+        timestamp: e.timestamp,
+      });
+    } else if (e.type === "sync_warning") {
+      events.push({
+        type: "sync_warning",
+        label: `Sync warning — ${e.symbol}: ${e.message}`,
+        timestamp: e.timestamp,
       });
     }
   }

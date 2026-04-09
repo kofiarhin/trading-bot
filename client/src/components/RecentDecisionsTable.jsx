@@ -18,6 +18,13 @@ function fmtTime(iso) {
   });
 }
 
+function getWatchLevel(distance) {
+  if (distance === null || distance === undefined) return "none";
+  if (distance <= 0.25) return "very-close";
+  if (distance <= 0.75) return "watch";
+  return "far";
+}
+
 function DecisionBadge({ decision }) {
   const approved = decision === "Approved";
   return (
@@ -66,6 +73,7 @@ export default function RecentDecisionsTable() {
                 <th className="px-4 py-3 text-right">Breakout Level</th>
                 <th className="px-4 py-3 text-right">ATR</th>
                 <th className="px-4 py-3 text-right">Vol Ratio</th>
+                <th className="px-4 py-3 text-right">Distance</th>
               </tr>
             </thead>
             <tbody>
@@ -102,6 +110,33 @@ export default function RecentDecisionsTable() {
                     }`}
                   >
                     {d.volumeRatio != null ? `${fmt(d.volumeRatio, 2)}x` : "—"}
+                  </td>
+                  <td
+                    className={`px-4 py-3 text-right font-mono ${
+                      getWatchLevel(d.distanceToBreakoutPct) === "very-close"
+                        ? "text-yellow-300 font-bold"
+                        : getWatchLevel(d.distanceToBreakoutPct) === "watch"
+                        ? "text-yellow-500"
+                        : "text-slate-400"
+                    }`}
+                  >
+                    {d.distanceToBreakoutPct != null ? (
+                      <>
+                        {d.distanceToBreakoutPct.toFixed(2)}%
+                        {getWatchLevel(d.distanceToBreakoutPct) === "very-close" && (
+                          <span className="ml-2 px-2 py-0.5 text-xs bg-yellow-400 text-black rounded">
+                            VERY CLOSE
+                          </span>
+                        )}
+                        {getWatchLevel(d.distanceToBreakoutPct) === "watch" && (
+                          <span className="ml-2 px-2 py-0.5 text-xs bg-yellow-600 text-white rounded">
+                            WATCH
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                 </tr>
               ))}

@@ -51,7 +51,8 @@ export function getOpenTrades() {
 }
 
 /**
- * Saves or updates an open trade record.
+ * Saves or updates an open trade record by normalizedSymbol (legacy key).
+ * Prefer upsertOpenTrade for new code.
  * @param {object} trade
  * @returns {object} The saved record
  */
@@ -76,12 +77,71 @@ export function saveOpenTrade(trade) {
 }
 
 /**
- * Removes an open trade record by symbol.
+ * Upserts an open trade record, matching by tradeId first, then normalizedSymbol.
+ * Sets updatedAt on every update. Use this for all new code.
+ * @param {object} trade
+ * @returns {object} The saved record
+ */
+export function upsertOpenTrade(trade) {
+  const trades = readTrades();
+  const record = normalizeTradeRecord(trade);
+
+  if (!record) {
+    throw new Error("Open trade requires a symbol");
+  }
+
+  const now = new Date().toISOString();
+  let idx = -1;
+
+  if (record.tradeId) {
+    idx = trades.findIndex((t) => t.tradeId === record.tradeId);
+  }
+  if (idx < 0) {
+    idx = trades.findIndex((t) => t.normalizedSymbol === record.normalizedSymbol);
+  }
+
+  if (idx >= 0) {
+    trades[idx] = { ...trades[idx], ...record, updatedAt: now };
+  } else {
+    trades.push({ ...record, updatedAt: now });
+  }
+
+  writeTrades(trades);
+  return idx >= 0 ? trades[idx] : trades[trades.length - 1];
+}
+
+/**
+ * Updates specific fields on an open trade by tradeId.
+ * @param {string} tradeId
+ * @param {object} updates
+ * @returns {object} The updated record
+ */
+export function updateOpenTrade(tradeId, updates) {
+  const trades = readTrades();
+  const idx = trades.findIndex((t) => t.tradeId === tradeId);
+  if (idx < 0) throw new Error(`Open trade not found by tradeId: ${tradeId}`);
+
+  trades[idx] = { ...trades[idx], ...updates, updatedAt: new Date().toISOString() };
+  writeTrades(trades);
+  return trades[idx];
+}
+
+/**
+ * Removes an open trade record by symbol (normalizedSymbol).
  * @param {string} symbol
  */
 export function removeOpenTrade(symbol) {
   const key = normalizeSymbol(symbol);
   const trades = readTrades().filter((t) => t.normalizedSymbol !== key);
+  writeTrades(trades);
+}
+
+/**
+ * Removes an open trade record by tradeId.
+ * @param {string} tradeId
+ */
+export function removeOpenTradeById(tradeId) {
+  const trades = readTrades().filter((t) => t.tradeId !== tradeId);
   writeTrades(trades);
 }
 
@@ -93,4 +153,23 @@ export function removeOpenTrade(symbol) {
 export function findOpenTrade(symbol) {
   const key = normalizeSymbol(symbol);
   return readTrades().find((t) => t.normalizedSymbol === key) ?? null;
+}
+
+/**
+ * Finds an open trade record by symbol. Returns null if not found.
+ * Alias for findOpenTrade — use this in new code.
+ * @param {string} symbol
+ * @returns {object|null}
+ */
+export function findOpenTradeBySymbol(symbol) {
+  return findOpenTrade(symbol);
+}
+
+/**
+ * Finds an open trade record by tradeId. Returns null if not found.
+ * @param {string} tradeId
+ * @returns {object|null}
+ */
+export function findOpenTradeByTradeId(tradeId) {
+  return readTrades().find((t) => t.tradeId === tradeId) ?? null;
 }

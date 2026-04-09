@@ -28,6 +28,17 @@ function PnlCell({ value }) {
   );
 }
 
+function OrphanedBadge() {
+  return (
+    <span
+      title="No journal record found for this broker position. Strategy, stop, target and risk data are unavailable."
+      className="ml-2 text-xs px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 font-medium"
+    >
+      Orphaned
+    </span>
+  );
+}
+
 export default function OpenPositionsTable() {
   const { data: positions = [], isLoading } = useOpenPositions();
 
@@ -75,12 +86,15 @@ export default function OpenPositionsTable() {
                 const strategyLabel = p.strategyName
                   ? p.strategyName.replace(/_/g, " ")
                   : "—";
+                const rowClass = p.orphaned
+                  ? "border-b border-slate-700/50 bg-yellow-900/10 hover:bg-yellow-900/20 transition-colors"
+                  : "border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors";
                 return (
-                  <tr
-                    key={i}
-                    className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors"
-                  >
-                    <td className="px-4 py-3 font-mono font-semibold text-white">{p.symbol}</td>
+                  <tr key={i} className={rowClass}>
+                    <td className="px-4 py-3 font-mono font-semibold text-white">
+                      {p.symbol}
+                      {p.orphaned && <OrphanedBadge />}
+                    </td>
                     <td className="px-4 py-3 text-slate-400">{p.assetClass}</td>
                     <td className="px-4 py-3 text-slate-400 text-xs capitalize">{strategyLabel}</td>
                     <td className="px-4 py-3 text-slate-400 font-mono text-xs">

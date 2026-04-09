@@ -3,6 +3,7 @@ import { getOpenPositions } from "../execution/alpacaTrading.js";
 import { getOpenTrades } from "../journal/openTradesStore.js";
 import { normalizeSymbol } from "../utils/symbolNorm.js";
 import { logger } from "../utils/logger.js";
+import { appendTradeEvent } from "../journal/tradeEventsStore.js";
 
 /**
  * Returns all open position symbols as an array of strings.
@@ -46,8 +47,15 @@ export async function getPositionMap() {
 /**
  * Checks all open trades against current Alpaca prices and returns
  * those that have hit their stop loss or take profit.
+ * Also detects open journal trades that have no matching broker position
+ * and returns them as orphan_detected candidates for reconciliation.
  *
- * @returns {Promise<Array<{ trade: object, exitReason: string, currentPrice: number }>>}
+ * @returns {Promise<Array<{
+ *   trade: object,
+ *   exitReason: string,
+ *   currentPrice: number,
+ *   orphaned?: boolean,
+ * }>>}
  */
 export async function checkOpenTradesForExit() {
   const openTrades = getOpenTrades();
@@ -64,12 +72,32 @@ export async function checkOpenTradesForExit() {
   const exits = [];
 
   for (const trade of openTrades) {
+    // Skip non-active statuses
+    if (trade.status === "pending" || trade.status === "canceled") continue;
+
     const key = normalizeSymbol(trade.normalizedSymbol ?? trade.symbol);
     const position = positionMap[key];
 
     if (!position) {
-      // Position no longer exists in Alpaca — skip (may have been closed externally)
-      logger.warn("Open trade has no matching Alpaca position", { symbol: key });
+      // Journal says open, broker has no position — needs broker_sync_close
+      logger.warn("Open trade has no matching Alpaca position — flagging for sync close", {
+        symbol: key,
+        tradeId: trade.tradeId ?? null,
+      });
+
+      try {
+        appendTradeEvent({
+          tradeId: trade.tradeId ?? null,
+          symbol: trade.symbol,
+          type: "sync_warning",
+          message: `Journal trade for ${trade.symbol} has no matching broker position`,
+          data: { tradeId: trade.tradeId ?? null, status: trade.status },
+        });
+      } catch (eventErr) {
+        logger.warn("Failed to append sync_warning event (non-fatal)", { error: eventErr.message });
+      }
+
+      exits.push({ trade, exitReason: "broker_sync_close", currentPrice: null, orphaned: true });
       continue;
     }
 
@@ -78,10 +106,10 @@ export async function checkOpenTradesForExit() {
 
     if (stopLoss != null && currentPrice <= stopLoss) {
       logger.info("Stop loss hit", { symbol: key, currentPrice, stopLoss });
-      exits.push({ trade, exitReason: "stopLoss", currentPrice });
+      exits.push({ trade, exitReason: "stop_hit", currentPrice });
     } else if (takeProfit != null && currentPrice >= takeProfit) {
       logger.info("Take profit hit", { symbol: key, currentPrice, takeProfit });
-      exits.push({ trade, exitReason: "takeProfit", currentPrice });
+      exits.push({ trade, exitReason: "target_hit", currentPrice });
     }
   }
 
