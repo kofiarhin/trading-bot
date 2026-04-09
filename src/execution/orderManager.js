@@ -1,4 +1,9 @@
-// Order manager — safety checks + submission + journal lifecycle.
+// Order manager — canonical execution layer for both entry and exit.
+//
+// All trade execution flows through placeOrder() and closeTrade() in this
+// module. They share the same canonical trade contract and both write canonical
+// records to the journal (legacy aliases like `stop`, `target`, `qty`, `risk`,
+// `strategy` are never persisted by this layer).
 import { submitOrder, closePosition } from "./alpacaTrading.js";
 import { isDryRunEnabled } from "../lib/alpaca.js";
 import { logger } from "../utils/logger.js";
@@ -12,139 +17,188 @@ import {
   addClosedTrade,
 } from "../journal/tradeJournal.js";
 import { normalizeSymbol } from "../utils/symbolNorm.js";
+import { normalizeTradeForWrite } from "../journal/normalizeTrade.js";
+
+function pickFirstDefined(...values) {
+  for (const value of values) {
+    if (value !== undefined && value !== null) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Reads a (possibly legacy-shaped) decision and returns the canonical entry
+ * fields needed by both the journal and the broker submission step.
+ */
+function extractCanonicalDecisionFields(decision = {}) {
+  const symbol = decision.symbol;
+  const normalizedSymbol = symbol ? normalizeSymbol(symbol) : null;
+  const quantity = pickFirstDefined(decision.quantity, decision.qty);
+  const stopLoss = pickFirstDefined(decision.stopLoss, decision.stop);
+  const takeProfit = pickFirstDefined(decision.takeProfit, decision.target);
+  const riskAmount = pickFirstDefined(decision.riskAmount, decision.risk);
+  const strategyName = pickFirstDefined(
+    decision.strategyName,
+    decision.strategy,
+  );
+  const entryPrice = pickFirstDefined(decision.entryPrice, decision.close);
+  const assetClass = decision.assetClass ?? "stock";
+  const side = decision.side ?? "buy";
+
+  return {
+    symbol,
+    normalizedSymbol,
+    assetClass,
+    strategyName: strategyName ?? "breakout",
+    entryPrice: entryPrice ?? null,
+    stopLoss: stopLoss ?? null,
+    takeProfit: takeProfit ?? null,
+    quantity,
+    riskAmount: riskAmount ?? null,
+    side,
+  };
+}
 
 /**
  * Submits a paper trade order with pre-flight safety checks.
- * Creates a pending trade journal record before submission,
- * then transitions to open on fill confirmation.
  *
- * Returns { submitted, tradeId, orderId?, orderStatus?, dryRun?, error?, payload, response? }
+ * Canonical entry path used by autopilot and any other caller. Creates a
+ * pending trade journal record before submission, then transitions to open on
+ * fill confirmation. The journal record is written in canonical shape only
+ * (legacy aliases such as `stop`/`target`/`qty`/`risk`/`strategy` are never
+ * persisted).
  *
- * @param {{
- *   decision: object,   approved strategy decision
- *   dryRun: boolean,
- * }} params
+ * Returns:
+ *   {
+ *     placed,        // boolean — did the order actually go to the broker
+ *     submitted,     // alias for `placed` (back-compat)
+ *     dryRun,        // boolean — was this a dry-run pass-through
+ *     tradeId?,      // canonical journal id if a pending record was created
+ *     orderId?,      // broker order id
+ *     orderStatus?,  // broker order status
+ *     order?,        // broker response payload
+ *     payload,       // canonical fields used for the submission attempt
+ *     message?,      // human-readable status / skip reason
+ *     error?,
+ *   }
+ *
+ * @param {{ decision: object, dryRun?: boolean }} params
  */
 export async function placeOrder({ decision, dryRun = false }) {
-  const {
-    symbol,
-    quantity,
-    qty,
-    assetClass,
-    entryPrice,
-    stopLoss,
-    stop,
-    takeProfit,
-    target,
-    riskAmount,
-    strategyName,
-    strategy,
-  } = decision;
+  if (!decision || typeof decision !== "object") {
+    return { placed: false, submitted: false, dryRun: false, message: "Decision missing" };
+  }
 
-  const resolvedQty = quantity ?? qty;
-  const resolvedStopLoss = stopLoss ?? stop;
-  const resolvedTakeProfit = takeProfit ?? target;
+  if (!decision.symbol) {
+    return { placed: false, submitted: false, dryRun: false, message: "Decision missing symbol" };
+  }
+
+  // Approval check is preserved for back-compat with the old placeOrder.js
+  // contract — autopilot already filters on `approved`, but other callers may
+  // not.
+  if (decision.approved === false) {
+    return {
+      placed: false,
+      submitted: false,
+      dryRun: false,
+      message: "Decision not approved",
+    };
+  }
+
+  const fields = extractCanonicalDecisionFields(decision);
 
   const payload = {
-    symbol,
-    qty: resolvedQty,
-    side: "buy",
-    assetClass,
-    entryPrice,
-    stopLoss: resolvedStopLoss,
-    takeProfit: resolvedTakeProfit,
+    symbol: fields.symbol,
+    normalizedSymbol: fields.normalizedSymbol,
+    quantity: fields.quantity,
+    side: fields.side,
+    assetClass: fields.assetClass,
+    entryPrice: fields.entryPrice,
+    stopLoss: fields.stopLoss,
+    takeProfit: fields.takeProfit,
+    strategyName: fields.strategyName,
+    riskAmount: fields.riskAmount,
   };
 
-  // Safety: paper mode only
+  // Safety: paper mode only.
   if (config.trading.runMode !== "paper") {
     const error = "live trading mode is disabled in v1";
-    logger.error("Order blocked — live mode", { symbol, error });
-    return { submitted: false, error, payload };
+    logger.error("Order blocked — live mode", { symbol: fields.symbol, error });
+    return { placed: false, submitted: false, dryRun: false, error, message: error, payload };
   }
 
-  // Safety: quantity > 0
-  if (!resolvedQty || resolvedQty < 1) {
+  // Safety: quantity must be a positive number.
+  if (!fields.quantity || Number(fields.quantity) < 1) {
     const error = "quantity must be >= 1";
-    logger.error("Order blocked — invalid quantity", { symbol, qty: resolvedQty });
-    return { submitted: false, error, payload };
+    logger.error("Order blocked — invalid quantity", { symbol: fields.symbol, qty: fields.quantity });
+    return { placed: false, submitted: false, dryRun: false, error, message: error, payload };
   }
 
-  if (dryRun) {
+  if (dryRun || isDryRunEnabled({ dryRun })) {
     logger.info("[DRY RUN] Would submit order", payload);
-    return { submitted: false, dryRun: true, payload };
+    return {
+      placed: false,
+      submitted: false,
+      dryRun: true,
+      payload,
+      message: "Dry-run mode prevented order submission",
+    };
   }
 
-  // Create pending trade record before order submission
+  // Create canonical pending trade record before order submission.
   let pendingTrade = null;
   try {
     pendingTrade = await createPendingTrade({
       decision: {
         ...decision,
-        qty: resolvedQty,
-        stop: resolvedStopLoss,
-        target: resolvedTakeProfit,
-        strategy: strategyName ?? strategy ?? "momentum_breakout_atr_v1",
+        // Pass canonical field names so the journal record never picks up the
+        // legacy aliases from the original decision shape.
+        symbol: fields.symbol,
+        assetClass: fields.assetClass,
+        strategyName: fields.strategyName,
+        entryPrice: fields.entryPrice,
+        stopLoss: fields.stopLoss,
+        takeProfit: fields.takeProfit,
+        quantity: fields.quantity,
+        riskAmount: fields.riskAmount,
       },
       source: "autopilot",
     });
   } catch (journalErr) {
     logger.error("Failed to create pending trade — aborting order", {
-      symbol,
+      symbol: fields.symbol,
       error: journalErr.message,
     });
-    return { submitted: false, error: journalErr.message, payload };
+    return {
+      placed: false,
+      submitted: false,
+      dryRun: false,
+      error: journalErr.message,
+      message: journalErr.message,
+      payload,
+    };
   }
 
   const tradeId = pendingTrade.tradeId;
-  logger.info("Submitting order", { symbol, qty: resolvedQty, entryPrice, tradeId });
+  logger.info("Submitting order", {
+    symbol: fields.symbol,
+    qty: fields.quantity,
+    entryPrice: fields.entryPrice,
+    tradeId,
+  });
 
+  let response;
   try {
-    const response = await submitOrder({
-      symbol,
-      qty: resolvedQty,
-      side: "buy",
-      assetClass,
+    response = await submitOrder({
+      symbol: fields.symbol,
+      qty: fields.quantity,
+      side: fields.side,
+      assetClass: fields.assetClass,
     });
-
-    logger.info("Order accepted", { symbol, orderId: response.id, status: response.status, tradeId });
-
-    const isFilled =
-      response.status === "filled" ||
-      (response.filled_avg_price != null && parseFloat(response.filled_avg_price) > 0);
-
-    if (isFilled) {
-      try {
-        await markTradeOpen({
-          tradeId,
-          order: response,
-          source: "autopilot",
-        });
-      } catch (openErr) {
-        logger.error("Failed to mark trade open after fill", { symbol, tradeId, error: openErr.message });
-      }
-    } else {
-      // Order accepted but not yet filled — update brokerOrderId on pending record
-      try {
-        const { updateOpenTrade } = await import("../journal/openTradesStore.js");
-        updateOpenTrade(tradeId, { brokerOrderId: response.id ?? null });
-      } catch (updateErr) {
-        logger.warn("Failed to update brokerOrderId on pending trade (non-fatal)", {
-          tradeId,
-          error: updateErr.message,
-        });
-      }
-    }
-
-    return {
-      submitted: true,
-      tradeId,
-      orderId: response.id,
-      orderStatus: response.status,
-      payload,
-      response,
-    };
   } catch (err) {
-    logger.error("Order failed", { symbol, tradeId, error: err.message });
+    logger.error("Order failed", { symbol: fields.symbol, tradeId, error: err.message });
 
     try {
       await markTradeCanceled({ tradeId, reason: err.message });
@@ -155,26 +209,88 @@ export async function placeOrder({ decision, dryRun = false }) {
       });
     }
 
-    return { submitted: false, tradeId, error: err.message, payload };
+    return {
+      placed: false,
+      submitted: false,
+      dryRun: false,
+      tradeId,
+      error: err.message,
+      message: err.message,
+      payload,
+    };
   }
+
+  logger.info("Order accepted", {
+    symbol: fields.symbol,
+    orderId: response.id,
+    status: response.status,
+    tradeId,
+  });
+
+  const isFilled =
+    response.status === "filled" ||
+    (response.filled_avg_price != null && parseFloat(response.filled_avg_price) > 0);
+
+  if (isFilled) {
+    try {
+      await markTradeOpen({
+        tradeId,
+        order: response,
+        source: "autopilot",
+      });
+    } catch (openErr) {
+      logger.error("Failed to mark trade open after fill", {
+        symbol: fields.symbol,
+        tradeId,
+        error: openErr.message,
+      });
+    }
+  } else {
+    // Order accepted but not yet filled — record the broker order id on the
+    // pending journal record so subsequent broker syncs can match it.
+    try {
+      const { updateOpenTrade } = await import("../journal/openTradesStore.js");
+      updateOpenTrade(tradeId, { brokerOrderId: response.id ?? null });
+    } catch (updateErr) {
+      logger.warn("Failed to update brokerOrderId on pending trade (non-fatal)", {
+        tradeId,
+        error: updateErr.message,
+      });
+    }
+  }
+
+  return {
+    placed: true,
+    submitted: true,
+    dryRun: false,
+    tradeId,
+    orderId: response.id,
+    orderStatus: response.status,
+    order: response,
+    payload,
+    response,
+  };
 }
 
 /**
- * Closes an open trade: submits market close to broker, calculates PnL, archives in journal.
- * Returns { closed, exitPrice?, orderId?, orderStatus?, exitReason, error?, dryRun? }
+ * Closes an open trade: submits market close to broker, calculates pnl,
+ * archives in journal as a canonical closed-trade record. Reads the open trade
+ * record via the journal accessor (which normalizes any legacy fields), so
+ * legacy-shaped open records are still closeable but the closed record always
+ * goes back to disk in canonical shape.
  *
  * @param {{
  *   tradeId: string,
  *   symbol: string,
- *   exitPrice: number,    current market price (used as fallback if broker fill unavailable)
- *   reason: string,       "stop_loss" | "take_profit" | "manual"
+ *   exitPrice: number,
+ *   reason: string,
  *   dryRun?: boolean,
  * }} params
  */
 export async function closeTrade({ tradeId, symbol, exitPrice: currentPrice, reason, dryRun = false }) {
   const normalizedSym = normalizeSymbol(symbol);
 
-  if (dryRun || isDryRunEnabled()) {
+  if (dryRun || isDryRunEnabled({ dryRun })) {
     logger.info("[DRY RUN] Would close trade", { symbol: normalizedSym, reason, currentPrice });
     return { closed: false, dryRun: true, exitReason: reason };
   }
@@ -196,7 +312,8 @@ export async function closeTrade({ tradeId, symbol, exitPrice: currentPrice, rea
     return { closed: false, error: err.message, exitReason: reason };
   }
 
-  // Archive in journal
+  // Archive in journal — read normalises legacy aliases, write enforces
+  // canonical only.
   try {
     const trade = await getOpenTradeById(tradeId);
     if (!trade) {
@@ -204,12 +321,12 @@ export async function closeTrade({ tradeId, symbol, exitPrice: currentPrice, rea
       return { closed: true, exitPrice: fillPrice, orderId, orderStatus, exitReason: reason };
     }
 
-    const qty = trade.quantity ?? trade.qty ?? 0;
+    const quantity = trade.quantity ?? 0;
     const entry = trade.entryPrice ?? 0;
-    const pnl = entry && qty ? (fillPrice - entry) * qty : null;
+    const pnl = entry && quantity ? (fillPrice - entry) * quantity : null;
     const pnlPct = entry && pnl != null ? ((fillPrice - entry) / entry) * 100 : null;
 
-    const closedTrade = {
+    const closedTrade = normalizeTradeForWrite({
       ...trade,
       status: "closed",
       exitPrice: fillPrice,
@@ -217,7 +334,7 @@ export async function closeTrade({ tradeId, symbol, exitPrice: currentPrice, rea
       pnlPct: pnlPct != null ? Number(pnlPct.toFixed(4)) : null,
       exitReason: reason,
       closedAt: new Date().toISOString(),
-    };
+    });
 
     await removeOpenTrade(tradeId);
     await addClosedTrade(closedTrade);
@@ -238,4 +355,34 @@ export async function closeTrade({ tradeId, symbol, exitPrice: currentPrice, rea
     orderStatus,
     exitReason: reason,
   };
+}
+
+export default {
+  placeOrder,
+  closeTrade,
+};
+import '../journal/tradeStorageCompat.js';
+import {
+  normalizeExecutionArgs,
+  normalizeExecutionResult,
+} from '../journal/normalizeTrade.js';
+
+function resolveEntryExecutor(placeOrderModule) {
+  if (typeof placeOrderModule?.placeOrder === 'function') {
+    return placeOrderModule.placeOrder;
+  }
+
+  if (typeof placeOrderModule?.default === 'function') {
+    return placeOrderModule.default;
+  }
+
+  throw new Error('Canonical orderManager.placeOrder could not resolve the legacy entry executor');
+}
+
+export async function placeOrder(...args) {
+  const placeOrderModule = await import('./placeOrder.js');
+  const executeEntry = resolveEntryExecutor(placeOrderModule);
+  const result = await executeEntry(...normalizeExecutionArgs(args));
+
+  return normalizeExecutionResult(result);
 }

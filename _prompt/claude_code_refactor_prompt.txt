@@ -1,0 +1,274 @@
+You are working inside the existing trading bot repository. Perform the next stabilization pass after the dry-run and invalid-exit fixes. Do not redesign the whole app. Make a clean, minimal, production-leaning refactor that unifies order execution and locks the trade schema at write time.
+
+## Context
+
+The previous fix successfully solved:
+- dry-run not honoring `--dry-run`
+- false exits caused by invalid `takeProfit: 0`
+- exit-side safety in dry-run mode
+
+The app is now safer, but there are still architectural gaps:
+
+1. Entry and exit are still using different execution paths
+   - entries currently go through `src/execution/placeOrder.js`
+   - exits go through `src/execution/orderManager.js`
+
+2. Trade data is still dual-format across the repo
+   - legacy fields still exist: `stop`, `target`, `qty`, `risk`, `strategy`
+   - canonical fields should be: `stopLoss`, `takeProfit`, `quantity`, `riskAmount`, `strategyName`
+
+3. Old journal/storage records may still contain legacy shapes, so read compatibility must remain for now.
+   However, all NEW writes must use the canonical schema only.
+
+## Goal
+
+Implement the next safe refactor to:
+
+- unify entry and exit under one execution layer
+- make `orderManager.js` the canonical execution module
+- lock journal writes to canonical trade fields only
+- preserve backward compatibility when READING old records
+- avoid breaking the current dashboard and autopilot flow
+
+Do not do a massive rewrite. Do not remove compatibility for old records yet.
+
+---
+
+# Required changes
+
+## 1) Make `orderManager.js` the canonical execution layer
+
+### Requirement
+All new trade execution must go through:
+
+- `placeOrder()` in `src/execution/orderManager.js`
+- `closeTrade()` in `src/execution/orderManager.js`
+
+### Update
+Refactor `src/autopilot.js` so entry execution uses `orderManager.placeOrder` instead of `./execution/placeOrder.js`.
+
+Replace any direct import like:
+
+import placeOrder from './execution/placeOrder.js';
+
+with the canonical import from `orderManager.js`.
+
+### Important
+Do not break current behavior.
+If `orderManager.placeOrder()` does not yet fully support the current autopilot entry flow, extend it safely so it does.
+
+---
+
+## 2) Keep `execution/placeOrder.js` from being an active separate path
+
+### Requirement
+After this refactor, the repo must not have two competing live entry paths.
+
+### Acceptable options
+Preferred:
+- convert `src/execution/placeOrder.js` into a thin wrapper around `orderManager.placeOrder()`
+
+Or:
+- deprecate it and update all call sites
+
+### Important
+Do not leave two different implementations of entry execution with different journal behavior.
+
+---
+
+## 3) Canonical trade schema for ALL NEW WRITES
+
+Any newly written open/closed trade records must use ONLY these canonical field names:
+
+{
+  tradeId,
+  symbol,
+  normalizedSymbol,
+  assetClass,
+  strategyName,
+  entryPrice,
+  stopLoss,
+  takeProfit,
+  quantity,
+  riskAmount,
+  status,
+  openedAt,
+  closedAt,
+  exitPrice,
+  pnl,
+  pnlPct,
+  exitReason,
+  metrics
+}
+
+### Do NOT write legacy fields anymore:
+- `stop`
+- `target`
+- `qty`
+- `risk`
+- `strategy`
+- raw `id` if `tradeId` is the canonical identifier for journal records
+
+### Important
+Backward compatibility for old records must remain when reading, but all new writes must be canonical.
+
+---
+
+## 4) Add normalization helpers at write/read boundaries
+
+Create a small normalization helper module if useful, for example something like:
+
+- `src/journal/normalizeTrade.js`
+or
+- `src/utils/normalizeTrade.js`
+
+### It should support:
+- reading old records and converting them into canonical in-memory shape
+- writing only canonical shape back to storage
+
+### Canonical read normalization rules
+Support legacy aliases when reading:
+- `id` -> `tradeId`
+- `stop` -> `stopLoss`
+- `target` -> `takeProfit`
+- `qty` -> `quantity`
+- `risk` -> `riskAmount`
+- `strategy` -> `strategyName`
+
+Also preserve:
+- `entryPrice`
+- `openedAt`
+- `closedAt`
+- `metrics`
+
+### Write rule
+Before persisting any trade to storage, normalize it to canonical shape and omit legacy aliases.
+
+---
+
+## 5) Update journal/storage code to enforce canonical writes
+
+Audit the journal layer and update the relevant file(s), likely:
+- `src/journal/tradeJournal.js`
+- any closed-trade store / open-trade store files used by `orderManager.js`
+
+### Requirement
+When:
+- opening a trade
+- closing a trade
+- archiving a trade
+
+the stored record must use canonical keys only.
+
+### Important
+Do not break reading of old JSON files already on disk.
+
+---
+
+## 6) Make `closeTrade()` and `placeOrder()` share the same trade contract
+
+In `src/execution/orderManager.js`, ensure both entry and exit operate on the same normalized trade shape.
+
+### `placeOrder()` should:
+- accept current autopilot inputs
+- normalize them
+- write canonical open trade record
+- respect dry-run behavior already fixed
+
+### `closeTrade()` should:
+- read/normalize trade record
+- compute pnl/pnlPct using canonical values
+- write canonical closed trade record
+- remove canonical open trade record
+- respect dry-run behavior already fixed
+
+---
+
+## 7) Preserve backward compatibility for dashboard/API reads
+
+Do not break existing dashboard/API behavior.
+
+If dashboard routes currently read mixed fields, make sure the normalization layer or journal layer keeps them working.
+
+Preferred approach:
+- normalize records before returning them from journal accessors
+- keep route handlers simple
+
+---
+
+## 8) Add tests for this refactor
+
+Use Jest. Update/add backend tests for:
+
+### A. entry path now goes through canonical order manager
+At least one test should verify autopilot entry calls the canonical order execution path.
+
+### B. new open trade records are written in canonical shape only
+Assert that newly stored trades contain:
+- `stopLoss`
+- `takeProfit`
+- `quantity`
+- `riskAmount`
+- `strategyName`
+- `tradeId`
+
+And do NOT contain:
+- `stop`
+- `target`
+- `qty`
+- `risk`
+- `strategy`
+
+### C. old legacy records still read correctly
+A legacy-shaped open trade record should still be readable and normalized correctly.
+
+### D. closing a legacy-shaped trade writes a canonical closed record
+If an old record exists with `target`, `stop`, `qty`, etc., closing it should archive a canonical closed trade shape.
+
+### E. dry-run still works after refactor
+Ensure dry-run still prevents:
+- broker order calls
+- journal mutations
+
+---
+
+## 9) Storage cleanup helper (optional but useful)
+
+If safe and minimal, add a small script or helper that can normalize existing trade storage files into canonical shape.
+
+For example:
+- `scripts/normalize-trade-storage.js`
+
+This is optional.
+If added:
+- it must be non-destructive
+- it must only normalize trade records
+- it must be safe to run manually
+- do not wire it automatically into app startup
+
+---
+
+## 10) Output requirements
+
+Make the changes directly in the repo.
+
+At the end, provide:
+1. changed files list
+2. what was unified
+3. any assumptions made
+4. exact validation commands to run
+
+---
+
+## Validation checklist
+
+Before finishing, ensure:
+
+- autopilot entries now use `orderManager.placeOrder`
+- exits still use `orderManager.closeTrade`
+- new journal writes are canonical only
+- old records still read correctly
+- dry-run still prevents broker and storage mutation
+- tests pass
+
+Implement now.

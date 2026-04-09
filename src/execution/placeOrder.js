@@ -73,3 +73,4 @@ export async function placeOrder(decision, options = {}) {
 }
 
 export default placeOrder;
+import '../journal/tradeStorageCompat.js';

@@ -8,6 +8,8 @@ import {
   readJson,
   writeJson,
 } from '../lib/storage.js';
+import { normalizeSymbol } from '../utils/symbolNorm.js';
+import { normalizeTradeForRead, normalizeTradeForWrite } from './normalizeTrade.js';
 
 export const openTradesPath = getStoragePath('trades', 'open.json');
 export const closedTradesPath = getStoragePath('trades', 'closed.json');
@@ -23,13 +25,13 @@ function roundPrice(value) {
 }
 
 function normalizeStatus(status) {
-  return ['pending', 'open', 'closed'].includes(status) ? status : 'pending';
+  return ['pending', 'open', 'closed', 'canceled'].includes(status) ? status : 'pending';
 }
 
 function calculatePnl(trade) {
   const entryPrice = toNumber(trade.entryPrice, 0);
   const exitPrice = toNumber(trade.exitPrice, 0);
-  const quantity = toNumber(trade.qty, 0);
+  const quantity = toNumber(trade.quantity, 0);
 
   if (!entryPrice || !exitPrice || !quantity) {
     return 0;
@@ -47,7 +49,7 @@ async function persistTradeEvent(type, trade, details = {}) {
     symbol: trade.symbol,
     timestamp: details.timestamp ?? nowIso(),
     status: trade.status,
-    strategy: trade.strategy,
+    strategyName: trade.strategyName,
     ...details,
   };
 
@@ -56,40 +58,96 @@ async function persistTradeEvent(type, trade, details = {}) {
   return event;
 }
 
-function buildTradeRecord({ decision = {}, order = {}, trade = {}, source = 'autopilot' }) {
-  return {
+/**
+ * Reads a list of trade records from disk and normalizes legacy shapes into
+ * canonical in-memory shape. Used by every journal accessor.
+ */
+async function readNormalizedTrades(filePath) {
+  const records = await readJson(filePath, []);
+  if (!Array.isArray(records)) return [];
+  return records.map(normalizeTradeForRead).filter(Boolean);
+}
+
+/**
+ * Writes a canonical-only list of trade records to disk. Strips legacy aliases
+ * defensively before persisting.
+ */
+async function writeCanonicalTrades(filePath, trades) {
+  const canonical = trades.map(normalizeTradeForWrite);
+  await writeJson(filePath, canonical);
+}
+
+/**
+ * Builds a canonical trade record from a (possibly legacy-shaped) decision and
+ * order. Reads from both canonical and legacy field names but always emits a
+ * canonical shape.
+ */
+function buildCanonicalTradeRecord({ decision = {}, order = {}, trade = {}, source = 'autopilot' }) {
+  const symbol = trade.symbol ?? decision.symbol ?? order.symbol ?? null;
+  const normalizedSymbol = symbol ? normalizeSymbol(trade.normalizedSymbol ?? symbol) : null;
+
+  const stopLoss =
+    trade.stopLoss ?? decision.stopLoss ?? trade.stop ?? decision.stop ?? null;
+  const takeProfit =
+    trade.takeProfit ?? decision.takeProfit ?? trade.target ?? decision.target ?? null;
+  const quantity = toNumber(
+    trade.quantity ??
+      decision.quantity ??
+      trade.qty ??
+      decision.qty ??
+      order.qty,
+    0,
+  );
+  const riskAmount = toNumber(
+    trade.riskAmount ??
+      decision.riskAmount ??
+      trade.risk ??
+      decision.risk ??
+      0,
+    0,
+  );
+  const strategyName =
+    trade.strategyName ?? decision.strategyName ?? trade.strategy ?? decision.strategy ?? 'breakout';
+
+  const record = {
     tradeId: trade.tradeId ?? decision.tradeId ?? randomUUID(),
-    decisionId: decision.id ?? trade.decisionId ?? null,
-    symbol: trade.symbol ?? decision.symbol ?? order.symbol ?? null,
-    strategy: trade.strategy ?? decision.strategy ?? 'breakout',
-    side: trade.side ?? decision.side ?? order.side ?? 'buy',
-    qty: toNumber(trade.qty ?? decision.qty ?? decision.quantity ?? order.qty, 0),
+    symbol,
+    normalizedSymbol,
+    assetClass: trade.assetClass ?? decision.assetClass ?? null,
+    strategyName,
+    entryPrice: trade.entryPrice ?? decision.entryPrice ?? null,
+    stopLoss: stopLoss != null ? roundPrice(stopLoss) : null,
+    takeProfit: takeProfit != null ? roundPrice(takeProfit) : null,
+    quantity,
+    riskAmount: riskAmount ? roundPrice(riskAmount) : 0,
     status: normalizeStatus(trade.status ?? 'pending'),
-    pendingAt: trade.pendingAt ?? decision.timestamp ?? nowIso(),
     openedAt: trade.openedAt ?? null,
     closedAt: trade.closedAt ?? null,
-    entryPrice: trade.entryPrice ?? null,
     exitPrice: trade.exitPrice ?? null,
+    pnl: trade.pnl ?? null,
+    pnlPct: trade.pnlPct ?? null,
+    exitReason: trade.exitReason ?? null,
+    metrics: trade.metrics ?? {
+      close: toNumber(decision.close, 0),
+      breakoutLevel: toNumber(decision.breakoutLevel, 0),
+      atr: toNumber(decision.atr, 0),
+      volumeRatio: toNumber(decision.volumeRatio, 0),
+      distanceToBreakoutPct: toNumber(decision.distanceToBreakoutPct, 0),
+    },
+
+    // Auxiliary operational fields (not on the legacy alias blacklist).
+    decisionId: trade.decisionId ?? decision.id ?? decision.decisionId ?? null,
+    side: trade.side ?? decision.side ?? order.side ?? 'buy',
+    pendingAt: trade.pendingAt ?? decision.timestamp ?? nowIso(),
     brokerOrderId: trade.brokerOrderId ?? order.id ?? null,
     brokerClientOrderId: trade.brokerClientOrderId ?? order.client_order_id ?? null,
-    stop: roundPrice(trade.stop ?? decision.stop ?? 0),
-    target: roundPrice(trade.target ?? decision.target ?? 0),
-    risk: roundPrice(trade.risk ?? decision.risk ?? decision.riskPerShare ?? 0),
     orphaned: Boolean(trade.orphaned ?? false),
     source: trade.source ?? source,
-    metrics: {
-      close: toNumber(trade.metrics?.close ?? decision.close, 0),
-      breakoutLevel: toNumber(trade.metrics?.breakoutLevel ?? decision.breakoutLevel, 0),
-      atr: toNumber(trade.metrics?.atr ?? decision.atr, 0),
-      volumeRatio: toNumber(trade.metrics?.volumeRatio ?? decision.volumeRatio, 0),
-      distanceToBreakoutPct: toNumber(
-        trade.metrics?.distanceToBreakoutPct ?? decision.distanceToBreakoutPct,
-        0,
-      ),
-    },
     notes: trade.notes ?? null,
     updatedAt: nowIso(),
   };
+
+  return normalizeTradeForWrite(record);
 }
 
 function inferCloseReason(trade, brokerOrders = []) {
@@ -109,11 +167,11 @@ function inferCloseReason(trade, brokerOrders = []) {
     const stopPrice = toNumber(order.stop_price, 0);
     const limitPrice = toNumber(order.limit_price, 0);
 
-    if (stopPrice && trade.stop && Math.abs(stopPrice - trade.stop) < 0.05) {
+    if (stopPrice && trade.stopLoss && Math.abs(stopPrice - trade.stopLoss) < 0.05) {
       return 'stop_hit';
     }
 
-    if (limitPrice && trade.target && Math.abs(limitPrice - trade.target) < 0.05) {
+    if (limitPrice && trade.takeProfit && Math.abs(limitPrice - trade.takeProfit) < 0.05) {
       return 'target_hit';
     }
 
@@ -144,11 +202,11 @@ function findMatchingOrder(trade, brokerOrders = []) {
 }
 
 export async function getOpenTrades() {
-  return readJson(openTradesPath, []);
+  return readNormalizedTrades(openTradesPath);
 }
 
 export async function getClosedTrades() {
-  return readJson(closedTradesPath, []);
+  return readNormalizedTrades(closedTradesPath);
 }
 
 export async function getTradeEvents() {
@@ -169,7 +227,7 @@ export async function createPendingTrade({ decision, order = {}, source = 'autop
     return trade.symbol === decision?.symbol && ['pending', 'open'].includes(trade.status);
   });
 
-  const nextTrade = buildTradeRecord({
+  const nextTrade = buildCanonicalTradeRecord({
     decision,
     order,
     trade: existingTrade ?? { tradeId: randomUUID(), status: 'pending' },
@@ -184,7 +242,7 @@ export async function createPendingTrade({ decision, order = {}, source = 'autop
     ? openTrades.map((trade) => (trade.tradeId === existingTrade.tradeId ? nextTrade : trade))
     : [...openTrades, nextTrade];
 
-  await writeJson(openTradesPath, updatedTrades);
+  await writeCanonicalTrades(openTradesPath, updatedTrades);
   await persistTradeEvent('trade_pending', nextTrade, {
     decisionId: nextTrade.decisionId,
     brokerOrderId: nextTrade.brokerOrderId,
@@ -208,12 +266,12 @@ export async function markTradeOpen({ tradeId, symbol, order = {}, brokerPositio
   });
 
   if (!matchingTrade) {
-    const brokerBackedTrade = buildTradeRecord({
+    const brokerBackedTrade = buildCanonicalTradeRecord({
       decision: {
         symbol: symbol ?? brokerPosition.symbol ?? order.symbol,
-        qty: brokerPosition.qty ?? order.qty,
-        stop: brokerPosition.stop_price,
-        target: brokerPosition.target_price,
+        quantity: brokerPosition.qty ?? order.qty,
+        stopLoss: brokerPosition.stop_price,
+        takeProfit: brokerPosition.target_price,
       },
       order,
       trade: {
@@ -221,13 +279,13 @@ export async function markTradeOpen({ tradeId, symbol, order = {}, brokerPositio
         status: 'open',
         entryPrice: brokerPosition.avg_entry_price ?? order.filled_avg_price,
         openedAt: nowIso(),
-        strategy: 'broker_sync',
+        strategyName: 'broker_sync',
       },
       source: 'broker_sync',
     });
 
     const nextTrades = [...openTrades, brokerBackedTrade];
-    await writeJson(openTradesPath, nextTrades);
+    await writeCanonicalTrades(openTradesPath, nextTrades);
     await persistTradeEvent('trade_open', brokerBackedTrade, {
       brokerOrderId: brokerBackedTrade.brokerOrderId,
       source: 'broker_sync',
@@ -238,7 +296,7 @@ export async function markTradeOpen({ tradeId, symbol, order = {}, brokerPositio
   const nextTrade = {
     ...matchingTrade,
     status: 'open',
-    qty: toNumber(brokerPosition.qty, matchingTrade.qty),
+    quantity: toNumber(brokerPosition.qty, matchingTrade.quantity),
     entryPrice:
       toNumber(brokerPosition.avg_entry_price, 0) ||
       toNumber(order.filled_avg_price, 0) ||
@@ -253,13 +311,16 @@ export async function markTradeOpen({ tradeId, symbol, order = {}, brokerPositio
     updatedAt: nowIso(),
   };
 
-  const updatedTrades = openTrades.map((trade) => (trade.tradeId === matchingTrade.tradeId ? nextTrade : trade));
-  await writeJson(openTradesPath, updatedTrades);
-  await persistTradeEvent('trade_open', nextTrade, {
-    brokerOrderId: nextTrade.brokerOrderId,
+  const canonicalNext = normalizeTradeForWrite(nextTrade);
+  const updatedTrades = openTrades.map((trade) =>
+    trade.tradeId === matchingTrade.tradeId ? canonicalNext : trade,
+  );
+  await writeCanonicalTrades(openTradesPath, updatedTrades);
+  await persistTradeEvent('trade_open', canonicalNext, {
+    brokerOrderId: canonicalNext.brokerOrderId,
   });
 
-  return nextTrade;
+  return canonicalNext;
 }
 
 export async function markTradeClosed({ tradeId, symbol, reason = 'broker_sync', brokerOrder = {}, brokerPosition = {} }) {
@@ -288,26 +349,33 @@ export async function markTradeClosed({ tradeId, symbol, reason = 'broker_sync',
       toNumber(matchingTrade.exitPrice, 0) ||
       null,
     orphaned: false,
-    closeReason: reason,
+    exitReason: reason,
     updatedAt: nowIso(),
   };
 
   closedTrade.pnl = calculatePnl(closedTrade);
+  if (closedTrade.entryPrice && closedTrade.exitPrice) {
+    closedTrade.pnlPct = Number(
+      (((closedTrade.exitPrice - closedTrade.entryPrice) / closedTrade.entryPrice) * 100).toFixed(4),
+    );
+  }
+
+  const canonicalClosed = normalizeTradeForWrite(closedTrade);
 
   const nextClosedTrades = [
-    ...closedTrades.filter((trade) => trade.tradeId !== closedTrade.tradeId),
-    closedTrade,
+    ...closedTrades.filter((trade) => trade.tradeId !== canonicalClosed.tradeId),
+    canonicalClosed,
   ];
 
-  await writeJson(openTradesPath, remainingOpenTrades);
-  await writeJson(closedTradesPath, nextClosedTrades);
-  await persistTradeEvent('trade_closed', closedTrade, {
+  await writeCanonicalTrades(openTradesPath, remainingOpenTrades);
+  await writeCanonicalTrades(closedTradesPath, nextClosedTrades);
+  await persistTradeEvent('trade_closed', canonicalClosed, {
     reason,
-    brokerOrderId: closedTrade.brokerOrderId,
-    pnl: closedTrade.pnl,
+    brokerOrderId: canonicalClosed.brokerOrderId,
+    pnl: canonicalClosed.pnl,
   });
 
-  return closedTrade;
+  return canonicalClosed;
 }
 
 export async function syncTradesWithBroker({ brokerPositions = [], brokerOrders = [] }) {
@@ -384,13 +452,13 @@ export async function mergeBrokerPositionsWithJournal(brokerPositions = []) {
       currentPrice: toNumber(brokerPosition.current_price, 0),
       marketValue: toNumber(brokerPosition.market_value, 0),
       unrealizedPnL: toNumber(brokerPosition.unrealized_pl, 0),
-      strategy: matchingTrade?.strategy ?? 'broker_sync',
+      strategyName: matchingTrade?.strategyName ?? 'broker_sync',
       openedAt: matchingTrade?.openedAt ?? null,
       pendingAt: matchingTrade?.pendingAt ?? null,
       status: matchingTrade?.status ?? 'open',
-      stop: matchingTrade?.stop ?? null,
-      target: matchingTrade?.target ?? null,
-      risk: matchingTrade?.risk ?? null,
+      stopLoss: matchingTrade?.stopLoss ?? null,
+      takeProfit: matchingTrade?.takeProfit ?? null,
+      riskAmount: matchingTrade?.riskAmount ?? null,
       metrics: matchingTrade?.metrics ?? null,
       close: matchingTrade?.metrics?.close ?? null,
       breakoutLevel: matchingTrade?.metrics?.breakoutLevel ?? null,
@@ -407,19 +475,19 @@ export async function mergeBrokerPositionsWithJournal(brokerPositions = []) {
     .filter((trade) => trade.status === 'pending' && !brokerPositions.find((position) => position.symbol === trade.symbol))
     .map((trade) => ({
       symbol: trade.symbol,
-      qty: trade.qty,
+      qty: trade.quantity,
       side: trade.side,
       avgEntryPrice: trade.entryPrice,
       currentPrice: null,
       marketValue: null,
       unrealizedPnL: null,
-      strategy: trade.strategy,
+      strategyName: trade.strategyName,
       openedAt: trade.openedAt,
       pendingAt: trade.pendingAt,
       status: trade.status,
-      stop: trade.stop,
-      target: trade.target,
-      risk: trade.risk,
+      stopLoss: trade.stopLoss,
+      takeProfit: trade.takeProfit,
+      riskAmount: trade.riskAmount,
       metrics: trade.metrics,
       close: trade.metrics?.close ?? null,
       breakoutLevel: trade.metrics?.breakoutLevel ?? null,
@@ -435,38 +503,38 @@ export async function mergeBrokerPositionsWithJournal(brokerPositions = []) {
 }
 
 export async function getOpenTradeById(tradeId) {
-  const trades = await readJson(openTradesPath, []);
+  const trades = await readNormalizedTrades(openTradesPath);
   return trades.find((t) => t.tradeId === tradeId) ?? null;
 }
 
 export async function addOpenTrade(trade) {
-  const trades = await readJson(openTradesPath, []);
+  const trades = await readNormalizedTrades(openTradesPath);
   const idx = trades.findIndex((t) => t.tradeId === trade.tradeId);
   const updated = idx >= 0
     ? trades.map((t, i) => (i === idx ? { ...t, ...trade, updatedAt: nowIso() } : t))
     : [...trades, { ...trade, updatedAt: nowIso() }];
-  await writeJson(openTradesPath, updated);
+  await writeCanonicalTrades(openTradesPath, updated);
   return trade;
 }
 
 export async function removeOpenTrade(tradeId) {
-  const trades = await readJson(openTradesPath, []);
-  await writeJson(openTradesPath, trades.filter((t) => t.tradeId !== tradeId));
+  const trades = await readNormalizedTrades(openTradesPath);
+  await writeCanonicalTrades(openTradesPath, trades.filter((t) => t.tradeId !== tradeId));
 }
 
 export async function addClosedTrade(trade) {
-  const closed = await readJson(closedTradesPath, []);
+  const closed = await readNormalizedTrades(closedTradesPath);
   const filtered = closed.filter((t) => t.tradeId !== trade.tradeId);
-  await writeJson(closedTradesPath, [...filtered, trade]);
+  await writeCanonicalTrades(closedTradesPath, [...filtered, normalizeTradeForWrite(trade)]);
   return trade;
 }
 
 export async function markTradeCanceled({ tradeId, reason = 'canceled' }) {
-  const trades = await readJson(openTradesPath, []);
+  const trades = await readNormalizedTrades(openTradesPath);
   const updated = trades.map((t) =>
     t.tradeId === tradeId ? { ...t, status: 'canceled', cancelReason: reason, updatedAt: nowIso() } : t,
   );
-  await writeJson(openTradesPath, updated);
+  await writeCanonicalTrades(openTradesPath, updated);
 }
 
 export default {
@@ -484,3 +552,4 @@ export default {
   getClosedTrades,
   getTradeEvents,
 };
+import './tradeStorageCompat.js';

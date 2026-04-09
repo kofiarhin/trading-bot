@@ -2,7 +2,7 @@ import 'dotenv/config';
 
 import { randomUUID } from 'node:crypto';
 
-import placeOrder from './execution/placeOrder.js';
+import { placeOrder } from './execution/orderManager.js';
 import { getAccount, getBarsForSymbols, getOrders, getPositions, isDryRunEnabled } from './lib/alpaca.js';
 import { appendDailyRecord, appendLogEvent, getStoragePath, nowIso, readJson } from './lib/storage.js';
 import {
