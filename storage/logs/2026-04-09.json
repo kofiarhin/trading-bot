@@ -445,5 +445,41 @@
     "placed": 0,
     "startedAt": "2026-04-09T15:03:09.781Z",
     "completedAt": "2026-04-09T15:03:11.053Z"
+  },
+  {
+    "id": "92322cd0-8e34-4147-813a-c2715e86e016",
+    "type": "cycle_start",
+    "timestamp": "2026-04-09T15:44:03.010Z",
+    "cycleId": "92322cd0-8e34-4147-813a-c2715e86e016",
+    "dryRun": false,
+    "startedAt": "2026-04-09T15:44:03.008Z"
+  },
+  {
+    "id": "decision_recorded-1775749444534",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-09T15:44:04.534Z",
+    "decisionId": "675ca631-5e7c-4ebb-9502-dc0e7024f97a",
+    "symbol": "AAPL",
+    "approved": false,
+    "strategy": "breakout",
+    "metrics": {
+      "close": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "cycle_complete-1775749444958",
+    "type": "cycle_complete",
+    "timestamp": "2026-04-09T15:44:04.958Z",
+    "cycleId": "92322cd0-8e34-4147-813a-c2715e86e016",
+    "dryRun": false,
+    "scanned": 1,
+    "approved": 0,
+    "placed": 0,
+    "startedAt": "2026-04-09T15:44:03.008Z",
+    "completedAt": "2026-04-09T15:44:04.958Z"
   }
 ]
