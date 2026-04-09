@@ -146,5 +146,49 @@
     "blockers": [
       "insufficient_market_data"
     ]
+  },
+  {
+    "id": "4e897aba-cb7f-41d1-ac6e-93e6d6adb9ba",
+    "symbol": "AAPL",
+    "strategy": "breakout",
+    "timestamp": "2026-04-09T14:49:45.382Z",
+    "approved": false,
+    "side": "buy",
+    "status": "rejected",
+    "reason": "insufficient_market_data",
+    "close": 0,
+    "breakoutLevel": 0,
+    "atr": 0,
+    "volumeRatio": 0,
+    "distanceToBreakoutPct": 0,
+    "stop": 0,
+    "target": 0,
+    "risk": 0,
+    "qty": 0,
+    "blockers": [
+      "insufficient_market_data"
+    ]
+  },
+  {
+    "id": "bd0faf61-987d-4cdd-babf-6a0fac9d546a",
+    "symbol": "AAPL",
+    "strategy": "breakout",
+    "timestamp": "2026-04-09T14:49:56.245Z",
+    "approved": false,
+    "side": "buy",
+    "status": "rejected",
+    "reason": "insufficient_market_data",
+    "close": 0,
+    "breakoutLevel": 0,
+    "atr": 0,
+    "volumeRatio": 0,
+    "distanceToBreakoutPct": 0,
+    "stop": 0,
+    "target": 0,
+    "risk": 0,
+    "qty": 0,
+    "blockers": [
+      "insufficient_market_data"
+    ]
   }
 ]
