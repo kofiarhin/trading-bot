@@ -122,7 +122,7 @@ export default function RecentDecisionsTable() {
                   >
                     {d.distanceToBreakoutPct != null ? (
                       <>
-                        {d.distanceToBreakoutPct.toFixed(2)}%
+                        {typeof d.distanceToBreakoutPct === "number" && Number.isFinite(d.distanceToBreakoutPct) ? d.distanceToBreakoutPct.toFixed(2) : "—"}%
                         {getWatchLevel(d.distanceToBreakoutPct) === "very-close" && (
                           <span className="ml-2 px-2 py-0.5 text-xs bg-yellow-400 text-black rounded">
                             VERY CLOSE
