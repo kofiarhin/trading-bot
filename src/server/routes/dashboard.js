@@ -79,6 +79,78 @@ function formatAssetClass(raw) {
   return raw;
 }
 
+function normalizeOpenTradeForApi(trade, livePosition, orphaned = false) {
+  const quantity = trade?.quantity ?? (livePosition ? parseFloat(livePosition.qty) : null);
+  const entryPrice = trade?.entryPrice ?? (livePosition ? parseFloat(livePosition.avg_entry_price) : null);
+  const currentPrice =
+    livePosition?.current_price != null
+      ? parseFloat(livePosition.current_price)
+      : trade?.currentPrice ?? null;
+
+  const unrealizedPnl =
+    livePosition?.unrealized_pl != null
+      ? parseFloat(livePosition.unrealized_pl)
+      : trade?.unrealizedPnl ?? null;
+
+  const unrealizedPnlPct =
+    livePosition?.unrealized_plpc != null
+      ? parseFloat(livePosition.unrealized_plpc) * 100
+      : trade?.unrealizedPnlPct ?? null;
+
+  const marketValue =
+    livePosition?.market_value != null
+      ? parseFloat(livePosition.market_value)
+      : typeof currentPrice === "number" && typeof quantity === "number"
+      ? currentPrice * quantity
+      : null;
+
+  return {
+    tradeId: trade?.tradeId ?? null,
+    symbol: livePosition?.symbol ?? trade?.symbol ?? null,
+    normalizedSymbol: trade?.normalizedSymbol ?? null,
+    assetClass: formatAssetClass(livePosition?.asset_class ?? trade?.assetClass) ?? null,
+    strategyName: trade?.strategyName ?? null,
+    side: livePosition?.side ?? trade?.side ?? "long",
+    quantity,
+    entryPrice,
+    currentPrice,
+    stopLoss: trade?.stopLoss ?? null,
+    takeProfit: trade?.takeProfit ?? null,
+    riskAmount: trade?.plannedRiskAmount ?? trade?.riskAmount ?? null,
+    riskPerUnit: trade?.riskPerUnit ?? null,
+    marketValue,
+    unrealizedPnl,
+    unrealizedPnlPct,
+    openedAt: trade?.openedAt ?? null,
+    status: trade?.status ?? (orphaned ? "orphaned" : "open"),
+    orphaned,
+    metrics: trade?.metrics ?? {},
+  };
+}
+
+function normalizeClosedTradeForApi(trade) {
+  return {
+    tradeId: trade.tradeId ?? null,
+    symbol: trade.symbol ?? null,
+    normalizedSymbol: trade.normalizedSymbol ?? null,
+    assetClass: formatAssetClass(trade.assetClass) ?? null,
+    strategyName: trade.strategyName ?? null,
+    quantity: trade.quantity ?? null,
+    entryPrice: trade.entryPrice ?? null,
+    exitPrice: trade.exitPrice ?? null,
+    stopLoss: trade.stopLoss ?? null,
+    takeProfit: trade.takeProfit ?? null,
+    riskAmount: trade.riskAmount ?? null,
+    pnl: trade.pnl ?? null,
+    pnlPct: trade.pnlPct ?? null,
+    exitReason: trade.exitReason ?? null,
+    openedAt: trade.openedAt ?? null,
+    closedAt: trade.closedAt ?? null,
+    status: trade.status ?? "closed",
+    metrics: trade.metrics ?? {},
+  };
+}
+
 // GET /api/dashboard/status
 router.get("/status", (req, res) => {
   const cycles = getTodayCycles();
@@ -249,90 +321,35 @@ router.get("/signals", (req, res) => {
 router.get("/positions/open", async (req, res) => {
   try {
     const [positions, openTrades] = await Promise.all([getOpenPositions(), getOpenTrades()]);
-    const journal = getTodayJournal();
 
-    const journalLookup = {};
-    for (const e of journal) {
-      journalLookup[normalizeSymbol(e.symbol)] = e;
-    }
-
-    // Build a lookup map for journal trades by normalizedSymbol
-    // to detect multiple matches (ambiguous — orphan)
+    // Build lookup by normalizedSymbol to detect ambiguous matches (orphans)
     const tradesByNorm = {};
     for (const t of openTrades) {
-      if (t.status === "canceled") continue; // skip non-active
+      if (t.status === "canceled") continue;
       const key = t.normalizedSymbol;
       if (!tradesByNorm[key]) tradesByNorm[key] = [];
       tradesByNorm[key].push(t);
     }
 
-    // Match each broker position to a journal trade
     const mapped = positions.map((p) => {
       const normalized = normalizeSymbol(p.symbol);
       const matchingTrades = tradesByNorm[normalized] ?? [];
-      const je = journalLookup[normalized] ?? null;
-
-      // Priority matching: brokerOrderId → tradeId → symbol (single match only)
       let trade = null;
       let orphaned = false;
 
       if (matchingTrades.length === 1) {
         trade = matchingTrades[0];
       } else if (matchingTrades.length > 1) {
-        // Ambiguous — multiple open journal trades for same symbol
         orphaned = true;
         logger.warn("Ambiguous journal match for broker position — marking orphaned", {
           symbol: p.symbol,
           matchCount: matchingTrades.length,
         });
-      }
-      // matchingTrades.length === 0 → no journal record, orphaned
-
-      if (!trade && !orphaned && matchingTrades.length === 0) {
+      } else {
         orphaned = true;
       }
 
-      const currentPrice = parseFloat(p.current_price);
-      const unrealizedPnl = parseFloat(p.unrealized_pl);
-      const unrealizedPnlPct = parseFloat(p.unrealized_plpc) * 100;
-
-      return {
-        tradeId: trade?.tradeId ?? null,
-        symbol: p.symbol,
-        asset: formatAssetClass(p.asset_class),
-        // Keep assetClass for backward compat
-        assetClass: formatAssetClass(p.asset_class),
-        side: p.side ?? trade?.side ?? "long",
-        strategy: trade?.strategyName ?? je?.strategyName ?? null,
-        // Keep strategyName for backward compat
-        strategyName: trade?.strategyName ?? je?.strategyName ?? null,
-        openedAt: trade?.openedAt ?? je?.signalTime ?? je?.recordedAt ?? null,
-        qty: parseFloat(p.qty),
-        entry: parseFloat(p.avg_entry_price),
-        // Keep entryPrice for backward compat
-        entryPrice: parseFloat(p.avg_entry_price),
-        current: currentPrice,
-        // Keep currentPrice for backward compat
-        currentPrice,
-        stop: trade?.stopLoss ?? je?.stopLoss ?? null,
-        // Keep stopLoss for backward compat
-        stopLoss: trade?.stopLoss ?? je?.stopLoss ?? null,
-        target: trade?.takeProfit ?? je?.takeProfit ?? null,
-        // Keep takeProfit for backward compat
-        takeProfit: trade?.takeProfit ?? je?.takeProfit ?? null,
-        risk: trade?.plannedRiskAmount ?? trade?.riskAmount ?? je?.riskAmount ?? null,
-        // Keep riskAmount for backward compat
-        riskAmount: trade?.plannedRiskAmount ?? trade?.riskAmount ?? je?.riskAmount ?? null,
-        riskPerUnit: trade?.riskPerUnit ?? null,
-        entryReason: trade?.entryReason ?? null,
-        status: trade?.status ?? (orphaned ? "orphaned" : "open"),
-        unrealizedPnl,
-        unrealizedPnlPct,
-        brokerMarketValue: parseFloat(p.market_value),
-        // Keep marketValue for backward compat
-        marketValue: parseFloat(p.market_value),
-        orphaned,
-      };
+      return normalizeOpenTradeForApi(trade, p, orphaned);
     });
 
     res.json(mapped);
@@ -344,20 +361,7 @@ router.get("/positions/open", async (req, res) => {
 // GET /api/dashboard/positions/closed
 router.get("/positions/closed", async (req, res) => {
   const closed = (await getClosedTrades())
-    .map((e) => ({
-      symbol: e.symbol,
-      normalizedSymbol: e.normalizedSymbol,
-      assetClass: formatAssetClass(e.assetClass),
-      strategyName: e.strategyName ?? null,
-      openedAt: e.openedAt ?? null,
-      closedAt: e.closedAt ?? null,
-      entryPrice: e.entryPrice,
-      exitPrice: e.exitPrice,
-      quantity: e.quantity,
-      pnl: e.pnl,
-      pnlPct: e.pnlPct ?? null,
-      exitReason: e.exitReason,
-    }))
+    .map(normalizeClosedTradeForApi)
     .sort((a, b) => new Date(b.closedAt) - new Date(a.closedAt))
     .slice(0, 100);
 

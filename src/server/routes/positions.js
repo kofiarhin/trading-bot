@@ -14,14 +14,18 @@ router.get("/open", async (req, res) => {
       .map((t) => ({
         tradeId: t.tradeId,
         symbol: t.symbol,
-        strategyName: t.strategyName ?? t.strategy ?? null,
+        normalizedSymbol: t.normalizedSymbol ?? null,
+        assetClass: t.assetClass ?? null,
+        strategyName: t.strategyName ?? null,
         entryPrice: t.entryPrice ?? null,
-        stopLoss: t.stopLoss ?? t.stop ?? null,
-        takeProfit: t.takeProfit ?? t.target ?? null,
-        quantity: t.quantity ?? t.qty ?? null,
+        stopLoss: t.stopLoss ?? null,
+        takeProfit: t.takeProfit ?? null,
+        quantity: t.quantity ?? null,
+        riskAmount: t.riskAmount ?? null,
         pnl: t.pnl ?? null,
-        openedAt: t.openedAt ?? t.pendingAt ?? null,
+        openedAt: t.openedAt ?? null,
         status: t.status,
+        metrics: t.metrics ?? {},
       }));
     res.json(open);
   } catch (err) {
@@ -41,13 +45,22 @@ router.get("/closed", async (req, res) => {
       .map((t) => ({
         tradeId: t.tradeId,
         symbol: t.symbol,
-        strategyName: t.strategyName ?? t.strategy ?? null,
+        normalizedSymbol: t.normalizedSymbol ?? null,
+        assetClass: t.assetClass ?? null,
+        strategyName: t.strategyName ?? null,
+        quantity: t.quantity ?? null,
         entryPrice: t.entryPrice ?? null,
         exitPrice: t.exitPrice ?? null,
-        pnl: t.pnl ?? t.realizedPnl ?? null,
-        pnlPct: t.pnlPct ?? t.realizedPnlPct ?? null,
-        exitReason: t.exitReason ?? t.closeReason ?? null,
+        stopLoss: t.stopLoss ?? null,
+        takeProfit: t.takeProfit ?? null,
+        riskAmount: t.riskAmount ?? null,
+        pnl: t.pnl ?? null,
+        pnlPct: t.pnlPct ?? null,
+        exitReason: t.exitReason ?? null,
+        openedAt: t.openedAt ?? null,
         closedAt: t.closedAt ?? null,
+        status: t.status ?? "closed",
+        metrics: t.metrics ?? {},
       }));
     res.json(closed);
   } catch (err) {

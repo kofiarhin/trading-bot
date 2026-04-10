@@ -1,0 +1,241 @@
+You are working inside an existing Node.js trading bot monorepo.
+
+The trading engine, autopilot loop, and execution layer are currently working. Do NOT break:
+- src/autopilot.js
+- src/execution/orderManager.js
+- broker execution behavior
+- dry-run behavior
+- existing canonical tradeJournal write flow
+
+Your task is to complete the next cleanup pass: make the dashboard/API contract canonical end-to-end while preserving backward compatibility internally.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Finish the dashboard/API migration so that:
+
+1. Dashboard routes return canonical trade fields as the primary contract
+2. Client components consume canonical fields only
+3. Legacy field fallback stays inside journal/accessor normalization, not scattered across route handlers and UI
+4. Trade lifecycle views prefer canonical journal records wherever practical
+5. Existing legacy disk data can still be read safely
+6. No regressions to autopilot, order execution, or dry-run behavior
+
+This is a stabilization + contract cleanup pass, not a full rewrite.
+
+==================================================
+CURRENT PROBLEM
+==================================================
+
+The codebase is in a hybrid transition state:
+
+- execution layer is mostly canonical
+- tradeJournal is mostly canonical
+- dashboard/API still mixes old and new field names
+- some views still rely heavily on daily journal/log files
+- frontend still tolerates legacy response shapes
+
+Examples of legacy aliases still floating around:
+- strategy
+- stop
+- target
+- qty
+- risk
+- entry
+- current
+
+Canonical target fields are:
+- tradeId
+- symbol
+- normalizedSymbol
+- assetClass
+- strategyName
+- quantity
+- entryPrice
+- currentPrice
+- stopLoss
+- takeProfit
+- riskAmount
+- unrealizedPnl
+- unrealizedPnlPct
+- marketValue
+- openedAt
+- closedAt
+- status
+- exitPrice
+- pnl
+- pnlPct
+- exitReason
+- metrics
+
+==================================================
+SCOPE
+==================================================
+
+You may modify:
+- src/server/routes/dashboard.js
+- src/server/routes/positions.js
+- client/src/** dashboard-related files that consume these APIs
+- small shared helpers if useful for response normalization
+
+Do not modify unless absolutely necessary:
+- src/autopilot.js
+- src/execution/orderManager.js
+- broker integration code
+- core tradeJournal write behavior
+
+==================================================
+TASK 1 — MAKE DASHBOARD RESPONSES CANONICAL-FIRST
+==================================================
+
+File:
+- src/server/routes/dashboard.js
+
+Requirement:
+Refactor route responses so canonical fields are the primary API contract.
+
+Important:
+- Prefer canonical field names in all returned payloads
+- Remove duplicated legacy aliases from API responses wherever it is safe
+- Keep fallback handling internal before response shaping if needed
+- Do not break route functionality
+
+Create a small internal normalization helper in this file or a nearby helper module if useful.
+
+Suggested normalization shape for open trades:
+
+function normalizeOpenTradeForApi(trade, livePosition = null) {
+  const quantity = trade.quantity ?? null;
+  const entryPrice = trade.entryPrice ?? null;
+  const currentPrice =
+    livePosition?.currentPrice ??
+    livePosition?.current_price ??
+    trade.currentPrice ??
+    null;
+
+  const unrealizedPnl =
+    typeof livePosition?.unrealizedPnl === "number"
+      ? livePosition.unrealizedPnl
+      : typeof livePosition?.unrealized_pl === "number"
+      ? livePosition.unrealized_pl
+      : trade.unrealizedPnl ?? null;
+
+  const unrealizedPnlPct =
+    typeof livePosition?.unrealizedPnlPct === "number"
+      ? livePosition.unrealizedPnlPct
+      : typeof livePosition?.unrealized_plpc === "number"
+      ? livePosition.unrealized_plpc * 100
+      : trade.unrealizedPnlPct ?? null;
+
+  return {
+    tradeId: trade.tradeId ?? null,
+    symbol: trade.symbol ?? null,
+    normalizedSymbol: trade.normalizedSymbol ?? null,
+    assetClass: trade.assetClass ?? null,
+    strategyName: trade.strategyName ?? null,
+    quantity,
+    entryPrice,
+    currentPrice,
+    stopLoss: trade.stopLoss ?? null,
+    takeProfit: trade.takeProfit ?? null,
+    riskAmount: trade.riskAmount ?? null,
+    marketValue:
+      typeof currentPrice === "number" && typeof quantity === "number"
+        ? currentPrice * quantity
+        : null,
+    unrealizedPnl,
+    unrealizedPnlPct,
+    openedAt: trade.openedAt ?? null,
+    status: trade.status ?? "open",
+    orphaned: Boolean(trade.orphaned),
+    metrics: trade.metrics ?? {},
+  };
+}
+
+Suggested normalization shape for closed trades:
+
+function normalizeClosedTradeForApi(trade) {
+  return {
+    tradeId: trade.tradeId ?? null,
+    symbol: trade.symbol ?? null,
+    normalizedSymbol: trade.normalizedSymbol ?? null,
+    assetClass: trade.assetClass ?? null,
+    strategyName: trade.strategyName ?? null,
+    quantity: trade.quantity ?? null,
+    entryPrice: trade.entryPrice ?? null,
+    exitPrice: trade.exitPrice ?? null,
+    stopLoss: trade.stopLoss ?? null,
+    takeProfit: trade.takeProfit ?? null,
+    riskAmount: trade.riskAmount ?? null,
+    pnl: trade.pnl ?? null,
+    pnlPct: trade.pnlPct ?? null,
+    exitReason: trade.exitReason ?? null,
+    openedAt: trade.openedAt ?? null,
+    closedAt: trade.closedAt ?? null,
+    status: trade.status ?? "closed",
+    metrics: trade.metrics ?? {},
+  };
+}
+
+==================================================
+TASK 2 — CLEAN UP /api/dashboard/positions/open
+==================================================
+
+Return canonical keys only.
+
+==================================================
+TASK 3 — CLEAN UP /api/dashboard/positions/closed
+==================================================
+
+Return canonical keys only.
+
+==================================================
+TASK 4 — CLEAN UP POSITIONS ROUTE
+==================================================
+
+File:
+- src/server/routes/positions.js
+
+Normalize internally, return canonical only.
+
+==================================================
+TASK 5 — CLEAN UP CLIENT
+==================================================
+
+Use canonical fields only:
+- strategyName
+- stopLoss
+- takeProfit
+- quantity
+- riskAmount
+- entryPrice
+- currentPrice
+
+Avoid legacy fields.
+
+==================================================
+TASK 6 — KEEP LEGACY FALLBACK INTERNAL
+==================================================
+
+Do not expose legacy alias logic outside normalization.
+
+==================================================
+TASK 7 — VALIDATION
+==================================================
+
+npm run server
+npm run client
+npm run dev
+npm run autopilot:dry
+npm test
+
+==================================================
+OUTPUT
+==================================================
+
+Provide:
+- changed files
+- updated routes
+- updated client components
+- validation results

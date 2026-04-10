@@ -100,7 +100,7 @@ export default function OpenPositionsTable() {
                     <td className="px-4 py-3 text-slate-400 font-mono text-xs">
                       {fmtTime(p.openedAt)}
                     </td>
-                    <td className="px-4 py-3 text-right font-mono">{fmt(p.qty, 4)}</td>
+                    <td className="px-4 py-3 text-right font-mono">{fmt(p.quantity, 4)}</td>
                     <td className="px-4 py-3 text-right font-mono">${fmt(p.entryPrice)}</td>
                     <td className="px-4 py-3 text-right font-mono">${fmt(p.currentPrice)}</td>
                     <td className="px-4 py-3 text-right font-mono text-red-400">
