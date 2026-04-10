@@ -127,8 +127,9 @@ function buildCanonicalTradeRecord({ decision = {}, order = {}, trade = {}, sour
     pnl: trade.pnl ?? null,
     pnlPct: trade.pnlPct ?? null,
     exitReason: trade.exitReason ?? null,
-    metrics: trade.metrics ?? {
-      close: toNumber(decision.close, 0),
+    // Canonical decision emits a metrics object; legacy decisions emit flat fields.
+    metrics: trade.metrics ?? decision.metrics ?? {
+      closePrice: toNumber(decision.entryPrice ?? decision.close, 0),
       breakoutLevel: toNumber(decision.breakoutLevel, 0),
       atr: toNumber(decision.atr, 0),
       volumeRatio: toNumber(decision.volumeRatio, 0),
@@ -301,7 +302,7 @@ export async function markTradeOpen({ tradeId, symbol, order = {}, brokerPositio
       toNumber(brokerPosition.avg_entry_price, 0) ||
       toNumber(order.filled_avg_price, 0) ||
       toNumber(matchingTrade.entryPrice, 0) ||
-      toNumber(matchingTrade.metrics?.close, 0) ||
+      toNumber(matchingTrade.metrics?.closePrice ?? matchingTrade.metrics?.close, 0) ||
       null,
     brokerOrderId: matchingTrade.brokerOrderId ?? order.id ?? null,
     brokerClientOrderId: matchingTrade.brokerClientOrderId ?? order.client_order_id ?? null,
@@ -460,7 +461,7 @@ export async function mergeBrokerPositionsWithJournal(brokerPositions = []) {
       takeProfit: matchingTrade?.takeProfit ?? null,
       riskAmount: matchingTrade?.riskAmount ?? null,
       metrics: matchingTrade?.metrics ?? null,
-      close: matchingTrade?.metrics?.close ?? null,
+      close: matchingTrade?.metrics?.closePrice ?? matchingTrade?.metrics?.close ?? null,
       breakoutLevel: matchingTrade?.metrics?.breakoutLevel ?? null,
       atr: matchingTrade?.metrics?.atr ?? null,
       volumeRatio: matchingTrade?.metrics?.volumeRatio ?? null,
@@ -489,7 +490,7 @@ export async function mergeBrokerPositionsWithJournal(brokerPositions = []) {
       takeProfit: trade.takeProfit,
       riskAmount: trade.riskAmount,
       metrics: trade.metrics,
-      close: trade.metrics?.close ?? null,
+      close: trade.metrics?.closePrice ?? trade.metrics?.close ?? null,
       breakoutLevel: trade.metrics?.breakoutLevel ?? null,
       atr: trade.metrics?.atr ?? null,
       volumeRatio: trade.metrics?.volumeRatio ?? null,

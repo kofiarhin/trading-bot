@@ -29,6 +29,19 @@ function pickFirstDefined(...values) {
 }
 
 /**
+ * Throws if any required entry field is missing or logically invalid.
+ * Called after canonical field extraction, before any broker or storage op.
+ */
+function validateEntryFields({ entryPrice, stopLoss, takeProfit, quantity }) {
+  if (!entryPrice || entryPrice <= 0) throw new Error('entryPrice must be > 0');
+  if (!stopLoss || stopLoss <= 0) throw new Error('stopLoss must be > 0');
+  if (!takeProfit || takeProfit <= 0) throw new Error('takeProfit must be > 0');
+  if (!quantity || quantity <= 0) throw new Error('quantity must be > 0');
+  if (stopLoss >= entryPrice) throw new Error('stopLoss must be < entryPrice');
+  if (takeProfit <= entryPrice) throw new Error('takeProfit must be > entryPrice');
+}
+
+/**
  * Reads a (possibly legacy-shaped) decision and returns the canonical entry
  * fields needed by both the journal and the broker submission step.
  */
@@ -109,6 +122,8 @@ export async function placeOrder({ decision, dryRun = false }) {
 
   const fields = extractCanonicalDecisionFields(decision);
 
+  validateEntryFields(fields);
+
   const payload = {
     symbol: fields.symbol,
     normalizedSymbol: fields.normalizedSymbol,
@@ -130,8 +145,10 @@ export async function placeOrder({ decision, dryRun = false }) {
   }
 
   // Safety: quantity must be a positive number.
-  if (!fields.quantity || Number(fields.quantity) < 1) {
-    const error = "quantity must be >= 1";
+  // Crypto supports fractional quantities; stocks require whole shares (>= 1).
+  const minQty = fields.assetClass === 'crypto' ? 0.000001 : 1;
+  if (!fields.quantity || Number(fields.quantity) < minQty) {
+    const error = fields.assetClass === 'crypto' ? 'quantity must be > 0 for crypto' : 'quantity must be >= 1';
     logger.error("Order blocked — invalid quantity", { symbol: fields.symbol, qty: fields.quantity });
     return { placed: false, submitted: false, dryRun: false, error, message: error, payload };
   }
@@ -150,20 +167,27 @@ export async function placeOrder({ decision, dryRun = false }) {
   // Create canonical pending trade record before order submission.
   let pendingTrade = null;
   try {
+    // Build a clean canonical decision — never spread legacy aliases into the journal.
+    const canonicalDecision = {
+      symbol: fields.symbol,
+      normalizedSymbol: fields.normalizedSymbol,
+      assetClass: fields.assetClass,
+      strategyName: fields.strategyName,
+      entryPrice: fields.entryPrice,
+      stopLoss: fields.stopLoss,
+      takeProfit: fields.takeProfit,
+      quantity: fields.quantity,
+      riskAmount: fields.riskAmount,
+      side: fields.side,
+    };
+    // Preserve non-legacy auxiliary fields from the original decision.
+    if (decision.id != null) canonicalDecision.id = decision.id;
+    if (decision.timestamp != null) canonicalDecision.timestamp = decision.timestamp;
+    if (decision.metrics != null) canonicalDecision.metrics = decision.metrics;
+    if (decision.approved != null) canonicalDecision.approved = decision.approved;
+
     pendingTrade = await createPendingTrade({
-      decision: {
-        ...decision,
-        // Pass canonical field names so the journal record never picks up the
-        // legacy aliases from the original decision shape.
-        symbol: fields.symbol,
-        assetClass: fields.assetClass,
-        strategyName: fields.strategyName,
-        entryPrice: fields.entryPrice,
-        stopLoss: fields.stopLoss,
-        takeProfit: fields.takeProfit,
-        quantity: fields.quantity,
-        riskAmount: fields.riskAmount,
-      },
+      decision: canonicalDecision,
       source: "autopilot",
     });
   } catch (journalErr) {
@@ -290,7 +314,7 @@ export async function placeOrder({ decision, dryRun = false }) {
 export async function closeTrade({ tradeId, symbol, exitPrice: currentPrice, reason, dryRun = false }) {
   const normalizedSym = normalizeSymbol(symbol);
 
-  if (dryRun || isDryRunEnabled({ dryRun })) {
+  if (dryRun || isDryRunEnabled({})) {
     logger.info("[DRY RUN] Would close trade", { symbol: normalizedSym, reason, currentPrice });
     return { closed: false, dryRun: true, exitReason: reason };
   }

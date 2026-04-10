@@ -625,5 +625,77 @@
     "placed": 0,
     "startedAt": "2026-04-09T21:11:05.046Z",
     "completedAt": "2026-04-09T21:11:06.560Z"
+  },
+  {
+    "id": "3e5287f9-6ef9-43f6-be86-80c86d4c9e53",
+    "type": "cycle_start",
+    "timestamp": "2026-04-09T21:52:15.192Z",
+    "cycleId": "3e5287f9-6ef9-43f6-be86-80c86d4c9e53",
+    "dryRun": true,
+    "startedAt": "2026-04-09T21:52:15.191Z"
+  },
+  {
+    "id": "decision_recorded-1775771537091",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-09T21:52:17.091Z",
+    "decisionId": "afc32f60-da30-444b-9d5b-875bdbb6f74b",
+    "symbol": "AAPL",
+    "approved": false,
+    "strategyName": "breakout",
+    "metrics": {
+      "closePrice": 260.44,
+      "breakoutLevel": 260.78,
+      "atr": 0.51,
+      "volumeRatio": 3.63,
+      "distanceToBreakoutPct": -0.13
+    }
+  },
+  {
+    "id": "cycle_complete-1775771537492",
+    "type": "cycle_complete",
+    "timestamp": "2026-04-09T21:52:17.492Z",
+    "cycleId": "3e5287f9-6ef9-43f6-be86-80c86d4c9e53",
+    "dryRun": true,
+    "scanned": 1,
+    "approved": 0,
+    "placed": 0,
+    "startedAt": "2026-04-09T21:52:15.191Z",
+    "completedAt": "2026-04-09T21:52:17.492Z"
+  },
+  {
+    "id": "f93a605c-8a07-4ae7-9e61-9fe272921d0b",
+    "type": "cycle_start",
+    "timestamp": "2026-04-09T21:52:39.929Z",
+    "cycleId": "f93a605c-8a07-4ae7-9e61-9fe272921d0b",
+    "dryRun": false,
+    "startedAt": "2026-04-09T21:52:39.928Z"
+  },
+  {
+    "id": "decision_recorded-1775771561136",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-09T21:52:41.136Z",
+    "decisionId": "70c7bb85-f157-44e2-b017-7078da06e123",
+    "symbol": "AAPL",
+    "approved": false,
+    "strategyName": "breakout",
+    "metrics": {
+      "closePrice": 260.44,
+      "breakoutLevel": 260.78,
+      "atr": 0.51,
+      "volumeRatio": 3.63,
+      "distanceToBreakoutPct": -0.13
+    }
+  },
+  {
+    "id": "cycle_complete-1775771561342",
+    "type": "cycle_complete",
+    "timestamp": "2026-04-09T21:52:41.342Z",
+    "cycleId": "f93a605c-8a07-4ae7-9e61-9fe272921d0b",
+    "dryRun": false,
+    "scanned": 1,
+    "approved": 0,
+    "placed": 0,
+    "startedAt": "2026-04-09T21:52:39.928Z",
+    "completedAt": "2026-04-09T21:52:41.342Z"
   }
 ]

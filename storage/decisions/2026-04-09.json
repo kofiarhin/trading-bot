@@ -411,5 +411,57 @@
     "blockers": [
       "signal_not_confirmed"
     ]
+  },
+  {
+    "id": "afc32f60-da30-444b-9d5b-875bdbb6f74b",
+    "symbol": "AAPL",
+    "normalizedSymbol": "AAPL",
+    "assetClass": "stock",
+    "strategyName": "breakout",
+    "timestamp": "2026-04-09T21:52:17.077Z",
+    "approved": false,
+    "side": "buy",
+    "reason": "breakout_not_confirmed",
+    "entryPrice": 260.44,
+    "stopLoss": 259.67,
+    "takeProfit": 261.98,
+    "quantity": 665,
+    "riskAmount": 0.77,
+    "metrics": {
+      "closePrice": 260.44,
+      "breakoutLevel": 260.78,
+      "atr": 0.51,
+      "volumeRatio": 3.63,
+      "distanceToBreakoutPct": -0.13
+    },
+    "blockers": [
+      "signal_not_confirmed"
+    ]
+  },
+  {
+    "id": "70c7bb85-f157-44e2-b017-7078da06e123",
+    "symbol": "AAPL",
+    "normalizedSymbol": "AAPL",
+    "assetClass": "stock",
+    "strategyName": "breakout",
+    "timestamp": "2026-04-09T21:52:41.131Z",
+    "approved": false,
+    "side": "buy",
+    "reason": "breakout_not_confirmed",
+    "entryPrice": 260.44,
+    "stopLoss": 259.67,
+    "takeProfit": 261.98,
+    "quantity": 665,
+    "riskAmount": 0.77,
+    "metrics": {
+      "closePrice": 260.44,
+      "breakoutLevel": 260.78,
+      "atr": 0.51,
+      "volumeRatio": 3.63,
+      "distanceToBreakoutPct": -0.13
+    },
+    "blockers": [
+      "signal_not_confirmed"
+    ]
   }
 ]

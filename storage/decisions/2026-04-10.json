@@ -1,0 +1,80 @@
+[
+  {
+    "id": "baa5307e-8c34-40bb-a6f0-f96c3152c696",
+    "symbol": "AAPL",
+    "normalizedSymbol": "AAPL",
+    "assetClass": "stock",
+    "strategyName": "breakout",
+    "timestamp": "2026-04-10T03:22:57.636Z",
+    "approved": false,
+    "side": "buy",
+    "reason": "insufficient_market_data",
+    "entryPrice": 0,
+    "stopLoss": 0,
+    "takeProfit": 0,
+    "quantity": 0,
+    "riskAmount": 0,
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    },
+    "blockers": [
+      "insufficient_market_data"
+    ]
+  },
+  {
+    "id": "9779969f-7249-410d-850f-b9f19dc549c9",
+    "symbol": "AAPL",
+    "normalizedSymbol": "AAPL",
+    "assetClass": "stock",
+    "strategyName": "breakout",
+    "timestamp": "2026-04-10T03:23:18.470Z",
+    "approved": false,
+    "side": "buy",
+    "reason": "insufficient_market_data",
+    "entryPrice": 0,
+    "stopLoss": 0,
+    "takeProfit": 0,
+    "quantity": 0,
+    "riskAmount": 0,
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    },
+    "blockers": [
+      "insufficient_market_data"
+    ]
+  },
+  {
+    "id": "99718ee6-a517-4500-8b83-5d364948bee6",
+    "symbol": "AAPL",
+    "normalizedSymbol": "AAPL",
+    "assetClass": "stock",
+    "strategyName": "breakout",
+    "timestamp": "2026-04-10T03:45:36.615Z",
+    "approved": false,
+    "side": "buy",
+    "reason": "insufficient_market_data",
+    "entryPrice": 0,
+    "stopLoss": 0,
+    "takeProfit": 0,
+    "quantity": 0,
+    "riskAmount": 0,
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    },
+    "blockers": [
+      "insufficient_market_data"
+    ]
+  }
+]

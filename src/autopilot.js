@@ -6,13 +6,13 @@ import { placeOrder } from './execution/orderManager.js';
 import { getAccount, getBarsForSymbols, getOrders, getPositions, isDryRunEnabled } from './lib/alpaca.js';
 import { appendDailyRecord, appendLogEvent, getStoragePath, nowIso, readJson } from './lib/storage.js';
 import {
-  createPendingTrade,
   getOpenTrades,
-  markTradeOpen,
   syncTradesWithBroker,
 } from './journal/tradeJournal.js';
 import { checkOpenTradesForExit } from './positions/positionMonitor.js';
 import { closeTrade } from './execution/orderManager.js';
+import { normalizeSymbol } from './utils/symbolNorm.js';
+import { maybeForceTrade } from './strategies/forceTrade.js';
 
 function toNumber(value, fallback = 0) {
   const numericValue = Number(value);
@@ -62,28 +62,38 @@ function calculateAtr(bars, period = 14) {
   return average(trueRanges);
 }
 
+function inferAssetClass(symbol) {
+  return typeof symbol === 'string' && symbol.includes('/') ? 'crypto' : 'stock';
+}
+
 function buildDecision(symbol, bars, account) {
   const timestamp = nowIso();
+  const normalizedSym = normalizeSymbol(symbol);
+  const assetClass = inferAssetClass(symbol);
 
   if (!Array.isArray(bars) || bars.length < 21) {
     return {
       id: randomUUID(),
       symbol,
-      strategy: 'breakout',
+      normalizedSymbol: normalizedSym,
+      assetClass,
+      strategyName: 'breakout',
       timestamp,
       approved: false,
       side: 'buy',
-      status: 'rejected',
       reason: 'insufficient_market_data',
-      close: 0,
-      breakoutLevel: 0,
-      atr: 0,
-      volumeRatio: 0,
-      distanceToBreakoutPct: 0,
-      stop: 0,
-      target: 0,
-      risk: 0,
-      qty: 0,
+      entryPrice: 0,
+      stopLoss: 0,
+      takeProfit: 0,
+      quantity: 0,
+      riskAmount: 0,
+      metrics: {
+        closePrice: 0,
+        breakoutLevel: 0,
+        atr: 0,
+        volumeRatio: 0,
+        distanceToBreakoutPct: 0,
+      },
       blockers: ['insufficient_market_data'],
     };
   }
@@ -91,15 +101,42 @@ function buildDecision(symbol, bars, account) {
   const recentBars = bars.slice(-21);
   const priorBars = recentBars.slice(0, -1);
   const currentBar = recentBars[recentBars.length - 1];
+  const close = toNumber(currentBar.close, 0);
+
+  const forcedResult = maybeForceTrade({ symbol, assetClass, latestPrice: close });
+  if (forcedResult) {
+    const forcedQty = Number(process.env.FORCE_FIRST_TRADE_QTY ?? 0.001);
+    const sl = Number((close * 0.99).toFixed(2));
+    const tp = Number((close * 1.02).toFixed(2));
+    return {
+      id: randomUUID(),
+      symbol,
+      normalizedSymbol: normalizedSym,
+      assetClass,
+      strategyName: forcedResult.strategyName,
+      timestamp,
+      approved: true,
+      side: 'buy',
+      reason: forcedResult.reason,
+      entryPrice: roundPrice(close),
+      stopLoss: sl,
+      takeProfit: tp,
+      quantity: forcedQty,
+      riskAmount: Number((close * 0.01 * forcedQty).toFixed(2)),
+      metrics: forcedResult.metrics,
+      isForced: true,
+      blockers: [],
+    };
+  }
+
   const breakoutLevel = Math.max(...priorBars.map((bar) => toNumber(bar.high, 0)));
   const atr = calculateAtr(bars.slice(-15));
   const averageVolume = average(priorBars.slice(-10).map((bar) => toNumber(bar.volume, 0)));
   const volumeRatio = averageVolume ? toNumber(currentBar.volume, 0) / averageVolume : 0;
-  const close = toNumber(currentBar.close, 0);
   const distanceToBreakoutPct = breakoutLevel ? ((close - breakoutLevel) / breakoutLevel) * 100 : 0;
-  const stop = roundPrice(close - atr * 1.5);
-  const target = roundPrice(close + atr * 3);
-  const riskPerShare = Math.max(roundPrice(close - stop), 0.01);
+  const stopLoss = roundPrice(close - atr * 1.5);
+  const takeProfit = roundPrice(close + atr * 3);
+  const riskPerShare = Math.max(roundPrice(close - stopLoss), 0.01);
   const riskBudget = toNumber(account?.equity, 100000) * 0.005;
   const quantity = Math.max(1, Math.floor(riskBudget / riskPerShare));
   const approved = close >= breakoutLevel && volumeRatio >= 1.2 && atr > 0;
@@ -108,22 +145,25 @@ function buildDecision(symbol, bars, account) {
   return {
     id: randomUUID(),
     symbol,
-    strategy: 'breakout',
+    normalizedSymbol: normalizedSym,
+    assetClass,
+    strategyName: 'breakout',
     timestamp,
-  approved,
+    approved,
     side: 'buy',
-    status: approved ? 'approved' : 'rejected',
     reason: approved ? 'breakout_confirmed' : 'breakout_not_confirmed',
-    close: roundPrice(close),
-    breakoutLevel: roundPrice(breakoutLevel),
-    atr: roundPrice(atr),
-    volumeRatio: Number(volumeRatio.toFixed(2)),
-    distanceToBreakoutPct: Number(distanceToBreakoutPct.toFixed(2)),
-    stop,
-    target,
-    risk: riskPerShare,
-    riskPerShare,
-    qty: quantity,
+    entryPrice: roundPrice(close),
+    stopLoss,
+    takeProfit,
+    quantity,
+    riskAmount: riskPerShare,
+    metrics: {
+      closePrice: roundPrice(close),
+      breakoutLevel: roundPrice(breakoutLevel),
+      atr: roundPrice(atr),
+      volumeRatio: Number(volumeRatio.toFixed(2)),
+      distanceToBreakoutPct: Number(distanceToBreakoutPct.toFixed(2)),
+    },
     blockers,
   };
 }
@@ -176,14 +216,8 @@ async function recordDecision(decision) {
     decisionId: decision.id,
     symbol: decision.symbol,
     approved: decision.approved,
-    strategy: decision.strategy,
-    metrics: {
-      close: decision.close,
-      breakoutLevel: decision.breakoutLevel,
-      atr: decision.atr,
-      volumeRatio: decision.volumeRatio,
-      distanceToBreakoutPct: decision.distanceToBreakoutPct,
-    },
+    strategyName: decision.strategyName,
+    metrics: decision.metrics,
   });
 }
 
@@ -191,7 +225,7 @@ async function recordApproval(decision, blockers) {
   await appendLogEvent(blockers.length ? 'decision_blocked' : 'decision_approved', {
     decisionId: decision.id,
     symbol: decision.symbol,
-    strategy: decision.strategy,
+    strategyName: decision.strategyName,
     blockers,
   });
 }
@@ -265,7 +299,7 @@ export async function runAutopilotCycle(options = {}) {
 
     approvedCount += 1;
 
-    const placement = await placeOrder(decision, { dryRun });
+    const placement = await placeOrder({ decision, dryRun });
     placements.push({ decision, placement });
 
     if (!placement.placed) {
@@ -283,28 +317,9 @@ export async function runAutopilotCycle(options = {}) {
     await appendLogEvent('order_submitted', {
       decisionId: decision.id,
       symbol: decision.symbol,
-      brokerOrderId: placement.order?.id ?? null,
-      qty: decision.qty,
+      brokerOrderId: placement.orderId ?? null,
+      quantity: decision.quantity,
     });
-
-    const pendingTrade = await createPendingTrade({
-      decision,
-      order: placement.order,
-      source: 'autopilot',
-    });
-
-    const brokerPositionsAfterPlacement = await getPositions();
-    const matchingBrokerPosition = brokerPositionsAfterPlacement.find(
-      (position) => position.symbol === decision.symbol,
-    );
-
-    if (matchingBrokerPosition || placement.order?.status === 'filled') {
-      await markTradeOpen({
-        tradeId: pendingTrade.tradeId,
-        order: placement.order,
-        brokerPosition: matchingBrokerPosition,
-      });
-    }
   }
 
   const brokerPositionsAfter = await getPositions();

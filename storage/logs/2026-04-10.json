@@ -1,0 +1,110 @@
+[
+  {
+    "id": "a7805293-4a7d-44bd-b881-7beb6722581e",
+    "type": "cycle_start",
+    "timestamp": "2026-04-10T03:22:53.692Z",
+    "cycleId": "a7805293-4a7d-44bd-b881-7beb6722581e",
+    "dryRun": true,
+    "startedAt": "2026-04-10T03:22:53.689Z"
+  },
+  {
+    "id": "decision_recorded-1775791377703",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-10T03:22:57.704Z",
+    "decisionId": "baa5307e-8c34-40bb-a6f0-f96c3152c696",
+    "symbol": "AAPL",
+    "approved": false,
+    "strategyName": "breakout",
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "cycle_complete-1775791377931",
+    "type": "cycle_complete",
+    "timestamp": "2026-04-10T03:22:57.931Z",
+    "cycleId": "a7805293-4a7d-44bd-b881-7beb6722581e",
+    "dryRun": true,
+    "scanned": 1,
+    "approved": 0,
+    "placed": 0,
+    "startedAt": "2026-04-10T03:22:53.689Z",
+    "completedAt": "2026-04-10T03:22:57.931Z"
+  },
+  {
+    "id": "06cec861-09d6-46fe-92c0-32a3a9483234",
+    "type": "cycle_start",
+    "timestamp": "2026-04-10T03:23:16.572Z",
+    "cycleId": "06cec861-09d6-46fe-92c0-32a3a9483234",
+    "dryRun": false,
+    "startedAt": "2026-04-10T03:23:16.568Z"
+  },
+  {
+    "id": "decision_recorded-1775791398475",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-10T03:23:18.476Z",
+    "decisionId": "9779969f-7249-410d-850f-b9f19dc549c9",
+    "symbol": "AAPL",
+    "approved": false,
+    "strategyName": "breakout",
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "cycle_complete-1775791398899",
+    "type": "cycle_complete",
+    "timestamp": "2026-04-10T03:23:18.899Z",
+    "cycleId": "06cec861-09d6-46fe-92c0-32a3a9483234",
+    "dryRun": false,
+    "scanned": 1,
+    "approved": 0,
+    "placed": 0,
+    "startedAt": "2026-04-10T03:23:16.568Z",
+    "completedAt": "2026-04-10T03:23:18.899Z"
+  },
+  {
+    "id": "4eca4cbf-3710-465e-83c9-d7eaf7eb8329",
+    "type": "cycle_start",
+    "timestamp": "2026-04-10T03:45:35.401Z",
+    "cycleId": "4eca4cbf-3710-465e-83c9-d7eaf7eb8329",
+    "dryRun": false,
+    "startedAt": "2026-04-10T03:45:35.400Z"
+  },
+  {
+    "id": "decision_recorded-1775792736620",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-10T03:45:36.620Z",
+    "decisionId": "99718ee6-a517-4500-8b83-5d364948bee6",
+    "symbol": "AAPL",
+    "approved": false,
+    "strategyName": "breakout",
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "cycle_complete-1775792736816",
+    "type": "cycle_complete",
+    "timestamp": "2026-04-10T03:45:36.816Z",
+    "cycleId": "4eca4cbf-3710-465e-83c9-d7eaf7eb8329",
+    "dryRun": false,
+    "scanned": 1,
+    "approved": 0,
+    "placed": 0,
+    "startedAt": "2026-04-10T03:45:35.400Z",
+    "completedAt": "2026-04-10T03:45:36.816Z"
+  }
+]
