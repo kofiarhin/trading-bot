@@ -1,8 +1,8 @@
 // Risk guards — all must pass before an order is submitted.
 // Each guard returns { pass: boolean, reason?: string }.
-import { validatePositionSize } from "./positionSizing.js";
-import { getDailyLoss, isInCooldown } from "./riskState.js";
-import { normalizeSymbol } from "../utils/symbolNorm.js";
+import { validatePositionSize } from './positionSizing.js';
+import { getDailyLoss, isInCooldown } from './riskState.js';
+import { normalizeSymbol } from '../utils/symbolNorm.js';
 
 /**
  * Runs all risk guards for a strategy decision.
@@ -14,9 +14,9 @@ import { normalizeSymbol } from "../utils/symbolNorm.js";
  *   maxDailyLossPercent: number,
  *   maxOpenPositions: number,
  * }} params
- * @returns {{ pass: boolean, reason?: string }}
+ * @returns {Promise<{ pass: boolean, reason?: string }>}
  */
-export function runRiskGuards({
+export async function runRiskGuards({
   decision,
   openPositions,
   accountEquity,
@@ -27,7 +27,7 @@ export function runRiskGuards({
 
   // 1. Required fields
   if (!entryPrice || !stopLoss || !takeProfit || !riskAmount || !quantity) {
-    return { pass: false, reason: "missing required order fields" };
+    return { pass: false, reason: 'missing required order fields' };
   }
 
   // 2. Position sizing
@@ -35,7 +35,7 @@ export function runRiskGuards({
   if (!sizeCheck.valid) return { pass: false, reason: sizeCheck.reason };
 
   // 3. Daily loss lockout
-  const dailyLoss = getDailyLoss();
+  const dailyLoss = await getDailyLoss();
   const maxLoss = accountEquity * maxDailyLossPercent;
   if (dailyLoss >= maxLoss) {
     return {
@@ -59,7 +59,7 @@ export function runRiskGuards({
   }
 
   // 6. Symbol cooldown (normalize so BTC/USD and BTCUSD share the same cooldown key)
-  if (isInCooldown(normSymbol)) {
+  if (await isInCooldown(normSymbol)) {
     return { pass: false, reason: `${symbol} is in cooldown` };
   }
 
@@ -74,7 +74,7 @@ export function runRiskGuards({
  */
 export function checkLiquidity(
   { avgVolume, avgPrice },
-  { minPrice = 5, minAvgVolume = 500_000, minDollarVolume = 10_000_000 } = {}
+  { minPrice = 5, minAvgVolume = 500_000, minDollarVolume = 10_000_000 } = {},
 ) {
   if (avgPrice < minPrice) {
     return { pass: false, reason: `price $${avgPrice} below floor $${minPrice}` };
@@ -83,7 +83,7 @@ export function checkLiquidity(
     return { pass: false, reason: `avg volume ${avgVolume} below minimum ${minAvgVolume}` };
   }
   if (avgPrice * avgVolume < minDollarVolume) {
-    return { pass: false, reason: "insufficient average dollar volume" };
+    return { pass: false, reason: 'insufficient average dollar volume' };
   }
   return { pass: true };
 }

@@ -2,15 +2,19 @@ import 'dotenv/config';
 
 import { randomUUID } from 'node:crypto';
 
+import { connectMongo } from './db/connectMongo.js';
 import { placeOrder } from './execution/orderManager.js';
 import { getAccount, getBarsForSymbols, getOrders, getPositions, isDryRunEnabled } from './lib/alpaca.js';
 import { fetchCryptoBars } from './market/alpacaMarketData.js';
 import { getUniverse } from './market/universe.js';
-import { appendDailyRecord, appendLogEvent, getStoragePath, nowIso, readJson } from './lib/storage.js';
+import { nowIso } from './lib/storage.js';
 import {
   getOpenTrades,
   syncTradesWithBroker,
 } from './journal/tradeJournal.js';
+import { saveDecision } from './repositories/decisionRepo.mongo.js';
+import { appendCycleEvent } from './repositories/cycleRepo.mongo.js';
+import { loadRiskState } from './risk/riskState.js';
 import { checkOpenTradesForExit } from './positions/positionMonitor.js';
 import { closeTrade } from './execution/orderManager.js';
 import { normalizeSymbol } from './utils/symbolNorm.js';
@@ -223,10 +227,8 @@ function buildDecision(symbol, bars, account) {
 }
 
 async function getRiskState() {
-  return readJson(getStoragePath('riskState.json'), {
-    dailyLossPct: 0,
-    halted: false,
-  });
+  const state = await loadRiskState();
+  return { dailyLossPct: state.dailyRealizedLoss ?? 0, halted: false, ...state };
 }
 
 async function evaluateExecutionGuards(decision, brokerPositions) {
@@ -265,18 +267,40 @@ async function evaluateExecutionGuards(decision, brokerPositions) {
 }
 
 async function recordDecision(decision) {
-  await appendDailyRecord('decisions', decision);
-  await appendLogEvent('decision_recorded', {
+  await saveDecision({
+    timestamp: decision.timestamp ?? nowIso(),
+    recordedAt: nowIso(),
+    symbol: decision.symbol,
+    assetClass: decision.assetClass ?? null,
+    approved: !!decision.approved,
+    reason: decision.reason ?? null,
+    timeframe: decision.timeframe ?? null,
+    strategyName: decision.strategyName ?? null,
+    closePrice: decision.metrics?.closePrice ?? decision.entryPrice ?? null,
+    entryPrice: decision.entryPrice ?? null,
+    breakoutLevel: decision.metrics?.breakoutLevel ?? null,
+    atr: decision.metrics?.atr ?? null,
+    volumeRatio: decision.metrics?.volumeRatio ?? null,
+    distanceToBreakoutPct: decision.metrics?.distanceToBreakoutPct ?? null,
+    stopLoss: decision.stopLoss ?? null,
+    takeProfit: decision.takeProfit ?? null,
+    quantity: decision.quantity ?? null,
+    riskAmount: decision.riskAmount ?? null,
+  });
+  await appendCycleEvent({
+    type: 'decision_recorded',
+    timestamp: nowIso(),
     decisionId: decision.id,
     symbol: decision.symbol,
     approved: decision.approved,
     strategyName: decision.strategyName,
-    metrics: decision.metrics,
   });
 }
 
 async function recordApproval(decision, blockers) {
-  await appendLogEvent(blockers.length ? 'decision_blocked' : 'decision_approved', {
+  await appendCycleEvent({
+    type: blockers.length ? 'decision_blocked' : 'decision_approved',
+    timestamp: nowIso(),
     decisionId: decision.id,
     symbol: decision.symbol,
     strategyName: decision.strategyName,
@@ -306,7 +330,9 @@ export async function runAutopilotCycle(options = {}) {
   const cycleId = randomUUID();
   const startedAt = nowIso();
 
-  await appendLogEvent('cycle_start', {
+  await appendCycleEvent({
+    type: 'cycle_start',
+    timestamp: startedAt,
     id: cycleId,
     cycleId,
     dryRun,
@@ -357,7 +383,9 @@ export async function runAutopilotCycle(options = {}) {
     placements.push({ decision, placement });
 
     if (!placement.placed) {
-      await appendLogEvent('order_skipped', {
+      await appendCycleEvent({
+        type: 'order_skipped',
+        timestamp: nowIso(),
         decisionId: decision.id,
         symbol: decision.symbol,
         reason: placement.message,
@@ -368,7 +396,9 @@ export async function runAutopilotCycle(options = {}) {
 
     placedCount += 1;
 
-    await appendLogEvent('order_submitted', {
+    await appendCycleEvent({
+      type: 'order_submitted',
+      timestamp: nowIso(),
       decisionId: decision.id,
       symbol: decision.symbol,
       brokerOrderId: placement.orderId ?? null,
@@ -394,7 +424,7 @@ export async function runAutopilotCycle(options = {}) {
     completedAt: nowIso(),
   };
 
-  await appendLogEvent('cycle_complete', summary);
+  await appendCycleEvent({ type: 'cycle_complete', timestamp: nowIso(), ...summary });
 
   console.log(`approved: ${summary.approved}`);
   console.log(`placed: ${summary.placed}`);
@@ -410,9 +440,11 @@ export default runAutopilotCycle;
 
 const executedFile = process.argv[1]?.replace(/\\/g, '/');
 if (executedFile?.endsWith('/src/autopilot.js')) {
-  runAutopilotCycle().catch((error) => {
-    console.error(error instanceof Error ? error.message : error);
-    process.exitCode = 1;
-  });
+  connectMongo()
+    .then(() => runAutopilotCycle())
+    .catch((error) => {
+      console.error(error instanceof Error ? error.message : error);
+      process.exitCode = 1;
+    });
 }
  

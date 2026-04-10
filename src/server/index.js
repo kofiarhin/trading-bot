@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import { connectMongo } from "../db/connectMongo.js";
 import dashboardRoutes from "./routes/dashboard.js";
 import tradesRoutes from "./routes/trades.js";
 import positionsRoutes from "./routes/positions.js";
@@ -17,6 +18,13 @@ app.use("/api/positions", positionsRoutes);
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 
-app.listen(PORT, () => {
-  console.log(`Dashboard API running on http://localhost:${PORT}`);
-});
+connectMongo()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Dashboard API running on http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("Failed to connect to MongoDB:", err.message);
+    process.exit(1);
+  });

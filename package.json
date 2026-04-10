@@ -11,6 +11,7 @@
     "strategy:simulate": "node -r ./src/config/loadEnv.cjs src/simulateStrategy.js",
     "trade": "node src/index.js",
     "trade:dry": "node src/index.js --dry-run",
+    "db:migrate": "node -r ./src/config/loadEnv.cjs src/db/migrateJsonToMongo.js",
     "monitor": "node src/monitor.js",
     "monitor:dry": "node src/monitor.js --dry-run",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
@@ -29,7 +30,8 @@
       "/tests/parser.test.js",
       "/tests/tradePlanner.test.js",
       "/tests/tradePlanner.crypto.test.js",
-      "/tests/alpaca.crypto.test.js"
+      "/tests/alpaca.crypto.test.js",
+      "/tests/journal/tradeJournal.test.js"
     ]
   },
   "license": "MIT",
@@ -42,6 +44,7 @@
   },
   "dependencies": {
     "cors": "^2.8.6",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "mongoose": "^9.4.1"
   }
 }
