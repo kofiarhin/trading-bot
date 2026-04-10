@@ -14,7 +14,7 @@ router.get("/open", async (req, res) => {
       .map((t) => ({
         tradeId: t.tradeId,
         symbol: t.symbol,
-        strategyName: t.strategy ?? t.strategyName ?? null,
+        strategyName: t.strategyName ?? t.strategy ?? null,
         entryPrice: t.entryPrice ?? null,
         stopLoss: t.stopLoss ?? t.stop ?? null,
         takeProfit: t.takeProfit ?? t.target ?? null,
@@ -41,7 +41,7 @@ router.get("/closed", async (req, res) => {
       .map((t) => ({
         tradeId: t.tradeId,
         symbol: t.symbol,
-        strategyName: t.strategy ?? t.strategyName ?? null,
+        strategyName: t.strategyName ?? t.strategy ?? null,
         entryPrice: t.entryPrice ?? null,
         exitPrice: t.exitPrice ?? null,
         pnl: t.pnl ?? t.realizedPnl ?? null,

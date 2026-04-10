@@ -5,9 +5,11 @@ import { fileURLToPath } from "url";
 import { getAccount, getOpenPositions } from "../../execution/alpacaTrading.js";
 import { config } from "../../config/env.js";
 import { loadDecisionLog } from "../../journal/decisionLogger.js";
-import { getOpenTrades } from "../../journal/openTradesStore.js";
-import { getClosedTrades } from "../../journal/closedTradesStore.js";
-import { getTradeEvents } from "../../journal/tradeEventsStore.js";
+import {
+  getOpenTrades,
+  getClosedTrades,
+  getTradeEvents,
+} from "../../journal/tradeJournal.js";
 import { normalizeSymbol } from "../../utils/symbolNorm.js";
 import { logger } from "../../utils/logger.js";
 import { etDateString } from "../../utils/time.js";
@@ -340,8 +342,8 @@ router.get("/positions/open", async (req, res) => {
 });
 
 // GET /api/dashboard/positions/closed
-router.get("/positions/closed", (req, res) => {
-  const closed = getClosedTrades()
+router.get("/positions/closed", async (req, res) => {
+  const closed = (await getClosedTrades())
     .map((e) => ({
       symbol: e.symbol,
       normalizedSymbol: e.normalizedSymbol,
@@ -392,11 +394,12 @@ router.get("/performance", (req, res) => {
 });
 
 // GET /api/dashboard/activity
-router.get("/activity", (req, res) => {
+router.get("/activity", async (req, res) => {
+  try {
   const cycles = getTodayCycles();
   const journal = getTodayJournal();
   const decisions = getDecisionLogForToday().records;
-  const closedTrades = getClosedTrades();
+  const closedTrades = await getClosedTrades();
   const events = [];
 
   // Exit events from closed trades store
@@ -431,7 +434,7 @@ router.get("/activity", (req, res) => {
   }
 
   // Journal lifecycle events (trade_opened, orphan_detected, sync_warning)
-  const tradeEvents = getTradeEvents();
+  const tradeEvents = await getTradeEvents();
   for (const e of tradeEvents) {
     if (!e.timestamp || !e.timestamp.startsWith(todayStr)) continue;
     if (e.type === "trade_opened") {
@@ -511,6 +514,9 @@ router.get("/activity", (req, res) => {
 
   events.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   res.json(events.slice(0, 100));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 export default router;
