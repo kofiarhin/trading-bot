@@ -1,64 +1,34 @@
-// Trade events store — lifecycle event log for all trade journal activity.
-// Stored in storage/trades/events.json
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { dirname, resolve } from "path";
-import { fileURLToPath } from "url";
-import { randomUUID } from "crypto";
-import { logger } from "../utils/logger.js";
+import { randomUUID } from 'crypto';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const TRADES_DIR = resolve(__dirname, "../../storage/trades");
-const EVENTS_PATH = resolve(TRADES_DIR, "events.json");
+import { getStoragePath, readJson, writeJson } from '../lib/storage.js';
 
-function ensureDir() {
-  if (!existsSync(TRADES_DIR)) mkdirSync(TRADES_DIR, { recursive: true });
+const EVENTS_PATH = getStoragePath('trades', 'events.json');
+
+async function readEvents() {
+  const parsed = await readJson(EVENTS_PATH, []);
+  return Array.isArray(parsed) ? parsed : [];
 }
 
-function readEvents() {
-  if (!existsSync(EVENTS_PATH)) return [];
-  try {
-    const parsed = JSON.parse(readFileSync(EVENTS_PATH, "utf-8"));
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (err) {
-    logger.error("Failed to read trade events", { error: err.message });
-    return [];
-  }
-}
-
-export function getTradeEvents() {
+export async function getTradeEvents() {
   return readEvents();
 }
 
-/**
- * Appends a trade lifecycle event record.
- *
- * @param {{
- *   tradeId: string,
- *   symbol: string,
- *   type: string,  one of the allowed event types
- *   message: string,
- *   data?: object,
- * }} event
- * @returns {object} The saved event record
- */
-export function appendTradeEvent(event) {
-  ensureDir();
-  const events = readEvents();
+export async function appendTradeEvent(event) {
+  const events = await readEvents();
+  const generatedId = event.eventId ?? event.id ?? randomUUID();
   const record = {
-    eventId: randomUUID(),
+    eventId: generatedId,
+    id: event.id ?? generatedId,
     tradeId: event.tradeId,
     symbol: event.symbol,
     type: event.type,
-    message: event.message ?? "",
-    timestamp: new Date().toISOString(),
+    message: event.message ?? '',
+    timestamp: event.timestamp ?? new Date().toISOString(),
     data: event.data ?? null,
+    payload: event.payload ?? event.data ?? null,
   };
+
   events.push(record);
-  try {
-    writeFileSync(EVENTS_PATH, JSON.stringify(events, null, 2), "utf-8");
-  } catch (err) {
-    logger.error("Failed to write trade event", { error: err.message, type: event.type });
-    throw err;
-  }
+  await writeJson(EVENTS_PATH, events);
   return record;
 }

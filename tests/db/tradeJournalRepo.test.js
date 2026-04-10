@@ -5,6 +5,14 @@ function withLean(value) {
   return { lean: jest.fn().mockResolvedValue(value) };
 }
 
+function withSortLean(value) {
+  return {
+    sort: jest.fn().mockReturnValue({
+      lean: jest.fn().mockResolvedValue(value),
+    }),
+  };
+}
+
 jest.unstable_mockModule('../../src/models/OpenTrade.js', () => ({
   default: {
     find: jest.fn(),
@@ -61,7 +69,7 @@ describe('tradeJournalRepo.mongo', () => {
   describe('getOpenTrades', () => {
     it('returns normalized lean docs', async () => {
       const raw = [{ tradeId: 'trade-abc-123', symbol: 'BTC/USD', status: 'open' }];
-      OpenTrade.find.mockReturnValue(withLean(raw));
+      OpenTrade.find.mockReturnValue(withSortLean(raw));
 
       const result = await getOpenTrades();
       expect(result).toHaveLength(1);
@@ -121,18 +129,18 @@ describe('tradeJournalRepo.mongo', () => {
   describe('appendTradeEvent', () => {
     it('creates a trade event with date field', async () => {
       const event = { id: 'evt-1', type: 'trade_open', tradeId: 'trade-abc-123', symbol: 'BTC/USD', timestamp: new Date().toISOString() };
-      const saved = { ...event, date: '2026-04-10' };
+      const saved = { ...event, eventId: 'evt-1', date: '2026-04-10' };
       TradeEvent.create.mockResolvedValue({ toObject: () => saved });
 
       const result = await appendTradeEvent(event);
-      expect(TradeEvent.create).toHaveBeenCalledWith(expect.objectContaining({ id: 'evt-1', type: 'trade_open' }));
+      expect(TradeEvent.create).toHaveBeenCalledWith(expect.objectContaining({ id: 'evt-1', eventId: 'evt-1', type: 'trade_open' }));
       expect(result.date).toBeDefined();
     });
   });
 
   describe('getTradeEvents', () => {
     it('returns all trade events', async () => {
-      TradeEvent.find.mockReturnValue(withLean([{ id: 'e1', type: 'trade_open' }]));
+      TradeEvent.find.mockReturnValue(withSortLean([{ id: 'e1', eventId: 'e1', type: 'trade_open' }]));
       const result = await getTradeEvents();
       expect(result).toHaveLength(1);
     });

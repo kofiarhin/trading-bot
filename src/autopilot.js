@@ -2,7 +2,7 @@ import 'dotenv/config';
 
 import { randomUUID } from 'node:crypto';
 
-import { connectMongo } from './db/connectMongo.js';
+import { connectMongo, disconnectMongo } from './db/connectMongo.js';
 import { placeOrder } from './execution/orderManager.js';
 import { getAccount, getBarsForSymbols, getOrders, getPositions, isDryRunEnabled } from './lib/alpaca.js';
 import { fetchCryptoBars } from './market/alpacaMarketData.js';
@@ -440,11 +440,16 @@ export default runAutopilotCycle;
 
 const executedFile = process.argv[1]?.replace(/\\/g, '/');
 if (executedFile?.endsWith('/src/autopilot.js')) {
-  connectMongo()
-    .then(() => runAutopilotCycle())
-    .catch((error) => {
+  (async () => {
+    try {
+      await connectMongo();
+      await runAutopilotCycle();
+    } catch (error) {
       console.error(error instanceof Error ? error.message : error);
       process.exitCode = 1;
-    });
+    } finally {
+      await disconnectMongo();
+    }
+  })();
 }
  

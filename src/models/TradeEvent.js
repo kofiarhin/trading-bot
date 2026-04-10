@@ -2,14 +2,17 @@ import mongoose from 'mongoose';
 
 const tradeEventSchema = new mongoose.Schema(
   {
-    id: { type: String, required: true, unique: true, index: true },
+    eventId: { type: String, required: true, unique: true, index: true },
+    id: { type: String, index: true },
     type: { type: String, required: true, index: true },
     tradeId: { type: String, index: true },
     symbol: { type: String, index: true },
-    timestamp: { type: String, index: true },
-    status: String,
     strategyName: String,
-    // date string (ET) for day-scoped queries e.g. "2026-04-10"
+    timestamp: { type: String, index: true },
+    reason: String,
+    pnl: Number,
+    payload: { type: mongoose.Schema.Types.Mixed, default: null },
+    status: String,
     date: { type: String, index: true },
   },
   { collection: 'trade_events', timestamps: false, strict: false },

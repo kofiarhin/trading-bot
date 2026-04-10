@@ -274,7 +274,7 @@ export async function placeOrder({ decision, dryRun = false }) {
     // pending journal record so subsequent broker syncs can match it.
     try {
       const { updateOpenTrade } = await import("../journal/openTradesStore.js");
-      updateOpenTrade(tradeId, { brokerOrderId: response.id ?? null });
+      await updateOpenTrade(tradeId, { brokerOrderId: response.id ?? null });
     } catch (updateErr) {
       logger.warn("Failed to update brokerOrderId on pending trade (non-fatal)", {
         tradeId,

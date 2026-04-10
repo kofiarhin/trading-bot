@@ -18,13 +18,16 @@ app.use("/api/positions", positionsRoutes);
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 
-connectMongo()
-  .then(() => {
+async function startServer() {
+  try {
+    await connectMongo();
     app.listen(PORT, () => {
       console.log(`Dashboard API running on http://localhost:${PORT}`);
     });
-  })
-  .catch((err) => {
+  } catch (err) {
     console.error("Failed to connect to MongoDB:", err.message);
     process.exit(1);
-  });
+  }
+}
+
+await startServer();

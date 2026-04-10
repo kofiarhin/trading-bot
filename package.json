@@ -11,7 +11,8 @@
     "strategy:simulate": "node -r ./src/config/loadEnv.cjs src/simulateStrategy.js",
     "trade": "node src/index.js",
     "trade:dry": "node src/index.js --dry-run",
-    "db:migrate": "node -r ./src/config/loadEnv.cjs src/db/migrateJsonToMongo.js",
+    "db:migrate": "node -r ./src/config/loadEnv.cjs src/db/migrate.js",
+    "migrate:mongo": "node -r ./src/config/loadEnv.cjs src/db/migrate.js",
     "monitor": "node src/monitor.js",
     "monitor:dry": "node src/monitor.js --dry-run",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
@@ -40,7 +41,9 @@
     "crawlee": "^3.16.0",
     "cross-env": "^10.1.0",
     "jest": "^30.3.0",
-    "playwright": "^1.59.1"
+    "mongodb-memory-server": "^11.0.1",
+    "playwright": "^1.59.1",
+    "supertest": "^7.2.2"
   },
   "dependencies": {
     "cors": "^2.8.6",

@@ -4,6 +4,7 @@
 import { spawnSync } from "child_process";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
+import { connectMongo } from "./db/connectMongo.js";
 import { msUntilNext15Min, isStockMarketOpen } from "./utils/time.js";
 import { logger } from "./utils/logger.js";
 import { config } from "./config/env.js";
@@ -31,6 +32,7 @@ async function runCycle() {
 }
 
 async function main() {
+  await connectMongo();
   logger.info("Worker started — will run autopilot every 15 minutes");
   logger.info("Press Ctrl+C to stop");
 

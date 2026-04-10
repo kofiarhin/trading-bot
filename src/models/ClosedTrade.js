@@ -1,16 +1,5 @@
 import mongoose from 'mongoose';
 
-const metricsSchema = new mongoose.Schema(
-  {
-    closePrice: Number,
-    breakoutLevel: Number,
-    atr: Number,
-    volumeRatio: Number,
-    distanceToBreakoutPct: Number,
-  },
-  { _id: false },
-);
-
 const closedTradeSchema = new mongoose.Schema(
   {
     tradeId: { type: String, required: true, unique: true, index: true },
@@ -30,18 +19,18 @@ const closedTradeSchema = new mongoose.Schema(
     pnl: Number,
     pnlPct: Number,
     exitReason: String,
-    metrics: metricsSchema,
+    orphaned: { type: Boolean, default: false },
+    metrics: { type: mongoose.Schema.Types.Mixed, default: {} },
     decisionId: String,
     side: String,
     pendingAt: String,
     brokerOrderId: String,
     brokerClientOrderId: String,
-    orphaned: { type: Boolean, default: false },
     source: String,
     notes: String,
     updatedAt: String,
   },
-  { collection: 'closed_trades', timestamps: false },
+  { collection: 'closed_trades', timestamps: false, strict: false },
 );
 
 export default mongoose.models.ClosedTrade || mongoose.model('ClosedTrade', closedTradeSchema);

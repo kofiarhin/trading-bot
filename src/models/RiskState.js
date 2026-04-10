@@ -1,13 +1,16 @@
 import mongoose from 'mongoose';
 
-// Singleton document — one record per trading day. Upserted by date.
 const riskStateSchema = new mongoose.Schema(
   {
-    date: { type: String, required: true, unique: true, index: true },
+    key: { type: String, required: true, unique: true, index: true, default: 'risk-state' },
+    date: { type: String, index: true },
+    halted: { type: Boolean, default: false },
+    dailyLossPct: { type: Number, default: 0 },
     dailyRealizedLoss: { type: Number, default: 0 },
     cooldowns: { type: Map, of: String, default: {} },
+    updatedAt: String,
   },
-  { collection: 'risk_state', timestamps: false },
+  { collection: 'risk_state', timestamps: false, strict: false },
 );
 
 export default mongoose.models.RiskState || mongoose.model('RiskState', riskStateSchema);

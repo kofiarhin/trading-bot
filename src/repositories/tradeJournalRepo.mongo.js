@@ -15,7 +15,7 @@ function nowIso() {
 // ─── Open Trades ─────────────────────────────────────────────────────────────
 
 export async function getOpenTrades() {
-  const docs = await OpenTrade.find({}).lean();
+  const docs = await OpenTrade.find({}).sort({ openedAt: 1, pendingAt: 1 }).lean();
   return docs.map(stripMongo);
 }
 
@@ -40,7 +40,7 @@ export async function removeOpenTrade(tradeId) {
 // ─── Closed Trades ────────────────────────────────────────────────────────────
 
 export async function getClosedTrades() {
-  const docs = await ClosedTrade.find({}).lean();
+  const docs = await ClosedTrade.find({}).sort({ closedAt: -1, openedAt: -1 }).lean();
   return docs.map(stripMongo);
 }
 
@@ -56,22 +56,24 @@ export async function upsertClosedTrade(trade) {
 // ─── Trade Events ─────────────────────────────────────────────────────────────
 
 export async function getTradeEvents() {
-  const docs = await TradeEvent.find({}).lean();
+  const docs = await TradeEvent.find({}).sort({ timestamp: 1, eventId: 1 }).lean();
   return docs.map(stripMongo);
 }
 
 export async function appendTradeEvent(event) {
   const date = etDateString();
+  const eventId = event.eventId ?? event.id ?? randomUUID();
   const doc = await TradeEvent.create({
     ...event,
-    id: event.id ?? randomUUID(),
+    eventId,
+    id: event.id ?? eventId,
     date,
   });
   return stripMongo(doc.toObject());
 }
 
 export async function getTradeEventsForDate(date = etDateString()) {
-  const docs = await TradeEvent.find({ date }).lean();
+  const docs = await TradeEvent.find({ date }).sort({ timestamp: 1, eventId: 1 }).lean();
   return docs.map(stripMongo);
 }
 

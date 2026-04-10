@@ -1,7 +1,6 @@
-import { beforeAll, afterAll, beforeEach, describe, expect, it } from "@jest/globals";
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "fs";
-import { dirname, resolve } from "path";
-import { fileURLToPath } from "url";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
+
+import { clearMongoHarness, startMongoHarness, stopMongoHarness } from "../helpers/mongoHarness.js";
 import {
   findOpenTrade,
   getOpenTrades,
@@ -9,42 +8,21 @@ import {
   saveOpenTrade,
 } from "../../src/journal/openTradesStore.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const openTradesPath = resolve(__dirname, "../../storage/trades/open.json");
-
-let originalOpenTrades = null;
-let openTradesExisted = false;
-
-function writeOpenTrades(data) {
-  mkdirSync(dirname(openTradesPath), { recursive: true });
-  writeFileSync(openTradesPath, JSON.stringify(data, null, 2), "utf-8");
-}
-
 describe("openTradesStore", () => {
-  beforeAll(() => {
-    openTradesExisted = existsSync(openTradesPath);
-    originalOpenTrades = openTradesExisted
-      ? readFileSync(openTradesPath, "utf-8")
-      : null;
+  beforeAll(async () => {
+    await startMongoHarness("open-trades-store-test");
   });
 
-  beforeEach(() => {
-    writeOpenTrades([]);
+  beforeEach(async () => {
+    await clearMongoHarness();
   });
 
-  afterAll(() => {
-    if (openTradesExisted) {
-      writeFileSync(openTradesPath, originalOpenTrades, "utf-8");
-      return;
-    }
-
-    if (existsSync(openTradesPath)) {
-      unlinkSync(openTradesPath);
-    }
+  afterAll(async () => {
+    await stopMongoHarness();
   });
 
-  it("saves and finds trades using normalized symbols", () => {
-    saveOpenTrade({
+  it("saves and finds trades using normalized symbols", async () => {
+    await saveOpenTrade({
       symbol: "BTC/USD",
       assetClass: "crypto",
       strategyName: "momentum_breakout_atr_v1",
@@ -56,7 +34,7 @@ describe("openTradesStore", () => {
       quantity: 1,
     });
 
-    expect(getOpenTrades()).toEqual([
+    await expect(getOpenTrades()).resolves.toEqual([
       expect.objectContaining({
         symbol: "BTC/USD",
         normalizedSymbol: "BTCUSD",
@@ -64,7 +42,7 @@ describe("openTradesStore", () => {
       }),
     ]);
 
-    expect(findOpenTrade("BTCUSD")).toEqual(
+    await expect(findOpenTrade("BTCUSD")).resolves.toEqual(
       expect.objectContaining({
         symbol: "BTC/USD",
         normalizedSymbol: "BTCUSD",
@@ -73,8 +51,8 @@ describe("openTradesStore", () => {
     );
   });
 
-  it("updates existing records by normalized symbol and removes them", () => {
-    saveOpenTrade({
+  it("updates existing records by normalized symbol and removes them", async () => {
+    await saveOpenTrade({
       symbol: "ETH/USD",
       assetClass: "crypto",
       strategyName: "first_strategy",
@@ -86,7 +64,7 @@ describe("openTradesStore", () => {
       quantity: 2,
     });
 
-    saveOpenTrade({
+    await saveOpenTrade({
       symbol: "ETHUSD",
       assetClass: "crypto",
       strategyName: "updated_strategy",
@@ -98,8 +76,8 @@ describe("openTradesStore", () => {
       quantity: 3,
     });
 
-    expect(getOpenTrades()).toHaveLength(1);
-    expect(findOpenTrade("ETH/USD")).toEqual(
+    await expect(getOpenTrades()).resolves.toHaveLength(1);
+    await expect(findOpenTrade("ETH/USD")).resolves.toEqual(
       expect.objectContaining({
         symbol: "ETHUSD",
         normalizedSymbol: "ETHUSD",
@@ -108,9 +86,9 @@ describe("openTradesStore", () => {
       })
     );
 
-    removeOpenTrade("ETH/USD");
+    await removeOpenTrade("ETH/USD");
 
-    expect(getOpenTrades()).toEqual([]);
-    expect(findOpenTrade("ETHUSD")).toBeNull();
+    await expect(getOpenTrades()).resolves.toEqual([]);
+    await expect(findOpenTrade("ETHUSD")).resolves.toBeNull();
   });
 });

@@ -1,6 +1,11 @@
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import {
+  appendStoragePath,
+  readStoragePath,
+  writeStoragePath,
+} from '../repos/storageRepo.mongo.js';
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 
@@ -28,47 +33,29 @@ export function getDailyStoragePath(namespace, date = new Date()) {
 }
 
 export async function ensureDir(directoryPath) {
-  await fs.mkdir(directoryPath, { recursive: true });
   return directoryPath;
 }
 
 export async function ensureJsonFile(filePath, fallbackValue) {
-  await ensureDir(path.dirname(filePath));
-
-  try {
-    await fs.access(filePath);
-  } catch {
-    await fs.writeFile(filePath, JSON.stringify(fallbackValue, null, 2));
-  }
-
   return filePath;
 }
 
 export async function readJson(filePath, fallbackValue) {
-  await ensureJsonFile(filePath, fallbackValue);
-
   try {
-    const raw = await fs.readFile(filePath, 'utf8');
-    if (!raw.trim()) {
-      return cloneFallback(fallbackValue);
-    }
-
-    return JSON.parse(raw);
+    const data = await readStoragePath(filePath, fallbackValue);
+    return data == null ? cloneFallback(fallbackValue) : data;
   } catch {
     return cloneFallback(fallbackValue);
   }
 }
 
 export async function writeJson(filePath, value) {
-  await ensureDir(path.dirname(filePath));
-  await fs.writeFile(filePath, JSON.stringify(value, null, 2));
+  await writeStoragePath(filePath, value);
   return value;
 }
 
 export async function appendJsonArray(filePath, item) {
-  const data = await readJson(filePath, []);
-  data.push(item);
-  await writeJson(filePath, data);
+  await appendStoragePath(filePath, item);
   return item;
 }
 

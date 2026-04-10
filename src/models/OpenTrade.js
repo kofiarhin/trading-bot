@@ -1,16 +1,5 @@
 import mongoose from 'mongoose';
 
-const metricsSchema = new mongoose.Schema(
-  {
-    closePrice: Number,
-    breakoutLevel: Number,
-    atr: Number,
-    volumeRatio: Number,
-    distanceToBreakoutPct: Number,
-  },
-  { _id: false },
-);
-
 const openTradeSchema = new mongoose.Schema(
   {
     tradeId: { type: String, required: true, unique: true, index: true },
@@ -30,20 +19,20 @@ const openTradeSchema = new mongoose.Schema(
       index: true,
     },
     openedAt: String,
-    exitPrice: Number,
-    metrics: metricsSchema,
-    decisionId: String,
-    side: String,
-    pendingAt: String,
     brokerOrderId: String,
     brokerClientOrderId: String,
     orphaned: { type: Boolean, default: false },
+    metrics: { type: mongoose.Schema.Types.Mixed, default: {} },
+    exitPrice: Number,
+    decisionId: String,
+    side: String,
+    pendingAt: String,
     source: String,
     notes: String,
     cancelReason: String,
     updatedAt: String,
   },
-  { collection: 'open_trades', timestamps: false },
+  { collection: 'open_trades', timestamps: false, strict: false },
 );
 
 export default mongoose.models.OpenTrade || mongoose.model('OpenTrade', openTradeSchema);

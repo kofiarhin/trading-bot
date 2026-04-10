@@ -19,11 +19,21 @@ const {
 
 function makeDoc(overrides = {}) {
   const raw = {
+    key: 'risk-state',
     date: '2026-04-10',
+    halted: false,
+    dailyLossPct: 0,
     dailyRealizedLoss: 0,
     cooldowns: new Map(),
     toObject() {
-      return { date: this.date, dailyRealizedLoss: this.dailyRealizedLoss, cooldowns: this.cooldowns };
+      return {
+        key: this.key,
+        date: this.date,
+        halted: this.halted,
+        dailyLossPct: this.dailyLossPct,
+        dailyRealizedLoss: this.dailyRealizedLoss,
+        cooldowns: this.cooldowns,
+      };
     },
     ...overrides,
   };
@@ -62,7 +72,7 @@ describe('riskStateRepo.mongo', () => {
 
       await saveRiskState(stateInput);
       expect(RiskState.findOneAndUpdate).toHaveBeenCalledWith(
-        { date: '2026-04-10' },
+        { key: 'risk-state' },
         expect.objectContaining({ dailyRealizedLoss: 100 }),
         expect.objectContaining({ upsert: true }),
       );
@@ -71,13 +81,14 @@ describe('riskStateRepo.mongo', () => {
 
   describe('recordDailyLoss', () => {
     it('increments dailyRealizedLoss atomically', async () => {
+      RiskState.findOne.mockResolvedValue(makeDoc());
       const doc = makeDoc({ dailyRealizedLoss: 150 });
       RiskState.findOneAndUpdate.mockResolvedValue(doc);
 
       await recordDailyLoss(50);
       expect(RiskState.findOneAndUpdate).toHaveBeenCalledWith(
-        expect.any(Object),
-        { $inc: { dailyRealizedLoss: 50 } },
+        { key: 'risk-state' },
+        expect.objectContaining({ $inc: { dailyRealizedLoss: 50 } }),
         expect.objectContaining({ upsert: true }),
       );
     });
@@ -97,7 +108,14 @@ describe('riskStateRepo.mongo', () => {
       const doc = makeDoc({
         cooldowns: new Map([['BTCUSD', future]]),
         toObject() {
-          return { date: this.date, dailyRealizedLoss: this.dailyRealizedLoss, cooldowns: this.cooldowns };
+          return {
+            key: this.key,
+            date: this.date,
+            halted: this.halted,
+            dailyLossPct: this.dailyLossPct,
+            dailyRealizedLoss: this.dailyRealizedLoss,
+            cooldowns: this.cooldowns,
+          };
         },
       });
       RiskState.findOne.mockResolvedValue(doc);
@@ -111,7 +129,14 @@ describe('riskStateRepo.mongo', () => {
       const doc = makeDoc({
         cooldowns: new Map([['BTCUSD', past]]),
         toObject() {
-          return { date: this.date, dailyRealizedLoss: this.dailyRealizedLoss, cooldowns: this.cooldowns };
+          return {
+            key: this.key,
+            date: this.date,
+            halted: this.halted,
+            dailyLossPct: this.dailyLossPct,
+            dailyRealizedLoss: this.dailyRealizedLoss,
+            cooldowns: this.cooldowns,
+          };
         },
       });
       RiskState.findOne.mockResolvedValue(doc);
@@ -123,12 +148,15 @@ describe('riskStateRepo.mongo', () => {
 
   describe('setCooldown', () => {
     it('sets cooldown expiry for a crypto symbol (6h)', async () => {
+      RiskState.findOne.mockResolvedValue(makeDoc());
       RiskState.findOneAndUpdate.mockResolvedValue(makeDoc());
 
       await setCooldown('BTCUSD', 'crypto');
       expect(RiskState.findOneAndUpdate).toHaveBeenCalledWith(
-        expect.any(Object),
-        { $set: { 'cooldowns.BTCUSD': expect.any(String) } },
+        { key: 'risk-state' },
+        expect.objectContaining({
+          $set: expect.objectContaining({ 'cooldowns.BTCUSD': expect.any(String) }),
+        }),
         expect.objectContaining({ upsert: true }),
       );
     });
