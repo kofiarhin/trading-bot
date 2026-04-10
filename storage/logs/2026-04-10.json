@@ -106,5 +106,291 @@
     "placed": 0,
     "startedAt": "2026-04-10T03:45:35.400Z",
     "completedAt": "2026-04-10T03:45:36.816Z"
+  },
+  {
+    "id": "dc892749-213b-492b-9aa4-52ec78bf3887",
+    "type": "cycle_start",
+    "timestamp": "2026-04-10T04:09:47.308Z",
+    "cycleId": "dc892749-213b-492b-9aa4-52ec78bf3887",
+    "dryRun": true,
+    "startedAt": "2026-04-10T04:09:47.306Z"
+  },
+  {
+    "id": "decision_recorded-1775794188430",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-10T04:09:48.430Z",
+    "decisionId": "6ee7050f-4fc4-46f2-b204-a7ace2911f9f",
+    "symbol": "AAPL",
+    "approved": false,
+    "strategyName": "breakout",
+    "metrics": {
+      "closePrice": 260.44,
+      "breakoutLevel": 260.78,
+      "atr": 0.51,
+      "volumeRatio": 3.63,
+      "distanceToBreakoutPct": -0.13
+    }
+  },
+  {
+    "id": "cycle_complete-1775794188624",
+    "type": "cycle_complete",
+    "timestamp": "2026-04-10T04:09:48.624Z",
+    "cycleId": "dc892749-213b-492b-9aa4-52ec78bf3887",
+    "dryRun": true,
+    "scanned": 1,
+    "approved": 0,
+    "placed": 0,
+    "startedAt": "2026-04-10T04:09:47.306Z",
+    "completedAt": "2026-04-10T04:09:48.624Z"
+  },
+  {
+    "id": "8c5fed65-9ba7-45ab-99dc-eb5aec883f2f",
+    "type": "cycle_start",
+    "timestamp": "2026-04-10T04:11:06.129Z",
+    "cycleId": "8c5fed65-9ba7-45ab-99dc-eb5aec883f2f",
+    "dryRun": false,
+    "startedAt": "2026-04-10T04:11:06.128Z"
+  },
+  {
+    "id": "decision_recorded-1775794267185",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-10T04:11:07.185Z",
+    "decisionId": "31c20d4c-d99f-4c66-bc20-0d567980d60e",
+    "symbol": "AAPL",
+    "approved": false,
+    "strategyName": "breakout",
+    "metrics": {
+      "closePrice": 260.44,
+      "breakoutLevel": 260.78,
+      "atr": 0.51,
+      "volumeRatio": 3.63,
+      "distanceToBreakoutPct": -0.13
+    }
+  },
+  {
+    "id": "cycle_complete-1775794267386",
+    "type": "cycle_complete",
+    "timestamp": "2026-04-10T04:11:07.386Z",
+    "cycleId": "8c5fed65-9ba7-45ab-99dc-eb5aec883f2f",
+    "dryRun": false,
+    "scanned": 1,
+    "approved": 0,
+    "placed": 0,
+    "startedAt": "2026-04-10T04:11:06.128Z",
+    "completedAt": "2026-04-10T04:11:07.386Z"
+  },
+  {
+    "id": "f91ca131-4e33-404b-8eba-4e6ec6f0d6a6",
+    "type": "cycle_start",
+    "timestamp": "2026-04-10T04:26:18.285Z",
+    "cycleId": "f91ca131-4e33-404b-8eba-4e6ec6f0d6a6",
+    "dryRun": false,
+    "startedAt": "2026-04-10T04:26:18.283Z"
+  },
+  {
+    "id": "decision_recorded-1775795179762",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-10T04:26:19.762Z",
+    "decisionId": "eaf5d7df-ceb2-44ac-a03e-ef8cacaea705",
+    "symbol": "AAPL",
+    "approved": false,
+    "strategyName": "breakout",
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "decision_recorded-1775795179768",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-10T04:26:19.768Z",
+    "decisionId": "a4b94906-26e3-4aa5-8906-768c8b1a4da4",
+    "symbol": "MSFT",
+    "approved": false,
+    "strategyName": "breakout",
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "decision_recorded-1775795179772",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-10T04:26:19.772Z",
+    "decisionId": "f7fd3871-4a16-4009-ad9d-578cb41c39c9",
+    "symbol": "NVDA",
+    "approved": false,
+    "strategyName": "breakout",
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "decision_recorded-1775795179777",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-10T04:26:19.777Z",
+    "decisionId": "0ebb2ac5-5154-4f18-9b69-586bd98f1da5",
+    "symbol": "AMZN",
+    "approved": false,
+    "strategyName": "breakout",
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "decision_recorded-1775795179782",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-10T04:26:19.782Z",
+    "decisionId": "d504279c-b807-4aa3-973a-a462c55517af",
+    "symbol": "META",
+    "approved": false,
+    "strategyName": "breakout",
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "decision_recorded-1775795179786",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-10T04:26:19.786Z",
+    "decisionId": "32b89dc0-554d-493a-b9d4-b6893625bd8f",
+    "symbol": "TSLA",
+    "approved": false,
+    "strategyName": "breakout",
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "decision_recorded-1775795179791",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-10T04:26:19.791Z",
+    "decisionId": "bd8293de-e3b1-4de5-b540-1bf0366adcb3",
+    "symbol": "AMD",
+    "approved": false,
+    "strategyName": "breakout",
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "decision_recorded-1775795179797",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-10T04:26:19.797Z",
+    "decisionId": "b155b4be-4b04-48cd-aad6-63c17c961e0d",
+    "symbol": "GOOGL",
+    "approved": false,
+    "strategyName": "breakout",
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "decision_recorded-1775795179801",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-10T04:26:19.801Z",
+    "decisionId": "a5a90dd6-cdc9-491b-923d-e6aad4edb117",
+    "symbol": "BTC/USD",
+    "approved": true,
+    "strategyName": "forced-debug-entry",
+    "metrics": {
+      "closePrice": 71790.928,
+      "breakoutLevel": 71790.928,
+      "atr": 0,
+      "volumeRatio": 1,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "id": "decision_recorded-1775795179806",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-10T04:26:19.806Z",
+    "decisionId": "38bcf8f6-31b4-44f7-8e8b-f4faa5a5a0f2",
+    "symbol": "ETH/USD",
+    "approved": false,
+    "strategyName": "breakout",
+    "metrics": {
+      "closePrice": 2192.63,
+      "breakoutLevel": 2244.79,
+      "atr": 10.03,
+      "volumeRatio": 1.43,
+      "distanceToBreakoutPct": -2.32
+    }
+  },
+  {
+    "id": "decision_recorded-1775795179810",
+    "type": "decision_recorded",
+    "timestamp": "2026-04-10T04:26:19.810Z",
+    "decisionId": "696b5f7e-a5fd-4e9c-bc2a-7c55f74e667a",
+    "symbol": "SOL/USD",
+    "approved": false,
+    "strategyName": "breakout",
+    "metrics": {
+      "closePrice": 83.52,
+      "breakoutLevel": 85.79,
+      "atr": 0.4,
+      "volumeRatio": 0.95,
+      "distanceToBreakoutPct": -2.65
+    }
+  },
+  {
+    "id": "decision_approved-1775795179914",
+    "type": "decision_approved",
+    "timestamp": "2026-04-10T04:26:19.914Z",
+    "decisionId": "a5a90dd6-cdc9-491b-923d-e6aad4edb117",
+    "symbol": "BTC/USD",
+    "strategyName": "forced-debug-entry",
+    "blockers": []
+  },
+  {
+    "id": "order_submitted-1775795180079",
+    "type": "order_submitted",
+    "timestamp": "2026-04-10T04:26:20.079Z",
+    "decisionId": "a5a90dd6-cdc9-491b-923d-e6aad4edb117",
+    "symbol": "BTC/USD",
+    "brokerOrderId": "177301b0-5800-4566-b8b3-07729e278407",
+    "quantity": 0.001
+  },
+  {
+    "id": "cycle_complete-1775795180341",
+    "type": "cycle_complete",
+    "timestamp": "2026-04-10T04:26:20.341Z",
+    "cycleId": "f91ca131-4e33-404b-8eba-4e6ec6f0d6a6",
+    "dryRun": false,
+    "scanned": 11,
+    "approved": 1,
+    "placed": 1,
+    "startedAt": "2026-04-10T04:26:18.283Z",
+    "completedAt": "2026-04-10T04:26:20.341Z"
   }
 ]

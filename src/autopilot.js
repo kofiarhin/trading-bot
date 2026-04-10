@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto';
 
 import { placeOrder } from './execution/orderManager.js';
 import { getAccount, getBarsForSymbols, getOrders, getPositions, isDryRunEnabled } from './lib/alpaca.js';
+import { fetchCryptoBars } from './market/alpacaMarketData.js';
+import { getUniverse } from './market/universe.js';
 import { appendDailyRecord, appendLogEvent, getStoragePath, nowIso, readJson } from './lib/storage.js';
 import {
   getOpenTrades,
@@ -32,14 +34,23 @@ function average(values) {
 }
 
 function getConfiguredSymbols() {
+  // Explicit override — comma-separated list in env takes priority.
   const rawSymbols =
     process.env.AUTOPILOT_SYMBOLS ??
     process.env.SYMBOLS ??
     process.env.WATCHLIST ??
-    process.env.TICKERS ??
-    'AAPL';
+    process.env.TICKERS;
 
-  return [...new Set(rawSymbols.split(',').map((symbol) => symbol.trim().toUpperCase()).filter(Boolean))];
+  if (rawSymbols) {
+    return [...new Set(rawSymbols.split(',').map((symbol) => symbol.trim()).filter(Boolean))];
+  }
+
+  // Default: derive from the configured universe, respecting ENABLE_STOCKS / ENABLE_CRYPTO.
+  const universeEntries = getUniverse({
+    enableStocks: process.env.ENABLE_STOCKS !== 'false',
+    enableCrypto: process.env.ENABLE_CRYPTO !== 'false',
+  });
+  return universeEntries.map((e) => e.symbol);
 }
 
 function calculateAtr(bars, period = 14) {
@@ -64,6 +75,49 @@ function calculateAtr(bars, period = 14) {
 
 function inferAssetClass(symbol) {
   return typeof symbol === 'string' && symbol.includes('/') ? 'crypto' : 'stock';
+}
+
+function normalizeBar(bar) {
+  return {
+    timestamp: bar.t,
+    open: toNumber(bar.o),
+    high: toNumber(bar.h),
+    low: toNumber(bar.l),
+    close: toNumber(bar.c),
+    volume: toNumber(bar.v),
+  };
+}
+
+async function fetchBarsBySymbol(symbols) {
+  const stockSymbols = symbols.filter((s) => inferAssetClass(s) === 'stock');
+  const cryptoSymbols = symbols.filter((s) => inferAssetClass(s) === 'crypto');
+  const results = {};
+
+  // Stocks: use the multi-symbol limit-based endpoint (works outside market hours)
+  if (stockSymbols.length) {
+    try {
+      const stockBars = await getBarsForSymbols(stockSymbols, { timeframe: '15Min', limit: 60 });
+      Object.assign(results, stockBars);
+    } catch (err) {
+      console.error(`Failed to fetch stock bars: ${err.message}`);
+      for (const s of stockSymbols) results[s] = [];
+    }
+  }
+
+  // Crypto: must use the dedicated crypto endpoint — stocks endpoint rejects these symbols
+  await Promise.all(
+    cryptoSymbols.map(async (symbol) => {
+      try {
+        const rawBars = await fetchCryptoBars(symbol, 60);
+        results[symbol] = rawBars.map(normalizeBar);
+      } catch (err) {
+        console.error(`Failed to fetch crypto bars for ${symbol}: ${err.message}`);
+        results[symbol] = [];
+      }
+    }),
+  );
+
+  return results;
 }
 
 function buildDecision(symbol, bars, account) {
@@ -271,7 +325,7 @@ export async function runAutopilotCycle(options = {}) {
 
   await handleExits(dryRun);
 
-  const barsBySymbol = await getBarsForSymbols(symbols, { timeframe: '15Min', limit: 60 });
+  const barsBySymbol = await fetchBarsBySymbol(symbols);
   const decisions = symbols.map((symbol) => buildDecision(symbol, barsBySymbol[symbol] ?? [], account));
 
   for (const decision of decisions) {

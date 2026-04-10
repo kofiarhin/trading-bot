@@ -216,7 +216,7 @@ export async function placeOrder({ decision, dryRun = false }) {
   let response;
   try {
     response = await submitOrder({
-      symbol: fields.symbol,
+      symbol: fields.normalizedSymbol,
       qty: fields.quantity,
       side: fields.side,
       assetClass: fields.assetClass,

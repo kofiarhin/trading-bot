@@ -76,5 +76,342 @@
     "blockers": [
       "insufficient_market_data"
     ]
+  },
+  {
+    "id": "6ee7050f-4fc4-46f2-b204-a7ace2911f9f",
+    "symbol": "AAPL",
+    "normalizedSymbol": "AAPL",
+    "assetClass": "stock",
+    "strategyName": "breakout",
+    "timestamp": "2026-04-10T04:09:48.426Z",
+    "approved": false,
+    "side": "buy",
+    "reason": "breakout_not_confirmed",
+    "entryPrice": 260.44,
+    "stopLoss": 259.67,
+    "takeProfit": 261.98,
+    "quantity": 665,
+    "riskAmount": 0.77,
+    "metrics": {
+      "closePrice": 260.44,
+      "breakoutLevel": 260.78,
+      "atr": 0.51,
+      "volumeRatio": 3.63,
+      "distanceToBreakoutPct": -0.13
+    },
+    "blockers": [
+      "signal_not_confirmed"
+    ]
+  },
+  {
+    "id": "31c20d4c-d99f-4c66-bc20-0d567980d60e",
+    "symbol": "AAPL",
+    "normalizedSymbol": "AAPL",
+    "assetClass": "stock",
+    "strategyName": "breakout",
+    "timestamp": "2026-04-10T04:11:07.178Z",
+    "approved": false,
+    "side": "buy",
+    "reason": "breakout_not_confirmed",
+    "entryPrice": 260.44,
+    "stopLoss": 259.67,
+    "takeProfit": 261.98,
+    "quantity": 665,
+    "riskAmount": 0.77,
+    "metrics": {
+      "closePrice": 260.44,
+      "breakoutLevel": 260.78,
+      "atr": 0.51,
+      "volumeRatio": 3.63,
+      "distanceToBreakoutPct": -0.13
+    },
+    "blockers": [
+      "signal_not_confirmed"
+    ]
+  },
+  {
+    "id": "eaf5d7df-ceb2-44ac-a03e-ef8cacaea705",
+    "symbol": "AAPL",
+    "normalizedSymbol": "AAPL",
+    "assetClass": "stock",
+    "strategyName": "breakout",
+    "timestamp": "2026-04-10T04:26:19.757Z",
+    "approved": false,
+    "side": "buy",
+    "reason": "insufficient_market_data",
+    "entryPrice": 0,
+    "stopLoss": 0,
+    "takeProfit": 0,
+    "quantity": 0,
+    "riskAmount": 0,
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    },
+    "blockers": [
+      "insufficient_market_data"
+    ]
+  },
+  {
+    "id": "a4b94906-26e3-4aa5-8906-768c8b1a4da4",
+    "symbol": "MSFT",
+    "normalizedSymbol": "MSFT",
+    "assetClass": "stock",
+    "strategyName": "breakout",
+    "timestamp": "2026-04-10T04:26:19.757Z",
+    "approved": false,
+    "side": "buy",
+    "reason": "insufficient_market_data",
+    "entryPrice": 0,
+    "stopLoss": 0,
+    "takeProfit": 0,
+    "quantity": 0,
+    "riskAmount": 0,
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    },
+    "blockers": [
+      "insufficient_market_data"
+    ]
+  },
+  {
+    "id": "f7fd3871-4a16-4009-ad9d-578cb41c39c9",
+    "symbol": "NVDA",
+    "normalizedSymbol": "NVDA",
+    "assetClass": "stock",
+    "strategyName": "breakout",
+    "timestamp": "2026-04-10T04:26:19.757Z",
+    "approved": false,
+    "side": "buy",
+    "reason": "insufficient_market_data",
+    "entryPrice": 0,
+    "stopLoss": 0,
+    "takeProfit": 0,
+    "quantity": 0,
+    "riskAmount": 0,
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    },
+    "blockers": [
+      "insufficient_market_data"
+    ]
+  },
+  {
+    "id": "0ebb2ac5-5154-4f18-9b69-586bd98f1da5",
+    "symbol": "AMZN",
+    "normalizedSymbol": "AMZN",
+    "assetClass": "stock",
+    "strategyName": "breakout",
+    "timestamp": "2026-04-10T04:26:19.757Z",
+    "approved": false,
+    "side": "buy",
+    "reason": "insufficient_market_data",
+    "entryPrice": 0,
+    "stopLoss": 0,
+    "takeProfit": 0,
+    "quantity": 0,
+    "riskAmount": 0,
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    },
+    "blockers": [
+      "insufficient_market_data"
+    ]
+  },
+  {
+    "id": "d504279c-b807-4aa3-973a-a462c55517af",
+    "symbol": "META",
+    "normalizedSymbol": "META",
+    "assetClass": "stock",
+    "strategyName": "breakout",
+    "timestamp": "2026-04-10T04:26:19.757Z",
+    "approved": false,
+    "side": "buy",
+    "reason": "insufficient_market_data",
+    "entryPrice": 0,
+    "stopLoss": 0,
+    "takeProfit": 0,
+    "quantity": 0,
+    "riskAmount": 0,
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    },
+    "blockers": [
+      "insufficient_market_data"
+    ]
+  },
+  {
+    "id": "32b89dc0-554d-493a-b9d4-b6893625bd8f",
+    "symbol": "TSLA",
+    "normalizedSymbol": "TSLA",
+    "assetClass": "stock",
+    "strategyName": "breakout",
+    "timestamp": "2026-04-10T04:26:19.757Z",
+    "approved": false,
+    "side": "buy",
+    "reason": "insufficient_market_data",
+    "entryPrice": 0,
+    "stopLoss": 0,
+    "takeProfit": 0,
+    "quantity": 0,
+    "riskAmount": 0,
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    },
+    "blockers": [
+      "insufficient_market_data"
+    ]
+  },
+  {
+    "id": "bd8293de-e3b1-4de5-b540-1bf0366adcb3",
+    "symbol": "AMD",
+    "normalizedSymbol": "AMD",
+    "assetClass": "stock",
+    "strategyName": "breakout",
+    "timestamp": "2026-04-10T04:26:19.757Z",
+    "approved": false,
+    "side": "buy",
+    "reason": "insufficient_market_data",
+    "entryPrice": 0,
+    "stopLoss": 0,
+    "takeProfit": 0,
+    "quantity": 0,
+    "riskAmount": 0,
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    },
+    "blockers": [
+      "insufficient_market_data"
+    ]
+  },
+  {
+    "id": "b155b4be-4b04-48cd-aad6-63c17c961e0d",
+    "symbol": "GOOGL",
+    "normalizedSymbol": "GOOGL",
+    "assetClass": "stock",
+    "strategyName": "breakout",
+    "timestamp": "2026-04-10T04:26:19.757Z",
+    "approved": false,
+    "side": "buy",
+    "reason": "insufficient_market_data",
+    "entryPrice": 0,
+    "stopLoss": 0,
+    "takeProfit": 0,
+    "quantity": 0,
+    "riskAmount": 0,
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    },
+    "blockers": [
+      "insufficient_market_data"
+    ]
+  },
+  {
+    "id": "a5a90dd6-cdc9-491b-923d-e6aad4edb117",
+    "symbol": "BTC/USD",
+    "normalizedSymbol": "BTCUSD",
+    "assetClass": "crypto",
+    "strategyName": "forced-debug-entry",
+    "timestamp": "2026-04-10T04:26:19.757Z",
+    "approved": true,
+    "side": "buy",
+    "reason": "forced first paper trade",
+    "entryPrice": 71790.93,
+    "stopLoss": 71073.02,
+    "takeProfit": 73226.75,
+    "quantity": 0.001,
+    "riskAmount": 0.72,
+    "metrics": {
+      "closePrice": 71790.928,
+      "breakoutLevel": 71790.928,
+      "atr": 0,
+      "volumeRatio": 1,
+      "distanceToBreakoutPct": 0
+    },
+    "isForced": true,
+    "blockers": []
+  },
+  {
+    "id": "38bcf8f6-31b4-44f7-8e8b-f4faa5a5a0f2",
+    "symbol": "ETH/USD",
+    "normalizedSymbol": "ETHUSD",
+    "assetClass": "crypto",
+    "strategyName": "breakout",
+    "timestamp": "2026-04-10T04:26:19.758Z",
+    "approved": false,
+    "side": "buy",
+    "reason": "breakout_not_confirmed",
+    "entryPrice": 2192.63,
+    "stopLoss": 2177.59,
+    "takeProfit": 2222.72,
+    "quantity": 34,
+    "riskAmount": 15.04,
+    "metrics": {
+      "closePrice": 2192.63,
+      "breakoutLevel": 2244.79,
+      "atr": 10.03,
+      "volumeRatio": 1.43,
+      "distanceToBreakoutPct": -2.32
+    },
+    "blockers": [
+      "signal_not_confirmed"
+    ]
+  },
+  {
+    "id": "696b5f7e-a5fd-4e9c-bc2a-7c55f74e667a",
+    "symbol": "SOL/USD",
+    "normalizedSymbol": "SOLUSD",
+    "assetClass": "crypto",
+    "strategyName": "breakout",
+    "timestamp": "2026-04-10T04:26:19.758Z",
+    "approved": false,
+    "side": "buy",
+    "reason": "breakout_not_confirmed",
+    "entryPrice": 83.52,
+    "stopLoss": 82.92,
+    "takeProfit": 84.71,
+    "quantity": 868,
+    "riskAmount": 0.59,
+    "metrics": {
+      "closePrice": 83.52,
+      "breakoutLevel": 85.79,
+      "atr": 0.4,
+      "volumeRatio": 0.95,
+      "distanceToBreakoutPct": -2.65
+    },
+    "blockers": [
+      "signal_not_confirmed"
+    ]
   }
 ]

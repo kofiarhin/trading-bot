@@ -13,11 +13,11 @@ export function maybeForceTrade({ symbol, assetClass, latestPrice }) {
     approved: true,
     reason: 'forced first paper trade',
     metrics: {
-      close: latestPrice,
+      closePrice: latestPrice,
       breakoutLevel: latestPrice,
       atr: 0,
       volumeRatio: 1,
-      distancePct: 0,
+      distanceToBreakoutPct: 0,
     },
     strategyName: 'forced-debug-entry',
     isForced: true,

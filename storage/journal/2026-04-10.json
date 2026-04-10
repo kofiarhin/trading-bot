@@ -1,0 +1,23 @@
+[
+  {
+    "tradeId": "68580d96-2ebf-43fa-8efd-2fd72bf89e85",
+    "symbol": "BTC/USD",
+    "normalizedSymbol": "BTC/USD",
+    "strategyName": "forced-debug-entry",
+    "status": "pending"
+  },
+  {
+    "tradeId": "68580d96-2ebf-43fa-8efd-2fd72bf89e85",
+    "symbol": "BTC/USD",
+    "normalizedSymbol": "BTC/USD",
+    "strategyName": "forced-debug-entry",
+    "status": "open"
+  },
+  {
+    "tradeId": "f19ddc85-293e-459f-a3ee-ed3c9e898150",
+    "symbol": "BTCUSD",
+    "normalizedSymbol": "BTCUSD",
+    "strategyName": "broker_sync",
+    "status": "open"
+  }
+]

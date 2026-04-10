@@ -206,11 +206,11 @@ router.get("/decisions", (req, res) => {
     decision: d.approved ? "Approved" : "Rejected",
     strategyName: d.strategyName ?? null,
     reason: d.reason,
-    closePrice: d.closePrice ?? null,
-    breakoutLevel: d.breakoutLevel ?? null,
-    atr: d.atr ?? null,
-    volumeRatio: d.volumeRatio ?? null,
-    distanceToBreakoutPct: d.distanceToBreakoutPct ?? null,
+    closePrice: d.metrics?.closePrice ?? d.closePrice ?? null,
+    breakoutLevel: d.metrics?.breakoutLevel ?? d.breakoutLevel ?? null,
+    atr: d.metrics?.atr ?? d.atr ?? null,
+    volumeRatio: d.metrics?.volumeRatio ?? d.volumeRatio ?? null,
+    distanceToBreakoutPct: d.metrics?.distanceToBreakoutPct ?? d.distanceToBreakoutPct ?? null,
     entryPrice: d.entryPrice ?? null,
     stopLoss: d.stopLoss ?? null,
     takeProfit: d.takeProfit ?? null,
@@ -475,7 +475,7 @@ router.get("/activity", (req, res) => {
     if (d.approved) {
       events.push({
         type: "approved",
-        label: `Strategy approved — ${d.symbol} (${formatAssetClass(d.assetClass)}) @ ${d.closePrice ?? "—"}`,
+        label: `Strategy approved — ${d.symbol} (${formatAssetClass(d.assetClass)}) @ ${d.metrics?.closePrice ?? d.closePrice ?? "—"}`,
         timestamp: d.timestamp,
       });
     } else {

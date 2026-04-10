@@ -1,1 +1,41 @@
-[]
+[
+  {
+    "tradeId": "68580d96-2ebf-43fa-8efd-2fd72bf89e85",
+    "symbol": "BTC/USD",
+    "normalizedSymbol": "BTCUSD",
+    "assetClass": "crypto",
+    "strategyName": "forced-debug-entry",
+    "entryPrice": 72284.1,
+    "stopLoss": 71073.02,
+    "takeProfit": 73226.75,
+    "quantity": 0.001,
+    "riskAmount": 0.72,
+    "status": "open",
+    "openedAt": "2026-04-10T05:25:41.311014709Z",
+    "metrics": {
+      "closePrice": 71790.928,
+      "breakoutLevel": 71790.928,
+      "atr": 0,
+      "volumeRatio": 1,
+      "distanceToBreakoutPct": 0
+    }
+  },
+  {
+    "tradeId": "f19ddc85-293e-459f-a3ee-ed3c9e898150",
+    "symbol": "BTCUSD",
+    "normalizedSymbol": "BTCUSD",
+    "strategyName": "broker_sync",
+    "entryPrice": 72284.1,
+    "quantity": 0.0009975,
+    "riskAmount": 0,
+    "status": "open",
+    "openedAt": "2026-04-10T04:26:20.332Z",
+    "metrics": {
+      "closePrice": 0,
+      "breakoutLevel": 0,
+      "atr": 0,
+      "volumeRatio": 0,
+      "distanceToBreakoutPct": 0
+    }
+  }
+]
