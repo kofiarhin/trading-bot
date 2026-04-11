@@ -16,6 +16,7 @@ jest.unstable_mockModule("../../src/execution/alpacaTrading.js", () => ({
 jest.unstable_mockModule("../../src/journal/tradeJournal.js", () => ({
   getOpenTrades: jest.fn(),
   getOpenTradeById: jest.fn(),
+  addOpenTrade: jest.fn(),
   removeOpenTrade: jest.fn(),
   addClosedTrade: jest.fn(),
   markTradeCanceled: jest.fn(),

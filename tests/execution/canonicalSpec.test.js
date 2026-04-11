@@ -90,6 +90,7 @@ async function setupOrderManagerMocks({ submitOrderImpl } = {}) {
     markTradeOpen: jest.fn(),
     markTradeCanceled: jest.fn(),
     getOpenTradeById: jest.fn(async () => null),
+    addOpenTrade: jest.fn(),
     removeOpenTrade: jest.fn(),
     addClosedTrade: jest.fn(),
   }));
@@ -190,6 +191,7 @@ describe('dry-run safety', () => {
       markTradeOpen: jest.fn(),
       markTradeCanceled: jest.fn(),
       getOpenTradeById: jest.fn(async () => null),
+      addOpenTrade: jest.fn(),
       removeOpenTrade: jest.fn(),
       addClosedTrade: jest.fn(),
     }));
@@ -241,6 +243,7 @@ describe('orderManager.placeOrder — legacy alias resolution', () => {
       markTradeOpen: jest.fn(async () => ({})),
       markTradeCanceled: jest.fn(async () => ({})),
       getOpenTradeById: jest.fn(async () => null),
+      addOpenTrade: jest.fn(async () => {}),
       removeOpenTrade: jest.fn(async () => {}),
       addClosedTrade: jest.fn(async () => {}),
     }));

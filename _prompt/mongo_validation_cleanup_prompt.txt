@@ -1,0 +1,217 @@
+You are working inside an existing Node.js trading bot codebase.
+
+The MongoDB migration is already mostly implemented. Do NOT re-implement it from scratch.
+
+Your task is to perform the next phase only:
+
+==================================================
+GOAL
+==================================================
+
+Validate the Mongo-backed system end-to-end, identify legacy file-storage leftovers, and clean them up safely without breaking the current working bot.
+
+This is NOT a rewrite.
+This is a validation + cleanup + de-legacy pass.
+
+==================================================
+CURRENT STATE
+==================================================
+
+The codebase already has:
+- mongoose installed
+- Mongo connection layer
+- Mongo models
+- Mongo repos
+- Mongo-backed src/lib/storage.js
+- Mongo-backed tradeJournal.js
+- migration scripts
+- canonical dashboard/positions routes
+- working execution flow
+
+However, legacy file-storage artifacts still exist in the repo, and we need to:
+1. confirm active runtime paths use Mongo
+2. remove or quarantine unused legacy modules
+3. reduce confusion / dead code
+4. add regression protection with tests
+
+==================================================
+DO NOT BREAK
+==================================================
+
+Do NOT modify unless absolutely necessary:
+- src/autopilot.js strategy behavior
+- src/execution/orderManager.js execution semantics
+- broker behavior
+- dry-run behavior
+- API contract shape already used by the dashboard
+- canonical trade normalization logic
+
+==================================================
+OBJECTIVES
+==================================================
+
+1. Validate all active runtime paths are Mongo-backed
+2. Confirm dashboard, positions, risk state, decisions, cycle logs, and trade journal all use Mongo-backed state
+3. Identify legacy file-storage modules that are no longer active
+4. Remove, deprecate, or quarantine legacy modules safely
+5. Resolve duplicate migration files if one is redundant
+6. Add/finish tests that protect the Mongo-backed behavior
+
+==================================================
+STEP 1 — AUDIT ACTIVE RUNTIME PATHS
+==================================================
+
+Confirm the active runtime paths for:
+- server startup
+- autopilot startup
+- worker startup
+- trade journal reads/writes
+- dashboard routes
+- positions routes
+- risk state
+- decision logging
+- cycle logging
+
+For each path, determine whether it now uses Mongo-backed storage.
+
+If an active path still depends on local JSON/file persistence, fix it.
+
+Important:
+Do not just search imports. Trace the actual runtime path.
+
+==================================================
+STEP 2 — IDENTIFY LEGACY LEFTOVERS
+==================================================
+
+Audit the repo for legacy file-storage modules and old paths that may now be unused or dangerous.
+
+Examples likely to inspect:
+- src/journal/openTradesStore.js
+- src/journal/closedTradesStore.js
+- src/journal/tradeEventsStore.js
+- old file-backed helpers under storage/journal/logs/trades usage
+- old entrypoints like src/index.js if they are no longer primary
+- any remaining code paths that still assume JSON persistence directly
+
+For each legacy module:
+- determine whether it is still actively used
+- if unused, mark it for removal or deprecation
+- if still needed for compatibility, make that explicit and contain it
+
+Do NOT delete something that is still on an active runtime path.
+
+==================================================
+STEP 3 — RESOLVE DUPLICATE MIGRATION SCRIPTS
+==================================================
+
+The repo currently has multiple migration-related files.
+
+Audit:
+- src/db/migrate.js
+- src/db/migrateJsonToMongo.js
+
+Decide which one should be canonical.
+
+Requirements:
+- keep one clear migration path
+- remove or deprecate the duplicate safely
+- update package.json scripts if needed
+- document which script is the correct one to run
+
+Do not keep two overlapping migration entrypoints unless they have clearly different purposes and are documented.
+
+==================================================
+STEP 4 — ADD REGRESSION TESTS FOR MONGO-BACKED STORAGE
+==================================================
+
+Use the existing Jest setup.
+
+Add/update tests for:
+
+1. Mongo connection layer
+2. trade journal open trade persistence
+3. trade journal closed trade persistence
+4. trade events persistence
+5. decisions persistence
+6. cycle log persistence
+7. risk state persistence
+8. dashboard routes returning expected canonical data using Mongo-backed state
+9. positions routes returning expected canonical data using Mongo-backed state
+10. migration script importing JSON data safely
+11. dry-run behavior still not breaking broker/persistence semantics
+
+Do not over-engineer the tests.
+Focus on regression protection for the active Mongo-backed system.
+
+==================================================
+STEP 5 — CLEAN UP LEGACY CODE SAFELY
+==================================================
+
+After confirming active paths and tests:
+
+- remove unused legacy file-store modules if safe
+OR
+- if removal is risky right now, clearly deprecate them and isolate them
+
+If you keep them:
+- add comments indicating they are legacy / not active runtime path
+- prevent confusion for future maintenance
+
+The goal is to reduce ambiguity in the repo.
+
+==================================================
+STEP 6 — KEEP STORAGE BRIDGE CODE ONLY WHERE NECESSARY
+==================================================
+
+If src/lib/storage.js is still doing path-to-collection emulation for compatibility, that is acceptable for now.
+
+Do NOT rewrite that bridge unless necessary for correctness.
+
+The focus is validation and cleanup, not re-architecting the storage adapter.
+
+==================================================
+STEP 7 — VALIDATE END TO END
+==================================================
+
+Run and verify:
+
+npm run server
+npm run client
+npm run dev
+npm run autopilot:dry
+npm test
+
+If migration is needed:
+npm run migrate:mongo
+
+Expected results:
+- server starts with Mongo connected
+- client/dashboard loads
+- autopilot dry-run still works
+- open/closed trades and activity feed still work
+- no active runtime path depends on local JSON state
+- tests pass
+
+==================================================
+STEP 8 — OUTPUT REQUIREMENTS
+==================================================
+
+At the end, provide:
+
+1. changed files list
+2. which active runtime paths were confirmed Mongo-backed
+3. which legacy modules were removed, deprecated, or retained
+4. which migration script is now canonical
+5. what tests were added or updated
+6. exact validation commands run
+7. any assumptions made
+
+==================================================
+IMPORTANT FINAL RULE
+==================================================
+
+This is a cleanup and verification pass on top of an already working Mongo migration.
+
+Do NOT perform a broad rewrite.
+Do NOT rebuild the storage architecture.
+Do NOT change working bot behavior unless required to eliminate an active file-storage dependency or fix a regression.

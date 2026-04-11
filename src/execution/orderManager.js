@@ -13,6 +13,7 @@ import {
   markTradeOpen,
   markTradeCanceled,
   getOpenTradeById,
+  addOpenTrade,
   removeOpenTrade,
   addClosedTrade,
 } from "../journal/tradeJournal.js";
@@ -273,8 +274,10 @@ export async function placeOrder({ decision, dryRun = false }) {
     // Order accepted but not yet filled — record the broker order id on the
     // pending journal record so subsequent broker syncs can match it.
     try {
-      const { updateOpenTrade } = await import("../journal/openTradesStore.js");
-      await updateOpenTrade(tradeId, { brokerOrderId: response.id ?? null });
+      const existingTrade = await getOpenTradeById(tradeId);
+      if (existingTrade) {
+        await addOpenTrade({ ...existingTrade, brokerOrderId: response.id ?? null });
+      }
     } catch (updateErr) {
       logger.warn("Failed to update brokerOrderId on pending trade (non-fatal)", {
         tradeId,

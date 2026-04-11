@@ -1,3 +1,8 @@
+// LEGACY SERVER ENTRY — used only by the deprecated npm run trade / npm run trade:dry scripts.
+// The active server is src/server/index.js (npm run server / npm run dev).
+// This file does NOT connect to MongoDB explicitly and reads decisions/logs
+// through the lib/storage.js bridge (which routes to MongoDB via storageRepo.mongo.js).
+// Do not add new features here.  New server work belongs in src/server/.
 import 'dotenv/config';
 
 import express from 'express';

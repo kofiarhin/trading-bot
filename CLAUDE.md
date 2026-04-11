@@ -20,6 +20,11 @@ npm run strategy:simulate  # Strategy-only evaluation, no execution
 npm run monitor            # View open positions
 ```
 
+### Database
+```bash
+npm run db:migrate         # Migrate legacy JSON storage files → MongoDB
+```
+
 ### Testing
 ```bash
 npm test                   # Run all Jest tests
@@ -44,33 +49,45 @@ This is a two-part application:
 
 ### Autopilot Pipeline (`src/autopilot.js`)
 The core loop runs per-symbol in sequence:
-1. Fetch 60 bars of 15-min candle data from Alpaca
-2. Compute indicators: ATR (14-period), highest high (20-candle), average volume (20-candle)
-3. Run breakout strategy → log decision to `storage/decisions/YYYY-MM-DD.json`
-4. Pass risk guards (daily loss lockout, duplicate positions, cooldown, max positions)
-5. Place order via Alpaca API → log trade to `storage/journal/YYYY-MM-DD.json`
-6. Log cycle summary to `storage/logs/YYYY-MM-DD.json`
+1. Sync open trades against live broker positions/orders
+2. Check open trades for exit conditions (stop-loss / take-profit)
+3. Fetch 60 bars of 15-min candle data from Alpaca
+4. Compute indicators: ATR (14-period), highest high (20-candle), average volume (20-candle)
+5. Run breakout strategy → save `Decision` document to MongoDB
+6. Pass risk guards (daily loss lockout, duplicate positions, cooldown, max positions)
+7. Place order via Alpaca API → save trade and cycle events to MongoDB
 
 ### Key Module Boundaries
 | Directory | Responsibility |
 |-----------|---------------|
 | `src/strategies/` | Signal generation only — returns approved/rejected with metrics |
-| `src/risk/` | Guards that block execution — reads `storage/riskState.json` for daily loss/cooldowns |
+| `src/risk/` | Guards that block execution — reads risk state from MongoDB for daily loss/cooldowns |
 | `src/execution/` | Alpaca API wrappers and order placement |
-| `src/journal/` | All file-based persistence (decisions, trades, cycles) |
+| `src/journal/` | Trade state management (open/closed trades, decisions, cycle logs) |
 | `src/market/` | Symbol universe, bar fetching, market hours filtering |
 | `src/indicators/` | Pure calculation functions (ATR, highest high, average volume) |
-| `src/server/` | Express app + dashboard routes only — reads from `storage/` |
+| `src/models/` | Mongoose schemas: `OpenTrade`, `ClosedTrade`, `TradeEvent`, `Decision`, `CycleLog`, `CycleRun`, `RiskState`, `JournalRecord` |
+| `src/repositories/` | MongoDB read/write operations — used by journal and risk modules |
+| `src/positions/` | Exit logic — checks open trades against current price for stop/target hits |
+| `src/server/` | Express app + API routes (dashboard, trades, positions) — read-only, no order placement |
+| `src/db/` | MongoDB connection (`connectMongo.js`) and migration (`migrate.js`) |
 
-### Storage (File-Based, No Database)
-All state is persisted as JSON files under `storage/`:
-- `storage/riskState.json` — daily realized loss & per-symbol cooldowns (resets each trading day)
-- `storage/logs/YYYY-MM-DD.json` — cycle summaries
-- `storage/journal/YYYY-MM-DD.json` — individual trade records
-- `storage/decisions/YYYY-MM-DD.json` — per-symbol strategy decisions
+### Storage (MongoDB)
+All state is persisted in MongoDB. The Mongoose models map to these collections:
+- `OpenTrade` / `ClosedTrade` / `TradeEvent` — trade lifecycle
+- `Decision` — per-symbol strategy decisions per cycle
+- `CycleLog` / `CycleRun` — cycle event streams and summaries
+- `RiskState` — single document (key `"risk-state"`) with daily loss and cooldowns
+- `JournalRecord` — raw journal payloads
 
-### Dashboard API (`src/server/routes/dashboard.js`)
-11 GET-only endpoints under `/api/dashboard/*`. The Express server is read-only — it reads from `storage/` and queries Alpaca directly. It never writes state or places orders.
+Legacy JSON files under `storage/` may still exist from before the MongoDB migration. Run `npm run db:migrate` once to import them.
+
+### Server API (`src/server/`)
+The Express server is read-only — it reads from MongoDB and queries Alpaca directly. It never writes state or places orders. Three route groups:
+- `/api/dashboard/*` — 11 GET endpoints for cycle/decision/risk summaries
+- `/api/trades/*` — open and closed trade queries
+- `/api/positions/*` — live position data from Alpaca
+- `/api/health` — liveness check
 
 ### Frontend API Layer (`client/src/`)
 - Shared Axios client: `client/src/lib/api.js` (base URL from `VITE_API_URL` env var)
@@ -80,9 +97,10 @@ All state is persisted as JSON files under `storage/`:
 - Do not call API endpoints directly from components — always go through the hook layer
 
 ### Environment Configuration
-- Root `.env` — Alpaca credentials and all trading parameters (see `.env.example`)
+- Root `.env` — Alpaca credentials, MongoDB URI, and all trading parameters (see `.env.example`)
 - `client/.env` — `VITE_API_URL` for the dashboard API base URL
-- `src/config/env.js` — validates required vars and exports typed config
+- `src/config/env.js` — validates required Alpaca vars and exports typed config
+- `src/db/connectMongo.js` — requires `MONGO_URI`; optionally `MONGO_DB_NAME` (falls back to the DB name embedded in the URI)
 - **Safety check:** `src/config/env.js` hard-fails if `ALPACA_BASE_URL` is not a paper-trading URL (`paper-api.alpaca.markets`)
 
 ### ES Module Specifics

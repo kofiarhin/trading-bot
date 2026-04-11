@@ -1,3 +1,9 @@
+// LEGACY — not on the active runtime path.
+// tradeJournal.js now reads/writes open trades directly via
+// repositories/tradeJournalRepo.mongo.js.  This module survives only because
+// the openTradesStore.test.js suite exercises the storage bridge
+// (lib/storage.js → repos/storageRepo.mongo.js → MongoDB).
+// Do not add new callers.  Migrate any remaining callers to tradeJournal.js.
 import { getStoragePath, readJson, writeJson } from '../lib/storage.js';
 import { normalizeSymbol } from '../utils/symbolNorm.js';
 

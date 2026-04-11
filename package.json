@@ -31,8 +31,7 @@
       "/tests/parser.test.js",
       "/tests/tradePlanner.test.js",
       "/tests/tradePlanner.crypto.test.js",
-      "/tests/alpaca.crypto.test.js",
-      "/tests/journal/tradeJournal.test.js"
+      "/tests/alpaca.crypto.test.js"
     ]
   },
   "license": "MIT",

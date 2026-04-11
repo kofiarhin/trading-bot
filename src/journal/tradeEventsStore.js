@@ -1,3 +1,7 @@
+// LEGACY — no active runtime callers.
+// tradeJournal.js appends trade events directly via
+// repositories/tradeJournalRepo.mongo.js (appendTradeEvent).
+// This module is kept for reference only.  Do not add new callers.
 import { randomUUID } from 'crypto';
 
 import { getStoragePath, readJson, writeJson } from '../lib/storage.js';

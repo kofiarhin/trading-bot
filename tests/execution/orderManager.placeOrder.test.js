@@ -23,6 +23,7 @@ async function importPlaceOrder() {
     markTradeOpen: jest.fn(),
     markTradeCanceled: jest.fn(),
     getOpenTradeById: jest.fn(async () => null),
+    addOpenTrade: jest.fn(),
     removeOpenTrade: jest.fn(),
     addClosedTrade: jest.fn(),
   }));
@@ -99,6 +100,7 @@ describe('canonical orderManager.placeOrder — dry-run path', () => {
       markTradeOpen: jest.fn(),
       markTradeCanceled: jest.fn(),
       getOpenTradeById: jest.fn(async () => null),
+      addOpenTrade: jest.fn(),
       removeOpenTrade: jest.fn(),
       addClosedTrade: jest.fn(),
     }));

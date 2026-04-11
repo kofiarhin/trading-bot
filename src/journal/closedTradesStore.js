@@ -1,3 +1,7 @@
+// LEGACY — no active runtime callers.
+// tradeJournal.js handles closed trade persistence directly via
+// repositories/tradeJournalRepo.mongo.js (upsertClosedTrade).
+// This module is kept for reference only.  Do not add new callers.
 import { getStoragePath, readJson, writeJson } from '../lib/storage.js';
 
 const CLOSED_TRADES_PATH = getStoragePath('trades', 'closed.json');

@@ -1,5 +1,3 @@
-import 'dotenv/config';
-
 const PAPER_TRADING_URL = 'https://paper-api.alpaca.markets';
 const MARKET_DATA_URL = 'https://data.alpaca.markets';
 
