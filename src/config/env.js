@@ -5,6 +5,7 @@ const REQUIRED = [
   "ALPACA_API_KEY",
   "ALPACA_API_SECRET",
   "ALPACA_BASE_URL",
+  "MONGO_URI",
 ];
 
 const PAPER_URL = "https://paper-api.alpaca.markets";

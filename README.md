@@ -115,10 +115,13 @@ All of these must pass before any order is submitted:
 
 ### Logs and Journal
 
-Every cycle writes to:
+Every cycle writes to MongoDB:
 
-- `storage/logs/YYYY-MM-DD.json` — cycle summaries (scanned, approved, placed, skipped)
-- `storage/journal/YYYY-MM-DD.json` — individual trade records with entry, stop, target, fill, and PnL
+- **CycleLog collection** — cycle summaries (scanned, approved, placed, skipped)
+- **OpenTrade / ClosedTrade / TradeEvent collections** — trade lifecycle records with entry, stop, target, fill, and PnL
+- **Decision collection** — per-symbol strategy decisions per cycle
+
+MongoDB is the only active runtime source of truth. Legacy JSON files under `storage/` are migration input only — run `npm run db:migrate` once to import them if you have pre-migration data.
 
 ---
 
@@ -249,4 +252,92 @@ npm run trade -- "buy 200 dollars of nvidia"  # no $ — safe
 - **Paper trading only.** The bot hard-fails at startup if `ALPACA_BASE_URL` is not exactly `https://paper-api.alpaca.markets`.
 - Live trading mode is blocked in v1.
 - Always do a dry run before running live autopilot cycles for the first time.
-- Risk state (daily loss, cooldowns) persists across runs in `storage/riskState.json` and resets each trading day.
+- Risk state (daily loss, cooldowns) persists across runs in the `RiskState` MongoDB collection and resets each trading day.
+
+---
+
+## Deployment
+
+### Architecture
+
+| Component | Platform |
+|---|---|
+| Backend API + worker | Heroku |
+| Frontend dashboard | Vercel |
+| Database | MongoDB Atlas |
+
+---
+
+### 1. MongoDB Atlas
+
+1. Create a free cluster at [cloud.mongodb.com](https://cloud.mongodb.com)
+2. Create a database user with read/write access
+3. Whitelist all IPs (`0.0.0.0/0`) or restrict to Heroku's IP range
+4. Copy the connection string — it will look like:
+   `mongodb+srv://<user>:<password>@cluster0.xxxxx.mongodb.net/trading-bot`
+
+---
+
+### 2. Heroku Backend
+
+The `Procfile` defines two processes:
+
+```
+web: node -r ./src/config/loadEnv.cjs src/server/index.js
+worker: node -r ./src/config/loadEnv.cjs src/worker15m.js
+```
+
+**Deploy steps:**
+
+```bash
+heroku create your-trading-bot
+heroku config:set \
+  NODE_ENV=production \
+  ALPACA_API_KEY=your_key \
+  ALPACA_API_SECRET=your_secret \
+  ALPACA_BASE_URL=https://paper-api.alpaca.markets \
+  MONGO_URI=mongodb+srv://... \
+  MONGO_DB_NAME=trading-bot \
+  CLIENT_URL=https://your-vercel-app.vercel.app
+git push heroku main
+```
+
+**Enable the worker dyno** (it is off by default on Heroku):
+
+```bash
+heroku ps:scale web=1 worker=1
+```
+
+**Run the one-time migration** (only needed if you have legacy JSON files to import):
+
+```bash
+heroku run npm run db:migrate
+```
+
+**Required Heroku config vars:**
+
+| Variable | Description |
+|---|---|
+| `ALPACA_API_KEY` | Alpaca paper API key |
+| `ALPACA_API_SECRET` | Alpaca paper API secret |
+| `ALPACA_BASE_URL` | Must be `https://paper-api.alpaca.markets` |
+| `MONGO_URI` | MongoDB Atlas connection string |
+| `MONGO_DB_NAME` | Database name (e.g. `trading-bot`) |
+| `CLIENT_URL` | Your Vercel frontend URL (for CORS) |
+
+---
+
+### 3. Vercel Frontend
+
+```bash
+cd client
+vercel deploy
+```
+
+Set the environment variable in the Vercel dashboard (or via CLI):
+
+| Variable | Value |
+|---|---|
+| `VITE_API_URL` | `https://your-trading-bot.herokuapp.com/api` |
+
+The frontend has no server-side logic — it is a static Vite build that calls the Heroku API.

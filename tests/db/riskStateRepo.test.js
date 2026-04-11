@@ -16,11 +16,12 @@ const {
   setCooldown,
   isInCooldown,
 } = await import('../../src/repositories/riskStateRepo.mongo.js');
+const { etDateString } = await import('../../src/utils/time.js');
 
 function makeDoc(overrides = {}) {
   const raw = {
     key: 'risk-state',
-    date: '2026-04-10',
+    date: etDateString(),
     halted: false,
     dailyLossPct: 0,
     dailyRealizedLoss: 0,
@@ -66,7 +67,7 @@ describe('riskStateRepo.mongo', () => {
 
   describe('saveRiskState', () => {
     it('upserts the state document', async () => {
-      const stateInput = { date: '2026-04-10', dailyRealizedLoss: 100, cooldowns: {} };
+      const stateInput = { date: etDateString(), dailyRealizedLoss: 100, cooldowns: {} };
       const doc = makeDoc({ dailyRealizedLoss: 100 });
       RiskState.findOneAndUpdate.mockResolvedValue(doc);
 
