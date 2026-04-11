@@ -93,6 +93,18 @@ export function etDateString(now = new Date()) {
   return new Date(etMs).toISOString().slice(0, 10);
 }
 
+/**
+ * Returns an ISO date string (YYYY-MM-DD) in Europe/London time (GMT in winter, BST in summer).
+ * Use this for cycle date grouping so a UK-based operator sees dates that match their local calendar.
+ * @param {Date} [now]
+ * @returns {string}
+ */
+export function londonDateString(now = new Date()) {
+  const offsetHours = isBST(now) ? 1 : 0;
+  const londonMs = now.getTime() + offsetHours * 3600000;
+  return new Date(londonMs).toISOString().slice(0, 10);
+}
+
 // ─── UK / London timezone ──────────────────────────────────────────────────────
 
 /**

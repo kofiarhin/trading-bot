@@ -3,7 +3,7 @@
  * Mirrors the function signatures used by cycleLogger.js and storage.appendLogEvent.
  */
 import CycleRun from '../models/CycleRun.js';
-import { etDateString } from '../utils/time.js';
+import { londonDateString } from '../utils/time.js';
 
 function nowIso() {
   return new Date().toISOString();
@@ -12,7 +12,7 @@ function nowIso() {
 // ─── Write ────────────────────────────────────────────────────────────────────
 
 export async function appendCycleEvent(record) {
-  const date = etDateString();
+  const date = londonDateString();
   const doc = await CycleRun.create({
     ...record,
     recordedAt: record.recordedAt ?? nowIso(),
@@ -23,13 +23,24 @@ export async function appendCycleEvent(record) {
 
 // ─── Read ─────────────────────────────────────────────────────────────────────
 
-export async function getCyclesForDate(date = etDateString()) {
+export async function getCyclesForDate(date = londonDateString()) {
   const docs = await CycleRun.find({ date }).sort({ recordedAt: 1 }).lean();
   return docs.map(stripMongo);
 }
 
 export async function getLatestCompletedCycle() {
   const doc = await CycleRun.findOne({ type: 'completed' }).sort({ recordedAt: -1 }).lean();
+  return doc ? stripMongo(doc) : null;
+}
+
+/**
+ * Returns the most recent terminal cycle event — completed, skipped_outside_overlap, or failed.
+ * Use this when the dashboard needs to show what the last scheduled run actually did.
+ */
+export async function getLatestCycleRun() {
+  const doc = await CycleRun.findOne({
+    type: { $in: ['completed', 'skipped_outside_overlap', 'failed'] },
+  }).sort({ recordedAt: -1 }).lean();
   return doc ? stripMongo(doc) : null;
 }
 

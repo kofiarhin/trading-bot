@@ -441,10 +441,22 @@ export default runAutopilotCycle;
 const executedFile = process.argv[1]?.replace(/\\/g, '/');
 if (executedFile?.endsWith('/src/autopilot.js')) {
   (async () => {
-    // Gate 1: check NYSE + LSE overlap before connecting to the DB.
-    // Outside the overlap window the process exits immediately — fast and cheap.
+    // Gate 1: check NYSE + LSE overlap.
+    // Outside the window, persist a skipped event so the dashboard can show it, then exit.
     if (!isMarketOverlapOpen()) {
       console.log(`[autopilot] skipped — outside NYSE/LSE overlap window (${new Date().toISOString()})`);
+      try {
+        await connectMongo();
+        await appendCycleEvent({
+          type: 'skipped_outside_overlap',
+          timestamp: nowIso(),
+          reason: 'outside NYSE/LSE overlap window',
+        });
+      } catch {
+        // Best-effort — don't fail the process if the DB is temporarily unavailable.
+      } finally {
+        await disconnectMongo();
+      }
       process.exit(0);
     }
 

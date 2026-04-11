@@ -8,11 +8,11 @@ import {
   getTradeEvents,
 } from "../../journal/tradeJournal.js";
 import { getCyclesForDate } from "../../repositories/cycleRepo.mongo.js";
+import { londonDateString } from "../../utils/time.js";
 import { getTradeEventsForDate } from "../../repositories/tradeJournalRepo.mongo.js";
 import { loadRiskState } from "../../risk/riskState.js";
 import { normalizeSymbol } from "../../utils/symbolNorm.js";
 import { logger } from "../../utils/logger.js";
-import { etDateString } from "../../utils/time.js";
 
 const router = Router();
 
@@ -23,15 +23,15 @@ function shouldUseDecisionFallback(value) {
 }
 
 async function getTodayCycles() {
-  return getCyclesForDate(etDateString());
+  return getCyclesForDate(londonDateString());
 }
 
 async function getTodayJournal() {
-  return getTradeEventsForDate(etDateString());
+  return getTradeEventsForDate(londonDateString());
 }
 
 async function getDecisionLogForToday({ fallbackToLatest = false } = {}) {
-  return loadDecisionLog({ date: etDateString(), fallbackToLatest });
+  return loadDecisionLog({ date: londonDateString(), fallbackToLatest });
 }
 
 async function getAllJournal() {
@@ -39,13 +39,16 @@ async function getAllJournal() {
   return events;
 }
 
+const TERMINAL_CYCLE_TYPES = ["completed", "skipped_outside_overlap", "failed"];
+
 function deriveBotStatus(cycles) {
-  const last = [...cycles].reverse().find((c) => c.type === "completed");
-  if (!last) return { botStatus: "idle", lastCycleAt: null };
+  const last = [...cycles].reverse().find((c) => TERMINAL_CYCLE_TYPES.includes(c.type));
+  if (!last) return { botStatus: "idle", lastCycleAt: null, lastCycleType: null };
   const diffMs = Date.now() - new Date(last.timestamp).getTime();
   return {
     botStatus: diffMs < 25 * 60 * 1000 ? "active" : "idle",
     lastCycleAt: last.timestamp,
+    lastCycleType: last.type,
   };
 }
 
@@ -133,14 +136,20 @@ function normalizeClosedTradeForApi(trade) {
 router.get("/status", async (req, res) => {
   try {
     const cycles = await getTodayCycles();
-    const { botStatus, lastCycleAt } = deriveBotStatus(cycles);
+    const { botStatus, lastCycleAt, lastCycleType } = deriveBotStatus(cycles);
 
     let statusLabel = botStatus;
     const runMode = config.trading.runMode;
     const dryRun = config.trading.dryRun;
 
     if (botStatus === "active") {
-      statusLabel = dryRun ? "Dry Run" : runMode === "paper" ? "Paper Trading" : "Running";
+      if (lastCycleType === "skipped_outside_overlap") {
+        statusLabel = "Skipped (outside overlap)";
+      } else if (lastCycleType === "failed") {
+        statusLabel = "Failed";
+      } else {
+        statusLabel = dryRun ? "Dry Run" : runMode === "paper" ? "Paper Trading" : "Running";
+      }
     } else {
       if (lastCycleAt) {
         const diffMs = Date.now() - new Date(lastCycleAt).getTime();
@@ -150,7 +159,7 @@ router.get("/status", async (req, res) => {
       }
     }
 
-    res.json({ botStatus, statusLabel, lastCycleAt, runMode, dryRun: !!dryRun });
+    res.json({ botStatus, statusLabel, lastCycleAt, lastCycleType, runMode, dryRun: !!dryRun });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -207,13 +216,13 @@ router.get("/summary", async (req, res) => {
 router.get("/cycles/latest", async (req, res) => {
   try {
     const cycles = await getTodayCycles();
-    const completedIndexes = cycles
+    const terminalIndexes = cycles
       .map((c, i) => ({ c, i }))
-      .filter(({ c }) => c.type === "completed");
+      .filter(({ c }) => TERMINAL_CYCLE_TYPES.includes(c.type));
 
-    if (!completedIndexes.length) return res.json(null);
+    if (!terminalIndexes.length) return res.json(null);
 
-    const { c: latest, i: latestIndex } = completedIndexes[completedIndexes.length - 1];
+    const { c: latest, i: latestIndex } = terminalIndexes[terminalIndexes.length - 1];
     const startEvent = latestIndex > 0 ? cycles[latestIndex - 1] : null;
 
     const startTime = startEvent?.recordedAt ?? null;
@@ -224,14 +233,16 @@ router.get("/cycles/latest", async (req, res) => {
     }
 
     res.json({
+      type: latest.type,
       startTime,
       endTime,
       durationMs,
-      scanned: latest.scanned ?? 0,
-      approved: latest.approved ?? 0,
-      rejected: (latest.scanned ?? 0) - (latest.approved ?? 0),
-      placed: latest.placed ?? 0,
-      errors: latest.errors ?? 0,
+      scanned: latest.scanned ?? null,
+      approved: latest.approved ?? null,
+      rejected: latest.scanned != null ? (latest.scanned - (latest.approved ?? 0)) : null,
+      placed: latest.placed ?? null,
+      errors: latest.errors ?? null,
+      reason: latest.reason ?? null,
       timestamp: latest.timestamp,
     });
   } catch (err) {
@@ -390,7 +401,7 @@ router.get("/performance", async (req, res) => {
 // GET /api/dashboard/activity
 router.get("/activity", async (req, res) => {
   try {
-    const todayStr = etDateString();
+    const todayStr = londonDateString();
     const [cycles, journal, decisionLog, closedTrades, tradeEvents] = await Promise.all([
       getTodayCycles(),
       getTodayJournal(),
@@ -451,8 +462,12 @@ router.get("/activity", async (req, res) => {
           label: `Cycle complete — scanned ${c.scanned}, approved ${c.approved}, placed ${c.placed}`,
           timestamp: c.recordedAt ?? c.timestamp,
         });
+      } else if (c.type === "skipped_outside_overlap") {
+        events.push({ type: "skipped_outside_overlap", label: `Cycle skipped — outside NYSE/LSE overlap`, timestamp: c.recordedAt ?? c.timestamp });
       } else if (c.type === "skipped") {
         events.push({ type: "skipped", label: `Cycle skipped — ${c.reason}`, timestamp: c.recordedAt ?? c.timestamp });
+      } else if (c.type === "failed") {
+        events.push({ type: "failed", label: `Cycle failed — ${c.error ?? "unknown error"}`, timestamp: c.recordedAt ?? c.timestamp });
       }
     }
 
