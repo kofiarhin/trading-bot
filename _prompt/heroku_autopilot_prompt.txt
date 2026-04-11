@@ -1,0 +1,137 @@
+You are working on a Node.js trading bot project.
+
+Your task is to refactor the bot so it is compatible with Heroku
+Scheduler using a single-run cycle model, instead of a long-running
+worker loop.
+
+GOAL
+
+Transform the system so that:
+
+-   npm run autopilot runs exactly one full trading cycle
+-   The bot decides whether to run based on NYSE + London Stock Exchange
+    overlap
+-   If outside overlap → it exits immediately (fast, low dyno usage)
+-   If inside overlap → it runs the full cycle
+-   This command will be triggered every 10 minutes by Heroku Scheduler
+
+CURRENT ISSUES
+
+-   The system uses a long-running worker (worker:15m) with an infinite
+    loop
+-   Time logic is based only on US market hours
+-   There is no concept of NYSE + LSE overlap
+-   Bot execution is not optimized for scheduled environments
+
+REQUIRED CHANGES
+
+1.  Make autopilot.js a single-run cycle
+
+Ensure that:
+
+-   It does NOT loop
+-   It executes:
+    -   load config
+    -   connect DB
+    -   check trading window
+    -   monitor open positions (exit logic)
+    -   scan market
+    -   evaluate strategy
+    -   apply risk guards
+    -   execute trades (paper mode)
+    -   persist decisions and logs
+    -   exit
+
+No waiting, no intervals, no recursion.
+
+2.  Add NYSE + LSE overlap logic (UK time aware)
+
+Create or update a time utility to support:
+
+-   Timezone: Europe/London
+-   Function to check:
+    -   is NYSE open?
+    -   is LSE open?
+    -   are both open (OVERLAP)?
+
+Rules:
+
+-   NYSE: 9:30–16:00 America/New_York
+-   LSE: 08:00–16:30 Europe/London
+-   Must handle DST correctly (do NOT hardcode UTC offsets)
+
+Return a boolean: isMarketOverlapOpen()
+
+3.  Gate the autopilot execution
+
+At the start of autopilot.js:
+
+-   Check isMarketOverlapOpen()
+-   If false:
+    -   log a cycle event:
+        -   status: “skipped_outside_overlap”
+        -   timestamp
+    -   exit immediately
+-   If true:
+    -   continue with full cycle
+
+4.  Add clear cycle status logging
+
+Ensure each run writes a cycle result:
+
+-   completed
+-   skipped_outside_overlap
+-   failed
+
+Include: - timestamp - counts (scanned, approved, rejected, placed) -
+any errors
+
+This must be persisted (DB preferred).
+
+5.  Remove dependency on the long-running worker
+
+-   Do NOT use worker15m.js in production flow
+-   Do NOT rely on loops or timers
+-   Keep it only if needed for local dev (optional)
+
+6.  Ensure Heroku compatibility
+
+The final system must work like this:
+
+-   Heroku Scheduler runs every 10 minutes: npm run autopilot
+
+-   Each run:
+
+    -   starts
+    -   checks overlap
+    -   runs or exits
+    -   terminates cleanly
+
+7.  Ensure no local file dependency for runtime state
+
+If any critical runtime state uses local JSON files: - migrate to DB
+(Mongo preferred) - especially: - decisions - trades - activity logs -
+risk state
+
+OUTPUT REQUIREMENTS
+
+-   Provide updated code for:
+    -   autopilot.js
+    -   time utility module
+    -   any affected logging or cycle tracking files
+-   Do NOT rewrite unrelated parts of the system
+-   Keep structure clean and minimal
+-   Follow existing project conventions
+
+SUCCESS CRITERIA
+
+After your changes:
+
+-   Running npm run autopilot:
+    -   outside overlap → exits in seconds
+    -   inside overlap → completes full cycle
+-   System is ready for:
+    -   Heroku web dyno (API/dashboard)
+    -   Heroku Scheduler (10-minute trigger)
+
+Focus on correctness, clarity, and production readiness.

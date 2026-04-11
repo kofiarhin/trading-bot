@@ -8,6 +8,7 @@ import { getAccount, getBarsForSymbols, getOrders, getPositions, isDryRunEnabled
 import { fetchCryptoBars } from './market/alpacaMarketData.js';
 import { getUniverse } from './market/universe.js';
 import { nowIso } from './lib/storage.js';
+import { isMarketOverlapOpen } from './utils/time.js';
 import {
   getOpenTrades,
   syncTradesWithBroker,
@@ -424,10 +425,9 @@ export async function runAutopilotCycle(options = {}) {
     completedAt: nowIso(),
   };
 
-  await appendCycleEvent({ type: 'cycle_complete', timestamp: nowIso(), ...summary });
+  await appendCycleEvent({ type: 'completed', timestamp: nowIso(), ...summary });
 
-  console.log(`approved: ${summary.approved}`);
-  console.log(`placed: ${summary.placed}`);
+  console.log(`[autopilot] cycle completed — scanned: ${summary.scanned}, approved: ${summary.approved}, placed: ${summary.placed}`);
 
   return {
     summary,
@@ -441,11 +441,28 @@ export default runAutopilotCycle;
 const executedFile = process.argv[1]?.replace(/\\/g, '/');
 if (executedFile?.endsWith('/src/autopilot.js')) {
   (async () => {
+    // Gate 1: check NYSE + LSE overlap before connecting to the DB.
+    // Outside the overlap window the process exits immediately — fast and cheap.
+    if (!isMarketOverlapOpen()) {
+      console.log(`[autopilot] skipped — outside NYSE/LSE overlap window (${new Date().toISOString()})`);
+      process.exit(0);
+    }
+
     try {
       await connectMongo();
       await runAutopilotCycle();
     } catch (error) {
-      console.error(error instanceof Error ? error.message : error);
+      console.error(`[autopilot] cycle failed: ${error instanceof Error ? error.message : error}`);
+      // Best-effort: try to persist the failure before exiting.
+      try {
+        await appendCycleEvent({
+          type: 'failed',
+          timestamp: nowIso(),
+          error: error instanceof Error ? error.message : String(error),
+        });
+      } catch {
+        // Ignore secondary failure — DB may be unavailable.
+      }
       process.exitCode = 1;
     } finally {
       await disconnectMongo();

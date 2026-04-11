@@ -1,5 +1,5 @@
 // Time and market-hours utilities.
-// All market times are US/Eastern. We compute offsets without external deps.
+// Covers US/Eastern (NYSE) and Europe/London (LSE) without external deps.
 
 const ET_OFFSET_STANDARD = -5; // EST
 const ET_OFFSET_DAYLIGHT = -4; // EDT
@@ -91,4 +91,81 @@ export function etDateString(now = new Date()) {
   const offsetHours = isEDT(now) ? ET_OFFSET_DAYLIGHT : ET_OFFSET_STANDARD;
   const etMs = now.getTime() + offsetHours * 3600000;
   return new Date(etMs).toISOString().slice(0, 10);
+}
+
+// ─── UK / London timezone ──────────────────────────────────────────────────────
+
+/**
+ * Returns true if the given UTC Date is during British Summer Time (BST).
+ * BST: last Sunday of March at 01:00 UTC → last Sunday of October at 01:00 UTC.
+ * @param {Date} d
+ * @returns {boolean}
+ */
+function isBST(d) {
+  const year = d.getUTCFullYear();
+
+  // Last Sunday of March at 01:00 UTC (clocks spring forward)
+  const marchLastDay = new Date(Date.UTC(year, 2, 31));
+  const bstStart = new Date(Date.UTC(year, 2, 31 - marchLastDay.getUTCDay(), 1));
+
+  // Last Sunday of October at 01:00 UTC (clocks fall back)
+  const octLastDay = new Date(Date.UTC(year, 9, 31));
+  const bstEnd = new Date(Date.UTC(year, 9, 31 - octLastDay.getUTCDay(), 1));
+
+  return d >= bstStart && d < bstEnd;
+}
+
+/**
+ * Converts a UTC Date to London time components { hour, minute, dayOfWeek }.
+ * Handles GMT (UTC+0) in winter and BST (UTC+1) in summer.
+ * @param {Date} utcDate
+ * @returns {{ hour: number, minute: number, dayOfWeek: number }}
+ */
+export function toLondonTime(utcDate) {
+  const offsetHours = isBST(utcDate) ? 1 : 0;
+  const londonMs = utcDate.getTime() + offsetHours * 3600000;
+  const london = new Date(londonMs);
+  return {
+    hour: london.getUTCHours(),
+    minute: london.getUTCMinutes(),
+    dayOfWeek: london.getUTCDay(),
+  };
+}
+
+// ─── Exchange open checks ──────────────────────────────────────────────────────
+
+/**
+ * Returns true if the NYSE is open (Mon–Fri, 9:30 AM – 4:00 PM ET).
+ * @param {Date} [now]
+ * @returns {boolean}
+ */
+export function isNYSEOpen(now = new Date()) {
+  const { hour, minute, dayOfWeek } = toEasternTime(now);
+  if (dayOfWeek === 0 || dayOfWeek === 6) return false;
+  const totalMinutes = hour * 60 + minute;
+  return totalMinutes >= 9 * 60 + 30 && totalMinutes < 16 * 60;
+}
+
+/**
+ * Returns true if the LSE is open (Mon–Fri, 08:00 – 16:30 Europe/London).
+ * @param {Date} [now]
+ * @returns {boolean}
+ */
+export function isLSEOpen(now = new Date()) {
+  const { hour, minute, dayOfWeek } = toLondonTime(now);
+  if (dayOfWeek === 0 || dayOfWeek === 6) return false;
+  const totalMinutes = hour * 60 + minute;
+  return totalMinutes >= 8 * 60 && totalMinutes < 16 * 60 + 30;
+}
+
+/**
+ * Returns true when NYSE and LSE are both open simultaneously.
+ * The overlap window is ~14:30–16:30 London time on weekdays.
+ * Set SKIP_MARKET_HOURS=true to bypass (useful for local testing).
+ * @param {Date} [now]
+ * @returns {boolean}
+ */
+export function isMarketOverlapOpen(now = new Date()) {
+  if (process.env.SKIP_MARKET_HOURS === 'true') return true;
+  return isNYSEOpen(now) && isLSEOpen(now);
 }
