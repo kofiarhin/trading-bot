@@ -1,26 +1,38 @@
-# Agents.md
+# AGENTS.md
 
 ## Overview
-This document defines how agents (automation, AI, or scripts) should interact with this codebase. It consolidates development commands, architecture, and execution rules.
+This repository contains a **two-part trading system**:
+
+- **Backend (`src/`)** — Autopilot trading engine + Express API (ES Modules)
+- **Frontend (`client/`)** — React (Vite) dashboard polling live data every 15s
+
+Agents should treat:
+- Backend = **state + execution**
+- Frontend = **read-only visualization**
 
 ---
 
-## Commands
+## Core Commands
 
 ### Development
 ```bash
-npm run dev           # Run server (port 5000) + client (port 5173) concurrently
-npm run server        # Express API server only
-npm run client        # Vite React dashboard only
+npm run dev        # Server (5000) + Client (5173)
+npm run server     # Backend only
+npm run client     # Frontend only
 ```
 
 ### Autopilot Engine
 ```bash
-npm run autopilot          # One full cycle: scan → strategy → risk → execute
-npm run autopilot:dry      # Same, no orders placed (safe for testing)
-npm run worker:15m         # Long-running process, triggers on 15-min candles
-npm run strategy:simulate  # Strategy-only evaluation, no execution
-npm run monitor            # View open positions
+npm run autopilot          # Full cycle: scan → strategy → risk → execute
+npm run autopilot:dry      # Safe mode (no trades)
+npm run worker:15m         # Continuous loop (15m candles)
+npm run strategy:simulate  # Strategy only
+npm run monitor            # Open positions
+```
+
+### Database
+```bash
+npm run db:migrate         # JSON → MongoDB migration
 ```
 
 ### Testing
@@ -31,7 +43,7 @@ npx jest tests/risk/
 npx jest tests/strategies/breakoutStrategy.test.js
 ```
 
-### Build
+### Build (Frontend)
 ```bash
 cd client && npm run build
 cd client && npm run lint
@@ -39,97 +51,194 @@ cd client && npm run lint
 
 ---
 
-## Architecture
+## System Architecture
 
-### Backend (`src/`)
-Autopilot trading engine + Express API (ES Modules)
+### Autopilot Pipeline (`src/autopilot.js`)
+Execution flow per symbol:
 
-### Frontend (`client/`)
-React + Vite dashboard (polls every 15 seconds)
-
----
-
-## Autopilot Pipeline
-
-1. Fetch market data (Alpaca)
-2. Compute indicators (ATR, highs, volume)
-3. Run strategy
-4. Apply risk guards
-5. Execute trades
-6. Persist logs
+1. Sync open trades with broker
+2. Evaluate exits (SL/TP)
+3. Fetch 60 × 15m candles
+4. Compute indicators:
+   - ATR (14)
+   - Highest High (20)
+   - Avg Volume (20)
+5. Run strategy → store `Decision`
+6. Apply risk guards
+7. Execute trade → persist state
 
 ---
 
-## Module Responsibilities
+## Module Boundaries
 
-- strategies → signal generation
-- risk → execution guards
-- execution → order placement
-- journal → persistence
-- market → data fetching
-- indicators → calculations
-- server → API only (read-only)
-
----
-
-## Storage
-
-All state is JSON-based under `/storage`:
-
-- riskState.json
-- logs/YYYY-MM-DD.json
-- journal/YYYY-MM-DD.json
-- decisions/YYYY-MM-DD.json
+| Module | Responsibility |
+|------|----------------|
+| `strategies/` | Signal generation only |
+| `risk/` | Execution blockers (limits, cooldowns) |
+| `execution/` | Alpaca API + order placement |
+| `journal/` | Trade lifecycle state |
+| `market/` | Symbols + candle data |
+| `indicators/` | Pure math functions |
+| `models/` | Mongoose schemas |
+| `repositories/` | DB access layer |
+| `positions/` | Exit logic |
+| `server/` | Read-only API |
+| `db/` | Mongo connection + migration |
 
 ---
 
-## API Rules
+## Data Storage (MongoDB)
 
-- Express server is read-only
-- No state mutation from API
-- Dashboard reads from storage + Alpaca
+Collections:
 
----
+- `OpenTrade`, `ClosedTrade`, `TradeEvent`
+- `Decision`
+- `CycleLog`, `CycleRun`
+- `RiskState` (singleton: "risk-state")
+- `JournalRecord`
 
-## Frontend Rules
-
-- Use shared API client
-- Use service layer
-- Use React Query hooks
-- No direct API calls in components
+⚠️ Legacy JSON exists in `/storage`  
+Run migration once.
 
 ---
 
-## Environment
+## API Design (Read-Only)
 
-- Root `.env` → backend config
-- `client/.env` → frontend config
-- Env validation enforced
-- Only paper trading allowed
+Routes:
+
+- `/api/dashboard/*` → cycle + risk summaries
+- `/api/trades/*` → trade history
+- `/api/positions/*` → live Alpaca positions
+- `/api/health`
+
+❗ Server must NEVER:
+- Place trades
+- Mutate state
+
+---
+
+## Frontend Data Layer
+
+Structure:
+
+- `lib/api.js` → Axios client (`VITE_API_URL`)
+- `services/` → API wrappers
+- `hooks/queries/` → React Query hooks
+
+Rules:
+- No API calls in components
+- Polling: 15s
+- Stale time: 10s
+
+---
+
+## Environment Rules
+
+### Backend (`.env`)
+- Alpaca credentials
+- MongoDB URI
+- Trading config
+
+### Frontend (`client/.env`)
+```
+VITE_API_URL=
+```
+
+### Enforcement
+- `env.js` validates required vars
+- Hard fail if NOT using Alpaca paper trading
+
+---
+
+## ES Modules
+
+- `"type": "module"` enforced
+- Use `import/export`
+- `loadEnv.cjs` exists for preloading env
+- Jest runs with `--experimental-vm-modules`
+
+---
+
+## Symbol Universe
+
+### Stocks (market hours)
+```
+AAPL MSFT NVDA AMZN META TSLA AMD GOOGL
+```
+
+### Crypto (24/7)
+```
+BTC/USD ETH/USD SOL/USD BNB/USD XRP/USD ...
+```
+
+### Notes
+- Controlled via env flags:
+  - `ENABLE_STOCKS`
+  - `ENABLE_CRYPTO`
+- Normalization:
+  BTC/USD → BTCUSD
 
 ---
 
 ## Risk Defaults
 
-- 0.5% risk per trade
-- 2% daily loss limit
-- Max 3 positions
-- Cooldowns enforced
+- Trade risk: 0.5% equity
+- Daily loss limit: 2%
+- Max positions: 5
+- Cooldowns:
+  - Stocks: 1 day
+  - Crypto: 6 hours
 
 ---
 
-## Testing
+## Agent Constraints
 
-- Jest backend only
-- Some tests intentionally skipped
-- Do not remove `.skip` blindly
+### DO
+- Respect module boundaries
+- Use repositories for DB access
+- Keep strategies pure (no side effects)
+- Validate all inputs
+- Follow existing patterns
+
+### DO NOT
+- Place trades from API layer
+- Bypass risk guards
+- Access DB directly outside repositories
+- Call APIs from React components
 
 ---
 
-## Agent Rules
+## Testing Rules
 
-- Never bypass risk module
-- Never write outside storage/
-- Never execute trades in dry mode
-- Always validate env before running
-- Always log decisions + executions
+- Backend: Jest only
+- Some tests are `.skip` → do NOT remove blindly
+- Tests import directly from `src/`
+- No implicit mocks
+
+---
+
+## Execution Mental Model
+
+Agents should think in this order:
+
+Market Data → Strategy → Risk → Execution → Journal → API → UI
+
+Each step is isolated. Never mix concerns.
+
+---
+
+## Safety Guarantees
+
+- Risk layer is authoritative
+- API layer is read-only
+- Env validation is strict
+- Paper trading enforced
+
+---
+
+## Priority for Changes
+
+1. Preserve trading safety
+2. Maintain data integrity
+3. Respect architecture boundaries
+4. Keep frontend passive
