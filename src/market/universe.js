@@ -16,6 +16,23 @@ export const CRYPTO_UNIVERSE = [
   "BTC/USD",
   "ETH/USD",
   "SOL/USD",
+  "BNB/USD",
+  "XRP/USD",
+  "AVAX/USD",
+  "ADA/USD",
+  "LINK/USD",
+  "MATIC/USD",
+  "DOT/USD",
+  "LTC/USD",
+  "DOGE/USD",
+  "BCH/USD",
+  "UNI/USD",
+  "ATOM/USD",
+  "NEAR/USD",
+  "AAVE/USD",
+  "ETC/USD",
+  "FIL/USD",
+  "ALGO/USD",
 ];
 
 /**

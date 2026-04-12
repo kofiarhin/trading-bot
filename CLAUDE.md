@@ -110,14 +110,14 @@ The Express server is read-only — it reads from MongoDB and queries Alpaca dir
 
 ## Symbol Universe
 **Stocks (market hours only):** `AAPL`, `MSFT`, `NVDA`, `AMZN`, `META`, `TSLA`, `AMD`, `GOOGL`
-**Crypto (24/7):** `BTC/USD`, `ETH/USD`, `SOL/USD`
+**Crypto (24/7):** `BTC/USD`, `ETH/USD`, `SOL/USD`, `BNB/USD`, `XRP/USD`, `AVAX/USD`, `ADA/USD`, `LINK/USD`, `MATIC/USD`, `DOT/USD`, `LTC/USD`, `DOGE/USD`, `BCH/USD`, `UNI/USD`, `ATOM/USD`, `NEAR/USD`, `AAVE/USD`, `ETC/USD`, `FIL/USD`, `ALGO/USD`
 
 Controlled by `ENABLE_STOCKS` and `ENABLE_CRYPTO` env vars. Crypto symbols normalized from `BTC/USD` → `BTCUSD` for Alpaca API calls (`src/utils/symbolNorm.js`).
 
 ## Risk Parameters (defaults from `.env.example`)
 - Per-trade risk: 0.5% of equity
 - Daily loss limit: 2% of equity
-- Max open positions: 3
+- Max open positions: 5
 - Stock cooldown: 1 trading day after a trade
 - Crypto cooldown: 6 hours after a trade
 
