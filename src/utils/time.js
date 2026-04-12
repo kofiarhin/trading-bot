@@ -181,3 +181,76 @@ export function isMarketOverlapOpen(now = new Date()) {
   if (process.env.SKIP_MARKET_HOURS === 'true') return true;
   return isNYSEOpen(now) && isLSEOpen(now);
 }
+
+// ─── Tokyo timezone ────────────────────────────────────────────────────────────
+
+const TOKYO_OFFSET = 9; // JST is always UTC+9, no DST
+
+/**
+ * Converts a UTC Date to Tokyo time components { hour, minute, dayOfWeek }.
+ * JST is UTC+9 with no daylight saving.
+ * @param {Date} utcDate
+ * @returns {{ hour: number, minute: number, dayOfWeek: number }}
+ */
+export function toTokyoTime(utcDate) {
+  const tokyoMs = utcDate.getTime() + TOKYO_OFFSET * 3600000;
+  const tokyo = new Date(tokyoMs);
+  return {
+    hour: tokyo.getUTCHours(),
+    minute: tokyo.getUTCMinutes(),
+    dayOfWeek: tokyo.getUTCDay(),
+  };
+}
+
+/**
+ * Returns true if the TSE (Tokyo Stock Exchange) main session is active.
+ * TSE: Mon–Fri 09:00–15:30 JST (lunch break 11:30–12:30 not modelled).
+ * @param {Date} [now]
+ * @returns {boolean}
+ */
+function isTokyoSessionActive(now = new Date()) {
+  const { hour, minute, dayOfWeek } = toTokyoTime(now);
+  if (dayOfWeek === 0 || dayOfWeek === 6) return false;
+  const totalMinutes = hour * 60 + minute;
+  return totalMinutes >= 9 * 60 && totalMinutes < 15 * 60 + 30;
+}
+
+// ─── Session resolver ──────────────────────────────────────────────────────────
+
+/**
+ * Resolves the current market session and asset eligibility.
+ *
+ * Session priority:
+ *   1. LONDON_NEW_YORK_OVERLAP — both LSE and NYSE open
+ *   2. NEW_YORK               — NYSE open, LSE closed
+ *   3. LONDON                 — LSE open, NYSE closed
+ *   4. TOKYO                  — TSE session active, neither LSE nor NYSE open
+ *   5. CRYPTO_ONLY            — no major exchange open (includes weekends)
+ *
+ * Set SKIP_MARKET_HOURS=true to force NEW_YORK (stocks always eligible — for testing).
+ *
+ * @param {Date} [now]
+ * @returns {{ session: string, allowCrypto: boolean, allowStocks: boolean }}
+ */
+export function resolveSession(now = new Date()) {
+  if (process.env.SKIP_MARKET_HOURS === 'true') {
+    return { session: 'NEW_YORK', allowCrypto: true, allowStocks: true };
+  }
+
+  const nyOpen = isNYSEOpen(now);
+  const lseOpen = isLSEOpen(now);
+
+  if (nyOpen && lseOpen) {
+    return { session: 'LONDON_NEW_YORK_OVERLAP', allowCrypto: true, allowStocks: true };
+  }
+  if (nyOpen) {
+    return { session: 'NEW_YORK', allowCrypto: true, allowStocks: true };
+  }
+  if (lseOpen) {
+    return { session: 'LONDON', allowCrypto: true, allowStocks: false };
+  }
+  if (isTokyoSessionActive(now)) {
+    return { session: 'TOKYO', allowCrypto: true, allowStocks: false };
+  }
+  return { session: 'CRYPTO_ONLY', allowCrypto: true, allowStocks: false };
+}

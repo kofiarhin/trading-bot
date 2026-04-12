@@ -8,7 +8,7 @@ import {
   getTradeEvents,
 } from "../../journal/tradeJournal.js";
 import { getCyclesForDate } from "../../repositories/cycleRepo.mongo.js";
-import { londonDateString } from "../../utils/time.js";
+import { londonDateString, resolveSession } from "../../utils/time.js";
 import { getTradeEventsForDate } from "../../repositories/tradeJournalRepo.mongo.js";
 import { loadRiskState } from "../../risk/riskState.js";
 import { normalizeSymbol } from "../../utils/symbolNorm.js";
@@ -137,15 +137,14 @@ router.get("/status", async (req, res) => {
   try {
     const cycles = await getTodayCycles();
     const { botStatus, lastCycleAt, lastCycleType } = deriveBotStatus(cycles);
+    const { session: currentSession, allowCrypto, allowStocks } = resolveSession();
 
     let statusLabel = botStatus;
     const runMode = config.trading.runMode;
     const dryRun = config.trading.dryRun;
 
     if (botStatus === "active") {
-      if (lastCycleType === "skipped_outside_overlap") {
-        statusLabel = "Skipped (outside overlap)";
-      } else if (lastCycleType === "failed") {
+      if (lastCycleType === "failed") {
         statusLabel = "Failed";
       } else {
         statusLabel = dryRun ? "Dry Run" : runMode === "paper" ? "Paper Trading" : "Running";
@@ -159,7 +158,17 @@ router.get("/status", async (req, res) => {
       }
     }
 
-    res.json({ botStatus, statusLabel, lastCycleAt, lastCycleType, runMode, dryRun: !!dryRun });
+    res.json({
+      botStatus,
+      statusLabel,
+      lastCycleAt,
+      lastCycleType,
+      runMode,
+      dryRun: !!dryRun,
+      currentSession,
+      allowCrypto,
+      allowStocks,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -457,15 +466,18 @@ router.get("/activity", async (req, res) => {
 
     for (const c of cycles) {
       if (c.type === "completed") {
+        const sessionLabel = c.session ? ` [${c.session}]` : "";
         events.push({
           type: "cycle_complete",
-          label: `Cycle complete — scanned ${c.scanned}, approved ${c.approved}, placed ${c.placed}`,
+          label: `Cycle complete${sessionLabel} — scanned ${c.scanned}, approved ${c.approved}, placed ${c.placed}`,
           timestamp: c.recordedAt ?? c.timestamp,
         });
       } else if (c.type === "skipped_outside_overlap") {
+        // Legacy event type kept for backward compatibility with existing DB records.
         events.push({ type: "skipped_outside_overlap", label: `Cycle skipped — outside NYSE/LSE overlap`, timestamp: c.recordedAt ?? c.timestamp });
       } else if (c.type === "skipped") {
-        events.push({ type: "skipped", label: `Cycle skipped — ${c.reason}`, timestamp: c.recordedAt ?? c.timestamp });
+        const sessionLabel = c.session ? ` [${c.session}]` : "";
+        events.push({ type: "skipped", label: `Cycle skipped${sessionLabel} — ${c.reason}`, timestamp: c.recordedAt ?? c.timestamp });
       } else if (c.type === "failed") {
         events.push({ type: "failed", label: `Cycle failed — ${c.error ?? "unknown error"}`, timestamp: c.recordedAt ?? c.timestamp });
       }

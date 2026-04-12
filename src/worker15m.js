@@ -5,9 +5,8 @@ import { spawnSync } from "child_process";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 import { connectMongo } from "./db/connectMongo.js";
-import { msUntilNext15Min, isStockMarketOpen } from "./utils/time.js";
+import { msUntilNext15Min } from "./utils/time.js";
 import { logger } from "./utils/logger.js";
-import { config } from "./config/env.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const AUTOPILOT = resolve(__dirname, "autopilot.js");
@@ -42,16 +41,6 @@ async function main() {
     const waitSec = Math.ceil(waitMs / 1000);
     logger.info(`Waiting ${waitSec}s until next 15-minute boundary`);
     await sleep(waitMs);
-
-    const now = new Date();
-    const hasStocks = !config.trading.enableCrypto || true; // Always check stocks eligibility
-    const stocksEligible = isStockMarketOpen(now);
-    const cryptoEligible = config.trading.enableCrypto;
-
-    if (!stocksEligible && !cryptoEligible) {
-      logger.info("Worker: outside all market hours, skipping cycle");
-      continue;
-    }
 
     await runCycle();
   }

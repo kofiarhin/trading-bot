@@ -8,7 +8,8 @@ import { getAccount, getBarsForSymbols, getOrders, getPositions, isDryRunEnabled
 import { fetchCryptoBars } from './market/alpacaMarketData.js';
 import { getUniverse } from './market/universe.js';
 import { nowIso } from './lib/storage.js';
-import { isMarketOverlapOpen } from './utils/time.js';
+import { resolveSession } from './utils/time.js';
+import { filterEligible } from './market/marketHours.js';
 import {
   getOpenTrades,
   syncTradesWithBroker,
@@ -331,6 +332,8 @@ export async function runAutopilotCycle(options = {}) {
   const cycleId = randomUUID();
   const startedAt = nowIso();
 
+  const { session, allowCrypto, allowStocks } = resolveSession();
+
   await appendCycleEvent({
     type: 'cycle_start',
     timestamp: startedAt,
@@ -338,10 +341,20 @@ export async function runAutopilotCycle(options = {}) {
     cycleId,
     dryRun,
     startedAt,
+    session,
+    allowCrypto,
+    allowStocks,
   });
 
   const account = await getAccount();
-  const symbols = getConfiguredSymbols();
+
+  // Filter the configured universe to assets eligible in the current session.
+  const allSymbols = getConfiguredSymbols();
+  const universeEntries = allSymbols.map((s) => ({
+    symbol: s,
+    assetClass: inferAssetClass(s) === 'crypto' ? 'crypto' : 'stock',
+  }));
+  const symbols = filterEligible(universeEntries).map((e) => e.symbol);
   const brokerPositionsBefore = await getPositions();
   const brokerOrdersBefore = await getOrders({ status: 'all', limit: 200, nested: true, direction: 'desc' });
 
@@ -418,6 +431,9 @@ export async function runAutopilotCycle(options = {}) {
   const summary = {
     cycleId,
     dryRun,
+    session,
+    allowCrypto,
+    allowStocks,
     scanned: decisions.length,
     approved: approvedCount,
     placed: placedCount,
@@ -441,24 +457,8 @@ export default runAutopilotCycle;
 const executedFile = process.argv[1]?.replace(/\\/g, '/');
 if (executedFile?.endsWith('/src/autopilot.js')) {
   (async () => {
-    // Gate 1: check NYSE + LSE overlap.
-    // Outside the window, persist a skipped event so the dashboard can show it, then exit.
-    if (!isMarketOverlapOpen()) {
-      console.log(`[autopilot] skipped — outside NYSE/LSE overlap window (${new Date().toISOString()})`);
-      try {
-        await connectMongo();
-        await appendCycleEvent({
-          type: 'skipped_outside_overlap',
-          timestamp: nowIso(),
-          reason: 'outside NYSE/LSE overlap window',
-        });
-      } catch {
-        // Best-effort — don't fail the process if the DB is temporarily unavailable.
-      } finally {
-        await disconnectMongo();
-      }
-      process.exit(0);
-    }
+    const { session } = resolveSession();
+    console.log(`[autopilot] session: ${session} (${new Date().toISOString()})`);
 
     try {
       await connectMongo();

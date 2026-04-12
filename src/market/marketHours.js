@@ -1,10 +1,10 @@
 // Market-hours eligibility checks per asset class.
-import { isStockMarketOpen } from "../utils/time.js";
+import { resolveSession } from "../utils/time.js";
 
 /**
  * Returns true if the given asset can be scanned right now.
- * Stocks: only during regular market hours (Mon–Fri 9:45 AM–4:00 PM ET).
  * Crypto: always eligible (24/7).
+ * Stocks: only when the New York session is active (NEW_YORK or LONDON_NEW_YORK_OVERLAP).
  *
  * @param {"stock"|"crypto"} assetClass
  * @param {Date} [now]
@@ -12,7 +12,8 @@ import { isStockMarketOpen } from "../utils/time.js";
  */
 export function isEligibleNow(assetClass, now = new Date()) {
   if (assetClass === "crypto") return true;
-  return isStockMarketOpen(now);
+  const { allowStocks } = resolveSession(now);
+  return allowStocks;
 }
 
 /**
