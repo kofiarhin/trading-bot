@@ -1,12 +1,14 @@
-TRADING BOT PROJECT BRIEF
+TRADING BOT PROJECT BRIEF (UPDATED)
 
 OBJECTIVE
 Build a complete automated trading system that can:
 - analyze real-time market data (stocks + crypto)
+- operate across global trading sessions
 - make trading decisions based on strategy
-- execute trades (paper mode)
+- execute trades (paper mode initially)
 - manage open positions (risk + exits)
 - provide full visibility through a dashboard
+- scale across a multi-asset universe (20+ crypto + stocks)
 
 ---
 
@@ -19,7 +21,40 @@ The system operates in repeating cycles (every 15 minutes) and consists of four 
 3. Execution Engine
 4. State / Journal Engine
 
-A frontend dashboard sits on top of these to visualize activity.
+A frontend dashboard sits on top to visualize activity in real time.
+
+---
+
+SESSION-AWARE EXECUTION MODEL
+
+Crypto:
+- Trades 24/7
+- Always included in every cycle
+
+US Stocks:
+- Trades only during New York session
+- Also available during London/New York overlap
+
+Session Behavior:
+
+Tokyo → Crypto only
+London → Crypto only
+New York → Crypto + Stocks
+London + NY Overlap → Crypto + Stocks
+Off-session / Weekend → Crypto only
+
+---
+
+MARKET UNIVERSE
+
+Crypto (20 Assets):
+BTC/USD, ETH/USD, SOL/USD, BNB/USD, XRP/USD,
+AVAX/USD, ADA/USD, LINK/USD, MATIC/USD, DOT/USD,
+LTC/USD, DOGE/USD, BCH/USD, UNI/USD, ATOM/USD,
+NEAR/USD, AAVE/USD, ETC/USD, FIL/USD, ALGO/USD
+
+Stocks:
+- Session-based (New York only)
 
 ---
 
@@ -33,90 +68,66 @@ FULL SYSTEM FLOW
 
 2. WAIT FOR CYCLE
 - Align execution with 15-minute candle closes
-- Example: 10:00, 10:15, 10:30, 10:45
 
 3. START CYCLE
 - Initialize cycle context
-- Record timestamp and mode (dry-run or live)
+- Resolve current market session
+- Record timestamp and mode
 
 4. LOAD ACCOUNT + POSITIONS
-- Fetch account data (equity, buying power)
-- Fetch open positions from broker
+- Fetch account data
+- Fetch open positions
 
 5. LOAD INTERNAL STATE
 - Load open trades store
 - Load decision history
 - Load journal files
 
-6. MONITOR OPEN POSITIONS (EXIT ENGINE)
-For each open trade:
-- Fetch latest price
-- If price <= stop loss → SELL
-- If price >= take profit → SELL
-- Update records and remove closed trades
+6. MONITOR OPEN POSITIONS
+- Check stop loss / take profit
+- Close trades if conditions met
 
 7. BUILD MARKET UNIVERSE
-- Stocks (session-based)
-- Crypto (24/7)
+- Crypto always active
+- Stocks session-dependent
 
 8. FILTER ELIGIBLE SYMBOLS
-- Remove stocks outside market hours
-- Keep crypto active always
+- Crypto always included
+- Stocks only when NY open
 
 9. FETCH MARKET DATA
 - Retrieve 15-minute bars
-- Ensure enough history for indicators
 
 10. VALIDATE DATA
-- Check bar completeness
-- Ensure no missing or corrupt data
+- Reject insufficient data
 
 11. COMPUTE INDICATORS
-- ATR (volatility)
-- Breakout level (highest high)
-- Volume averages
-- Distance to breakout
+- ATR
+- Breakout levels
+- Volume metrics
 
 12. RUN STRATEGY
-Evaluate each symbol:
-- If conditions met → APPROVED
-- Else → REJECTED
-
-Each decision includes:
-- close price
-- breakout level
-- ATR
-- volume ratio
-- distance %
+- Approve or reject trades
 
 13. APPLY RISK GUARDS
-- Max open positions
-- Daily loss limits
-- Duplicate trades
-- Position sizing checks
+- Max open positions (5)
+- Daily limits
+- Duplicate checks
 
 14. LOG DECISIONS
-- Store approved + rejected decisions
-- Persist to storage
-- Feed dashboard
+- Persist results
+- Update dashboard
 
-15. EXECUTE TRADES (ENTRY ENGINE)
-If not dry-run:
-- Place paper trade via Alpaca
-- Save trade to openTradesStore
+15. EXECUTE TRADES
+- Place paper trades
+- Store positions
 
 16. UPDATE STATE
-- Append to trade journal
-- Update open trades
-- Log activity feed
+- Journal updates
+- Activity feed updates
 
 17. END CYCLE
-- Log summary:
-  - scanned
-  - approved
-  - rejected
-  - placed
-  - errors
+- Log summary
 
 18. WAIT FOR NEXT CYCLE
 
@@ -125,64 +136,56 @@ If not dry-run:
 TRADE LIFECYCLE
 
 ENTRY
-- Strategy approves setup
-- Trade is executed
-- Trade stored in openTradesStore
+- Strategy approves → trade executed
 
 OPEN POSITION
-- Dashboard shows:
-  - symbol
-  - entry
-  - stop
-  - target
-  - risk
-  - pnl
+- Track entry, stop, target, pnl
 
 EXIT
-- Stop loss or target hit
-- Trade closed automatically
-- Moved to closed trade history
-- PnL realized
+- Stop loss / take profit hit → close trade
 
 ---
 
 CURRENT SYSTEM STATUS
 
 COMPLETED
-- Market scanning
-- Strategy evaluation
+- Session-aware execution
+- Crypto 24/7 trading
+- 20-asset crypto universe
+- Strategy engine
 - Decision logging
-- Dashboard visualization
+- Dashboard
+- Risk controls (max 5 positions)
 
 IN PROGRESS
-- Decision metrics completion (ATR, volume)
-- Open trades store
-- Position exit engine
+- Exit engine
+- Strategy optimization
+- Data completeness improvements
 
 ---
 
-NEXT MILESTONE
+NEXT MILESTONES
 
-Build Position Exit Engine:
-- monitor trades each cycle
-- trigger stop loss
-- trigger take profit
-- close positions automatically
-- persist closed trades
+1. Position Exit Engine
+2. Strategy Optimization
+3. Signal Ranking System
+4. Risk Enhancements
 
 ---
 
 FINAL GOAL
 
 A fully autonomous trading system that:
+- operates across global sessions
+- scans a broad asset universe
 - makes data-driven decisions
 - manages risk automatically
 - executes trades safely
 - provides full transparency
-- supports continuous improvement
+- improves continuously
 
 ---
 
-CORE LOOP (SIMPLIFIED)
+CORE LOOP
 
-wait → monitor positions → scan market → evaluate strategy → apply risk → execute trades → update state → repeat
+wait → resolve session → monitor → scan → filter → evaluate → risk → execute → update → repeat

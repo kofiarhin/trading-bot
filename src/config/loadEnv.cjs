@@ -13,7 +13,7 @@ if (fs.existsSync(envPath)) {
     if (eqIndex === -1) continue;
     const key = trimmed.slice(0, eqIndex).trim();
     const value = trimmed.slice(eqIndex + 1).trim();
-    if (key && !(key in process.env)) {
+    if (key) {
       process.env[key] = value;
     }
   }

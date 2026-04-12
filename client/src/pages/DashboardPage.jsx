@@ -60,7 +60,7 @@ function Header() {
 
 export default function DashboardPage() {
   return (
-    <main className="min-h-screen bg-slate-950 text-white px-4 py-6 md:px-8">
+    <main className="px-4 py-6 md:px-8">
       <div className="max-w-screen-2xl mx-auto space-y-6">
         <Header />
 

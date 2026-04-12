@@ -4,6 +4,7 @@ import { connectMongo } from "../db/connectMongo.js";
 import dashboardRoutes from "./routes/dashboard.js";
 import tradesRoutes from "./routes/trades.js";
 import positionsRoutes from "./routes/positions.js";
+import journalRoutes from "./routes/journal.js";
 
 const app = express();
 const PORT = process.env.PORT ?? 5000;
@@ -15,6 +16,7 @@ app.use(express.json());
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/trades", tradesRoutes);
 app.use("/api/positions", positionsRoutes);
+app.use("/api/journal", journalRoutes);
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 
