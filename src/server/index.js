@@ -25,6 +25,7 @@ async function startServer() {
     await connectMongo();
     app.listen(PORT, () => {
       console.log(`Dashboard API running on http://localhost:${PORT}`);
+      console.log("Mounted routes: /api/dashboard | /api/trades | /api/positions | /api/journal | /api/health");
     });
   } catch (err) {
     console.error("Failed to connect to MongoDB:", err.message);
