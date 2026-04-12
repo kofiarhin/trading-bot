@@ -26,4 +26,8 @@ const cycleLogSchema = new mongoose.Schema(
   },
 );
 
+// Compound indexes for common cycle queries
+cycleLogSchema.index({ date: 1, recordedAt: -1 });
+cycleLogSchema.index({ type: 1, recordedAt: -1 });
+
 export default mongoose.models.CycleLog || mongoose.model('CycleLog', cycleLogSchema);

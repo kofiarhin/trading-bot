@@ -33,4 +33,7 @@ const closedTradeSchema = new mongoose.Schema(
   { collection: 'closed_trades', timestamps: false, strict: false },
 );
 
+// Compound index for per-symbol history and date-range queries
+closedTradeSchema.index({ symbol: 1, closedAt: -1 });
+
 export default mongoose.models.ClosedTrade || mongoose.model('ClosedTrade', closedTradeSchema);

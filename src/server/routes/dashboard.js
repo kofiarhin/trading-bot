@@ -5,16 +5,20 @@ import { loadDecisionLog } from "../../journal/decisionLogger.js";
 import {
   getOpenTrades,
   getClosedTrades,
-  getTradeEvents,
 } from "../../journal/tradeJournal.js";
 import { getCyclesForDate } from "../../repositories/cycleRepo.mongo.js";
 import { londonDateString, resolveSession } from "../../utils/time.js";
-import { getTradeEventsForDate } from "../../repositories/tradeJournalRepo.mongo.js";
+import {
+  getTradeEventsForDate,
+  getClosedTradesForDate,
+} from "../../repositories/tradeJournalRepo.mongo.js";
 import { loadRiskState } from "../../risk/riskState.js";
 import { normalizeSymbol } from "../../utils/symbolNorm.js";
 import { logger } from "../../utils/logger.js";
 
 const router = Router();
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function shouldUseDecisionFallback(value) {
   if (value == null) return true;
@@ -34,16 +38,10 @@ async function getDecisionLogForToday({ fallbackToLatest = false } = {}) {
   return loadDecisionLog({ date: londonDateString(), fallbackToLatest });
 }
 
-async function getAllJournal() {
-  const events = await getTradeEvents();
-  return events;
-}
-
 // Current canonical terminal cycle event types for the session-aware model.
 const CANONICAL_TERMINAL_TYPES = ["completed", "skipped", "failed"];
 
 // Legacy event types retained solely for backward-compatible reads of old DB records.
-// These must NOT appear in new cycle events and must not drive current status logic.
 const LEGACY_TERMINAL_TYPES = ["skipped_outside_overlap"];
 
 // Combined set for reading historical data — includes legacy types so old records are handled.
@@ -139,6 +137,298 @@ function normalizeClosedTradeForApi(trade) {
     metrics: trade.metrics ?? {},
   };
 }
+
+/**
+ * Build the merged open-positions list from broker data + journal trades.
+ * Prefers status=open trades when multiple journal entries share a symbol.
+ */
+function buildOpenPositions(brokerPositions, openTrades) {
+  const tradesByNorm = {};
+  for (const t of openTrades) {
+    if (t.status === "canceled") continue;
+    const key = t.normalizedSymbol;
+    if (!tradesByNorm[key]) tradesByNorm[key] = [];
+    tradesByNorm[key].push(t);
+  }
+
+  return brokerPositions.map((p) => {
+    const normalized = normalizeSymbol(p.symbol);
+    const matchingTrades = tradesByNorm[normalized] ?? [];
+    let trade = null;
+    let orphaned = false;
+
+    if (matchingTrades.length === 1) {
+      trade = matchingTrades[0];
+    } else if (matchingTrades.length > 1) {
+      // Resolve ambiguity: prefer status=open over pending
+      const openOnly = matchingTrades.filter((t) => t.status === "open");
+      if (openOnly.length === 1) {
+        trade = openOnly[0];
+      } else {
+        orphaned = true;
+        logger.warn("Ambiguous journal match for broker position — marking orphaned", {
+          symbol: p.symbol,
+          matchCount: matchingTrades.length,
+        });
+      }
+    } else {
+      orphaned = true;
+    }
+
+    return normalizeOpenTradeForApi(trade, p, orphaned);
+  });
+}
+
+/**
+ * Build the activity event list from pre-fetched data.
+ * Accepts today's date string and the already-fetched collections.
+ */
+function buildActivityEvents({ todayStr, cycles, journal, decisions, closedToday, tradeEvents }) {
+  const events = [];
+
+  // Exit events from today's closed trades
+  for (const t of closedToday) {
+    if (t.exitReason === "stop_hit" || t.exitReason === "stopLoss") {
+      events.push({
+        type: "stop_loss_hit",
+        label: `Stop loss hit — ${t.symbol} closed @ ${t.exitPrice} | PnL: ${t.pnl != null ? t.pnl.toFixed(2) : "—"}`,
+        timestamp: t.closedAt,
+      });
+    } else if (t.exitReason === "target_hit" || t.exitReason === "takeProfit") {
+      events.push({
+        type: "take_profit_hit",
+        label: `Take profit hit — ${t.symbol} closed @ ${t.exitPrice} | PnL: ${t.pnl != null ? t.pnl.toFixed(2) : "—"}`,
+        timestamp: t.closedAt,
+      });
+    } else if (t.exitReason === "broker_sync_close") {
+      events.push({
+        type: "broker_sync_close",
+        label: `Broker sync close — ${t.symbol} (no matching broker position)`,
+        timestamp: t.closedAt,
+      });
+    } else {
+      events.push({
+        type: "trade_closed",
+        label: `Trade closed — ${t.symbol} @ ${t.exitPrice ?? "—"} (${t.exitReason ?? "manual"}) | PnL: ${t.pnl != null ? t.pnl.toFixed(2) : "—"}`,
+        timestamp: t.closedAt,
+      });
+    }
+  }
+
+  // Trade lifecycle events (trade_opened, orphan_detected, sync_warning)
+  // tradeEvents is already date-scoped — no startsWith filter needed
+  for (const e of tradeEvents) {
+    if (e.type === "trade_opened") {
+      events.push({ type: "trade_opened", label: `Trade opened — ${e.symbol}`, timestamp: e.timestamp });
+    } else if (e.type === "orphan_detected") {
+      events.push({ type: "orphan_detected", label: `Orphaned position — ${e.symbol}: missing journal metadata`, timestamp: e.timestamp });
+    } else if (e.type === "sync_warning") {
+      events.push({ type: "sync_warning", label: `Sync warning — ${e.symbol}: ${e.message}`, timestamp: e.timestamp });
+    }
+  }
+
+  for (const c of cycles) {
+    if (c.type === "completed") {
+      const sessionLabel = c.session ? ` [${c.session}]` : "";
+      events.push({
+        type: "cycle_complete",
+        label: `Cycle complete${sessionLabel} — scanned ${c.scanned}, approved ${c.approved}, placed ${c.placed}`,
+        timestamp: c.recordedAt ?? c.timestamp,
+      });
+    } else if (c.type === "skipped_outside_overlap") {
+      // Legacy DB record — translated to canonical 'skipped' for display.
+      events.push({ type: "skipped", label: `Cycle skipped — outside configured sessions`, timestamp: c.recordedAt ?? c.timestamp });
+    } else if (c.type === "skipped") {
+      const sessionLabel = c.session ? ` [${c.session}]` : "";
+      events.push({ type: "skipped", label: `Cycle skipped${sessionLabel} — ${c.reason}`, timestamp: c.recordedAt ?? c.timestamp });
+    } else if (c.type === "failed") {
+      events.push({ type: "failed", label: `Cycle failed — ${c.error ?? "unknown error"}`, timestamp: c.recordedAt ?? c.timestamp });
+    }
+  }
+
+  for (const d of decisions) {
+    if (d.approved) {
+      events.push({
+        type: "approved",
+        label: `Strategy approved — ${d.symbol} (${formatAssetClass(d.assetClass)}) @ ${d.metrics?.closePrice ?? d.closePrice ?? "—"}`,
+        timestamp: d.timestamp,
+      });
+    } else {
+      events.push({ type: "rejected", label: `Strategy rejected — ${d.symbol}: ${d.reason}`, timestamp: d.timestamp });
+    }
+  }
+
+  // journal is today's TradeEvent records — use for order-lifecycle events
+  for (const e of journal) {
+    if (e.orderStatus === "filled") {
+      events.push({ type: "order_filled", label: `Order filled — ${e.symbol} qty ${e.quantity} @ ${e.entryPriceFilled ?? e.entryPricePlanned}`, timestamp: e.recordedAt });
+    } else if (e.orderStatus === "failed") {
+      events.push({ type: "order_failed", label: `Order failed — ${e.symbol}`, timestamp: e.recordedAt });
+    } else if (e.orderStatus === "dry_run") {
+      events.push({ type: "dry_run", label: `Dry run — ${e.symbol} would place qty ${e.quantity} @ ${e.entryPricePlanned}`, timestamp: e.recordedAt });
+    }
+  }
+
+  events.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  return events.slice(0, 100);
+}
+
+// ─── In-memory cache for /overview ────────────────────────────────────────────
+
+const overviewCache = { data: null, ts: 0 };
+const OVERVIEW_CACHE_TTL_MS = 10_000;
+
+// ─── Routes ───────────────────────────────────────────────────────────────────
+
+// GET /api/dashboard/overview — single aggregated payload for the main dashboard
+router.get("/overview", async (req, res) => {
+  const now = Date.now();
+  if (overviewCache.data && now - overviewCache.ts < OVERVIEW_CACHE_TTL_MS) {
+    res.set("X-Cache", "HIT");
+    return res.json(overviewCache.data);
+  }
+
+  try {
+    const todayStr = londonDateString();
+    const fallbackToLatest = shouldUseDecisionFallback(req.query.fallbackLatest ?? req.query.fallback);
+
+    // Single batch of all DB reads
+    const [cycles, journal, decisionLog, riskState, openTrades, closedToday, tradeEvents] =
+      await Promise.all([
+        getTodayCycles(),
+        getTodayJournal(),
+        getDecisionLogForToday({ fallbackToLatest }),
+        loadRiskState(),
+        getOpenTrades(),
+        getClosedTradesForDate(todayStr),
+        getTradeEventsForDate(todayStr),
+      ]);
+
+    // Single batch of Alpaca calls
+    let account = null;
+    let brokerPositions = [];
+    try {
+      [account, brokerPositions] = await Promise.all([getAccount(), getOpenPositions()]);
+    } catch {
+      // Alpaca unreachable — proceed with partial data
+    }
+
+    // ── status ──
+    const { botStatus, lastCycleAt, lastCycleType } = deriveBotStatus(cycles);
+    const { session: currentSession, allowCrypto, allowStocks } = resolveSession();
+    const runMode = config.trading.runMode;
+    const dryRun = config.trading.dryRun;
+
+    let statusLabel = botStatus;
+    if (botStatus === "active") {
+      statusLabel = lastCycleType === "failed" ? "Failed" : dryRun ? "Dry Run" : runMode === "paper" ? "Paper Trading" : "Running";
+    } else {
+      if (lastCycleAt) {
+        const diffMs = Date.now() - new Date(lastCycleAt).getTime();
+        statusLabel = diffMs < 20 * 60 * 1000 ? "Waiting for next cycle" : "Idle";
+      } else {
+        statusLabel = "Idle";
+      }
+    }
+
+    const status = { botStatus, statusLabel, lastCycleAt, lastCycleType, runMode, dryRun: !!dryRun, currentSession, allowCrypto, allowStocks };
+
+    // ── summary ──
+    const lastCompleted = [...cycles].reverse().find((c) => c.type === "completed");
+    const realizedPnl = journal.reduce((sum, e) => sum + (e.pnl ?? 0), 0);
+    const unrealizedPnl = brokerPositions.reduce((sum, p) => sum + parseFloat(p.unrealized_pl ?? 0), 0);
+    const ordersPlacedToday = journal.filter(
+      (e) => e.orderStatus === "filled" || e.orderStatus === "pending",
+    ).length;
+
+    const summary = {
+      botStatus,
+      lastCycleTime: lastCycleAt,
+      symbolsScanned: lastCompleted?.scanned ?? 0,
+      approvedSignals: lastCompleted?.approved ?? 0,
+      ordersPlacedToday,
+      openPositionsCount: brokerPositions.length,
+      realizedPnl,
+      unrealizedPnl,
+      dailyPnl: realizedPnl + unrealizedPnl,
+      equity: account ? parseFloat(account.equity) : null,
+      portfolioValue: account ? parseFloat(account.portfolio_value) : null,
+      dailyRealizedLoss: riskState.dailyRealizedLoss ?? 0,
+    };
+
+    // ── latestCycle ──
+    const terminalIndexes = cycles.map((c, i) => ({ c, i })).filter(({ c }) => ALL_TERMINAL_TYPES.includes(c.type));
+    let latestCycle = null;
+    if (terminalIndexes.length) {
+      const { c: latest, i: latestIndex } = terminalIndexes[terminalIndexes.length - 1];
+      const startEvent = latestIndex > 0 ? cycles[latestIndex - 1] : null;
+      const startTime = startEvent?.recordedAt ?? null;
+      const endTime = latest.recordedAt ?? null;
+      let durationMs = null;
+      if (startTime && endTime) durationMs = new Date(endTime).getTime() - new Date(startTime).getTime();
+      latestCycle = {
+        type: latest.type,
+        startTime,
+        endTime,
+        durationMs,
+        session: latest.session ?? null,
+        allowCrypto: latest.allowCrypto ?? null,
+        allowStocks: latest.allowStocks ?? null,
+        scanned: latest.scanned ?? null,
+        approved: latest.approved ?? null,
+        rejected: latest.scanned != null ? (latest.scanned - (latest.approved ?? 0)) : null,
+        placed: latest.placed ?? null,
+        errors: latest.errors ?? null,
+        reason: latest.reason ?? null,
+        timestamp: latest.timestamp,
+      };
+    }
+
+    // ── decisions ──
+    const decisions = decisionLog.records
+      .map((d) => ({
+        timestamp: d.timestamp,
+        symbol: d.symbol,
+        assetClass: formatAssetClass(d.assetClass),
+        decision: d.approved ? "Approved" : "Rejected",
+        strategyName: d.strategyName ?? null,
+        reason: d.reason,
+        closePrice: d.metrics?.closePrice ?? d.closePrice ?? null,
+        breakoutLevel: d.metrics?.breakoutLevel ?? d.breakoutLevel ?? null,
+        atr: d.metrics?.atr ?? d.atr ?? null,
+        volumeRatio: d.metrics?.volumeRatio ?? d.volumeRatio ?? null,
+        distanceToBreakoutPct: d.metrics?.distanceToBreakoutPct ?? d.distanceToBreakoutPct ?? null,
+        entryPrice: d.entryPrice ?? null,
+        stopLoss: d.stopLoss ?? null,
+        takeProfit: d.takeProfit ?? null,
+        quantity: d.quantity ?? null,
+        riskAmount: d.riskAmount ?? null,
+      }))
+      .reverse();
+
+    // ── openPositions ──
+    const openPositions = buildOpenPositions(brokerPositions, openTrades);
+
+    // ── activity ──
+    const activity = buildActivityEvents({
+      todayStr,
+      cycles,
+      journal,
+      decisions: decisionLog.records,
+      closedToday,
+      tradeEvents,
+    });
+
+    const payload = { status, summary, latestCycle, decisions, openPositions, activity };
+    overviewCache.data = payload;
+    overviewCache.ts = Date.now();
+
+    res.set("X-Cache", "MISS");
+    res.json(payload);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // GET /api/dashboard/status
 router.get("/status", async (req, res) => {
@@ -339,37 +629,7 @@ router.get("/signals", async (req, res) => {
 router.get("/positions/open", async (req, res) => {
   try {
     const [positions, openTrades] = await Promise.all([getOpenPositions(), getOpenTrades()]);
-
-    const tradesByNorm = {};
-    for (const t of openTrades) {
-      if (t.status === "canceled") continue;
-      const key = t.normalizedSymbol;
-      if (!tradesByNorm[key]) tradesByNorm[key] = [];
-      tradesByNorm[key].push(t);
-    }
-
-    const mapped = positions.map((p) => {
-      const normalized = normalizeSymbol(p.symbol);
-      const matchingTrades = tradesByNorm[normalized] ?? [];
-      let trade = null;
-      let orphaned = false;
-
-      if (matchingTrades.length === 1) {
-        trade = matchingTrades[0];
-      } else if (matchingTrades.length > 1) {
-        orphaned = true;
-        logger.warn("Ambiguous journal match for broker position — marking orphaned", {
-          symbol: p.symbol,
-          matchCount: matchingTrades.length,
-        });
-      } else {
-        orphaned = true;
-      }
-
-      return normalizeOpenTradeForApi(trade, p, orphaned);
-    });
-
-    res.json(mapped);
+    res.json(buildOpenPositions(positions, openTrades));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -378,10 +638,8 @@ router.get("/positions/open", async (req, res) => {
 // GET /api/dashboard/positions/closed
 router.get("/positions/closed", async (req, res) => {
   try {
-    const closed = (await getClosedTrades())
-      .map(normalizeClosedTradeForApi)
-      .sort((a, b) => new Date(b.closedAt) - new Date(a.closedAt))
-      .slice(0, 100);
+    // Sort and limit in the DB query — avoid loading the full collection
+    const closed = (await getClosedTrades(100)).map(normalizeClosedTradeForApi);
     res.json(closed);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -391,7 +649,8 @@ router.get("/positions/closed", async (req, res) => {
 // GET /api/dashboard/performance
 router.get("/performance", async (req, res) => {
   try {
-    const all = await getAllJournal();
+    // Use a reasonable cap to avoid unbounded reads
+    const all = await getClosedTrades(1000);
     const closed = all.filter((e) => e.pnl != null);
 
     const totalTrades = closed.length;
@@ -404,7 +663,7 @@ router.get("/performance", async (req, res) => {
 
     const byDate = {};
     for (const e of closed) {
-      const date = (e.recordedAt ?? e.signalTime ?? "").slice(0, 10);
+      const date = (e.closedAt ?? e.recordedAt ?? "").slice(0, 10);
       if (!date) continue;
       byDate[date] = (byDate[date] ?? 0) + e.pnl;
     }
@@ -422,103 +681,23 @@ router.get("/performance", async (req, res) => {
 router.get("/activity", async (req, res) => {
   try {
     const todayStr = londonDateString();
-    const [cycles, journal, decisionLog, closedTrades, tradeEvents] = await Promise.all([
+    // All queries are now date-scoped — no full-collection reads
+    const [cycles, journal, decisionLog, closedToday, tradeEvents] = await Promise.all([
       getTodayCycles(),
       getTodayJournal(),
       getDecisionLogForToday(),
-      getClosedTrades(),
-      getTradeEvents(),
+      getClosedTradesForDate(todayStr),
+      getTradeEventsForDate(todayStr),
     ]);
 
-    const decisions = decisionLog.records;
-    const events = [];
-
-    // Exit events from closed trades
-    for (const t of closedTrades) {
-      if (!t.closedAt || !t.closedAt.startsWith(todayStr)) continue;
-      if (t.exitReason === "stop_hit" || t.exitReason === "stopLoss") {
-        events.push({
-          type: "stop_loss_hit",
-          label: `Stop loss hit — ${t.symbol} closed @ ${t.exitPrice} | PnL: ${t.pnl != null ? t.pnl.toFixed(2) : "—"}`,
-          timestamp: t.closedAt,
-        });
-      } else if (t.exitReason === "target_hit" || t.exitReason === "takeProfit") {
-        events.push({
-          type: "take_profit_hit",
-          label: `Take profit hit — ${t.symbol} closed @ ${t.exitPrice} | PnL: ${t.pnl != null ? t.pnl.toFixed(2) : "—"}`,
-          timestamp: t.closedAt,
-        });
-      } else if (t.exitReason === "broker_sync_close") {
-        events.push({
-          type: "broker_sync_close",
-          label: `Broker sync close — ${t.symbol} (no matching broker position)`,
-          timestamp: t.closedAt,
-        });
-      } else {
-        events.push({
-          type: "trade_closed",
-          label: `Trade closed — ${t.symbol} @ ${t.exitPrice ?? "—"} (${t.exitReason ?? "manual"}) | PnL: ${t.pnl != null ? t.pnl.toFixed(2) : "—"}`,
-          timestamp: t.closedAt,
-        });
-      }
-    }
-
-    // Journal lifecycle events
-    for (const e of tradeEvents) {
-      if (!e.timestamp || !e.timestamp.startsWith(todayStr)) continue;
-      if (e.type === "trade_opened") {
-        events.push({ type: "trade_opened", label: `Trade opened — ${e.symbol}`, timestamp: e.timestamp });
-      } else if (e.type === "orphan_detected") {
-        events.push({ type: "orphan_detected", label: `Orphaned position — ${e.symbol}: missing journal metadata`, timestamp: e.timestamp });
-      } else if (e.type === "sync_warning") {
-        events.push({ type: "sync_warning", label: `Sync warning — ${e.symbol}: ${e.message}`, timestamp: e.timestamp });
-      }
-    }
-
-    for (const c of cycles) {
-      if (c.type === "completed") {
-        const sessionLabel = c.session ? ` [${c.session}]` : "";
-        events.push({
-          type: "cycle_complete",
-          label: `Cycle complete${sessionLabel} — scanned ${c.scanned}, approved ${c.approved}, placed ${c.placed}`,
-          timestamp: c.recordedAt ?? c.timestamp,
-        });
-      } else if (c.type === "skipped_outside_overlap") {
-        // Legacy DB record from pre-session-aware model — translated to canonical 'skipped' for display.
-        // Must not be re-emitted as 'skipped_outside_overlap' in new events.
-        events.push({ type: "skipped", label: `Cycle skipped — outside configured sessions`, timestamp: c.recordedAt ?? c.timestamp });
-      } else if (c.type === "skipped") {
-        const sessionLabel = c.session ? ` [${c.session}]` : "";
-        events.push({ type: "skipped", label: `Cycle skipped${sessionLabel} — ${c.reason}`, timestamp: c.recordedAt ?? c.timestamp });
-      } else if (c.type === "failed") {
-        events.push({ type: "failed", label: `Cycle failed — ${c.error ?? "unknown error"}`, timestamp: c.recordedAt ?? c.timestamp });
-      }
-    }
-
-    for (const d of decisions) {
-      if (d.approved) {
-        events.push({
-          type: "approved",
-          label: `Strategy approved — ${d.symbol} (${formatAssetClass(d.assetClass)}) @ ${d.metrics?.closePrice ?? d.closePrice ?? "—"}`,
-          timestamp: d.timestamp,
-        });
-      } else {
-        events.push({ type: "rejected", label: `Strategy rejected — ${d.symbol}: ${d.reason}`, timestamp: d.timestamp });
-      }
-    }
-
-    for (const e of journal) {
-      if (e.orderStatus === "filled") {
-        events.push({ type: "order_filled", label: `Order filled — ${e.symbol} qty ${e.quantity} @ ${e.entryPriceFilled ?? e.entryPricePlanned}`, timestamp: e.recordedAt });
-      } else if (e.orderStatus === "failed") {
-        events.push({ type: "order_failed", label: `Order failed — ${e.symbol}`, timestamp: e.recordedAt });
-      } else if (e.orderStatus === "dry_run") {
-        events.push({ type: "dry_run", label: `Dry run — ${e.symbol} would place qty ${e.quantity} @ ${e.entryPricePlanned}`, timestamp: e.recordedAt });
-      }
-    }
-
-    events.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-    res.json(events.slice(0, 100));
+    res.json(buildActivityEvents({
+      todayStr,
+      cycles,
+      journal,
+      decisions: decisionLog.records,
+      closedToday,
+      tradeEvents,
+    }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

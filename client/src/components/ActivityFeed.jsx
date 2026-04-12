@@ -1,14 +1,26 @@
 import { useActivity } from "../hooks/queries/useDashboard.js";
 
 const TYPE_STYLES = {
+  // Cycle events
   cycle_complete: { dot: "bg-sky-400", text: "text-slate-200" },
+  skipped: { dot: "bg-slate-600", text: "text-slate-500" },
+  failed: { dot: "bg-red-400", text: "text-red-300" },
+  // Decision events
   approved: { dot: "bg-emerald-400", text: "text-slate-200" },
   rejected: { dot: "bg-red-500/70", text: "text-slate-400" },
+  // Order events
   order_filled: { dot: "bg-orange-400", text: "text-slate-200" },
   order_failed: { dot: "bg-red-400", text: "text-red-300" },
   dry_run: { dot: "bg-slate-400", text: "text-slate-300" },
-  skipped: { dot: "bg-slate-600", text: "text-slate-500" },
-  // legacy fallbacks
+  // Trade lifecycle events
+  trade_opened: { dot: "bg-emerald-500", text: "text-emerald-300" },
+  trade_closed: { dot: "bg-slate-400", text: "text-slate-300" },
+  stop_loss_hit: { dot: "bg-red-500", text: "text-red-300" },
+  take_profit_hit: { dot: "bg-emerald-400", text: "text-emerald-300" },
+  broker_sync_close: { dot: "bg-slate-500", text: "text-slate-400" },
+  orphan_detected: { dot: "bg-yellow-500", text: "text-yellow-300" },
+  sync_warning: { dot: "bg-yellow-600", text: "text-yellow-400" },
+  // Legacy fallbacks
   cycle: { dot: "bg-sky-400", text: "text-slate-200" },
   signal: { dot: "bg-emerald-400", text: "text-slate-200" },
   order: { dot: "bg-orange-400", text: "text-slate-200" },

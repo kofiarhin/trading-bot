@@ -18,4 +18,9 @@ const tradeEventSchema = new mongoose.Schema(
   { collection: 'trade_events', timestamps: false, strict: false },
 );
 
+// Compound indexes for common activity/event queries
+tradeEventSchema.index({ date: 1, timestamp: -1 });
+tradeEventSchema.index({ tradeId: 1, timestamp: -1 });
+tradeEventSchema.index({ symbol: 1, timestamp: -1 });
+
 export default mongoose.models.TradeEvent || mongoose.model('TradeEvent', tradeEventSchema);

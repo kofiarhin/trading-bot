@@ -19,6 +19,14 @@ export async function getOpenTrades() {
   return docs.map(stripMongo);
 }
 
+export async function getLatestOpenTrades(limit = 50) {
+  const docs = await OpenTrade.find({ status: { $ne: 'canceled' } })
+    .sort({ updatedAt: -1, pendingAt: -1 })
+    .limit(limit)
+    .lean();
+  return docs.map(stripMongo);
+}
+
 export async function getOpenTradeById(tradeId) {
   const doc = await OpenTrade.findOne({ tradeId }).lean();
   return doc ? stripMongo(doc) : null;
@@ -39,8 +47,20 @@ export async function removeOpenTrade(tradeId) {
 
 // ─── Closed Trades ────────────────────────────────────────────────────────────
 
-export async function getClosedTrades() {
-  const docs = await ClosedTrade.find({}).sort({ closedAt: -1, openedAt: -1 }).lean();
+export async function getClosedTrades(limit = 200) {
+  const docs = await ClosedTrade.find({}).sort({ closedAt: -1, openedAt: -1 }).limit(limit).lean();
+  return docs.map(stripMongo);
+}
+
+/**
+ * Returns closed trades whose closedAt ISO string falls within the given date (YYYY-MM-DD).
+ * ISO strings sort lexicographically, so a string range query works correctly.
+ */
+export async function getClosedTradesForDate(date = etDateString()) {
+  const nextDate = nextDateString(date);
+  const docs = await ClosedTrade.find({
+    closedAt: { $gte: date, $lt: nextDate },
+  }).sort({ closedAt: -1 }).lean();
   return docs.map(stripMongo);
 }
 
@@ -83,4 +103,11 @@ function stripMongo(doc) {
   if (!doc) return doc;
   const { _id, __v, ...rest } = doc;
   return rest;
+}
+
+/** Returns the YYYY-MM-DD string for the day after the given date string. */
+function nextDateString(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00.000Z');
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
 }

@@ -35,4 +35,9 @@ const openTradeSchema = new mongoose.Schema(
   { collection: 'open_trades', timestamps: false, strict: false },
 );
 
+// Compound indexes for common open position queries
+openTradeSchema.index({ status: 1, updatedAt: -1 });
+openTradeSchema.index({ normalizedSymbol: 1, status: 1 });
+openTradeSchema.index({ brokerOrderId: 1 }, { sparse: true });
+
 export default mongoose.models.OpenTrade || mongoose.model('OpenTrade', openTradeSchema);

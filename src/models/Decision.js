@@ -28,4 +28,9 @@ const decisionSchema = new mongoose.Schema(
   { collection: 'decisions', timestamps: false, strict: false },
 );
 
+// Compound indexes for common dashboard queries
+decisionSchema.index({ date: 1, timestamp: -1 });
+decisionSchema.index({ date: 1, approved: 1, timestamp: -1 });
+decisionSchema.index({ normalizedSymbol: 1, timestamp: -1 });
+
 export default mongoose.models.Decision || mongoose.model('Decision', decisionSchema);
