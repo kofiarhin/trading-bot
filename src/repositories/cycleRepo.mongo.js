@@ -5,6 +5,19 @@
 import CycleRun from '../models/CycleRun.js';
 import { londonDateString } from '../utils/time.js';
 
+/**
+ * Current canonical terminal cycle event types for the session-aware model.
+ * New cycle events must only use these types — never legacy types.
+ */
+export const CANONICAL_TERMINAL_TYPES = ['completed', 'skipped', 'failed'];
+
+/**
+ * Legacy terminal event types from the pre-session overlap model.
+ * These must NOT be emitted by new code. They are retained here solely for
+ * backward-compatible reads of existing DB records.
+ */
+export const LEGACY_TERMINAL_TYPES = ['skipped_outside_overlap'];
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -35,12 +48,13 @@ export async function getLatestCompletedCycle() {
 
 /**
  * Returns the most recent terminal cycle event — completed, skipped, or failed.
- * Also matches legacy `skipped_outside_overlap` records already in the database.
- * Use this when the dashboard needs to show what the last scheduled run actually did.
+ * The query includes LEGACY_TERMINAL_TYPES so that old DB records written before
+ * the session-aware refactor are still surfaced. Legacy types must not be emitted
+ * by current code — this inclusion is read-compatibility only.
  */
 export async function getLatestCycleRun() {
   const doc = await CycleRun.findOne({
-    type: { $in: ['completed', 'skipped', 'skipped_outside_overlap', 'failed'] },
+    type: { $in: [...CANONICAL_TERMINAL_TYPES, ...LEGACY_TERMINAL_TYPES] },
   }).sort({ recordedAt: -1 }).lean();
   return doc ? stripMongo(doc) : null;
 }

@@ -39,10 +39,18 @@ async function getAllJournal() {
   return events;
 }
 
-const TERMINAL_CYCLE_TYPES = ["completed", "skipped", "skipped_outside_overlap", "failed"];
+// Current canonical terminal cycle event types for the session-aware model.
+const CANONICAL_TERMINAL_TYPES = ["completed", "skipped", "failed"];
+
+// Legacy event types retained solely for backward-compatible reads of old DB records.
+// These must NOT appear in new cycle events and must not drive current status logic.
+const LEGACY_TERMINAL_TYPES = ["skipped_outside_overlap"];
+
+// Combined set for reading historical data — includes legacy types so old records are handled.
+const ALL_TERMINAL_TYPES = [...CANONICAL_TERMINAL_TYPES, ...LEGACY_TERMINAL_TYPES];
 
 function deriveBotStatus(cycles) {
-  const last = [...cycles].reverse().find((c) => TERMINAL_CYCLE_TYPES.includes(c.type));
+  const last = [...cycles].reverse().find((c) => ALL_TERMINAL_TYPES.includes(c.type));
   if (!last) return { botStatus: "idle", lastCycleAt: null, lastCycleType: null };
   const diffMs = Date.now() - new Date(last.timestamp).getTime();
   return {
@@ -227,7 +235,7 @@ router.get("/cycles/latest", async (req, res) => {
     const cycles = await getTodayCycles();
     const terminalIndexes = cycles
       .map((c, i) => ({ c, i }))
-      .filter(({ c }) => TERMINAL_CYCLE_TYPES.includes(c.type));
+      .filter(({ c }) => ALL_TERMINAL_TYPES.includes(c.type));
 
     if (!terminalIndexes.length) return res.json(null);
 
@@ -476,8 +484,9 @@ router.get("/activity", async (req, res) => {
           timestamp: c.recordedAt ?? c.timestamp,
         });
       } else if (c.type === "skipped_outside_overlap") {
-        // Legacy event type — kept for backward compatibility with existing DB records.
-        events.push({ type: "skipped_outside_overlap", label: `Cycle skipped — outside configured sessions`, timestamp: c.recordedAt ?? c.timestamp });
+        // Legacy DB record from pre-session-aware model — translated to canonical 'skipped' for display.
+        // Must not be re-emitted as 'skipped_outside_overlap' in new events.
+        events.push({ type: "skipped", label: `Cycle skipped — outside configured sessions`, timestamp: c.recordedAt ?? c.timestamp });
       } else if (c.type === "skipped") {
         const sessionLabel = c.session ? ` [${c.session}]` : "";
         events.push({ type: "skipped", label: `Cycle skipped${sessionLabel} — ${c.reason}`, timestamp: c.recordedAt ?? c.timestamp });

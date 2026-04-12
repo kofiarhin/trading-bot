@@ -13,6 +13,9 @@ const {
   appendCycleEvent,
   getCyclesForDate,
   getLatestCompletedCycle,
+  getLatestCycleRun,
+  CANONICAL_TERMINAL_TYPES,
+  LEGACY_TERMINAL_TYPES,
 } = await import('../../src/repositories/cycleRepo.mongo.js');
 
 describe('cycleRepo.mongo', () => {
@@ -53,6 +56,23 @@ describe('cycleRepo.mongo', () => {
     });
   });
 
+  describe('CANONICAL_TERMINAL_TYPES', () => {
+    it('contains completed, skipped, and failed', () => {
+      expect(CANONICAL_TERMINAL_TYPES).toEqual(expect.arrayContaining(['completed', 'skipped', 'failed']));
+    });
+
+    it('does not include skipped_outside_overlap', () => {
+      expect(CANONICAL_TERMINAL_TYPES).not.toContain('skipped_outside_overlap');
+    });
+
+    it('LEGACY_TERMINAL_TYPES contains skipped_outside_overlap and nothing else', () => {
+      expect(LEGACY_TERMINAL_TYPES).toContain('skipped_outside_overlap');
+      expect(LEGACY_TERMINAL_TYPES).not.toContain('completed');
+      expect(LEGACY_TERMINAL_TYPES).not.toContain('skipped');
+      expect(LEGACY_TERMINAL_TYPES).not.toContain('failed');
+    });
+  });
+
   describe('getLatestCompletedCycle', () => {
     it('returns null when no completed cycle exists', async () => {
       CycleRun.findOne.mockReturnValue({
@@ -73,6 +93,43 @@ describe('cycleRepo.mongo', () => {
       });
       const result = await getLatestCompletedCycle();
       expect(result.type).toBe('completed');
+    });
+  });
+
+  describe('getLatestCycleRun', () => {
+    it('returns null when no terminal cycle exists', async () => {
+      CycleRun.findOne.mockReturnValue({
+        sort: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue(null) }),
+      });
+      const result = await getLatestCycleRun();
+      expect(result).toBeNull();
+    });
+
+    it('queries for all canonical terminal types', async () => {
+      CycleRun.findOne.mockReturnValue({
+        sort: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue(null) }),
+      });
+      await getLatestCycleRun();
+      const calledWith = CycleRun.findOne.mock.calls[0][0];
+      expect(calledWith.type.$in).toEqual(expect.arrayContaining(['completed', 'skipped', 'failed']));
+    });
+
+    it('also queries legacy skipped_outside_overlap for DB read compatibility', async () => {
+      CycleRun.findOne.mockReturnValue({
+        sort: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue(null) }),
+      });
+      await getLatestCycleRun();
+      const calledWith = CycleRun.findOne.mock.calls[0][0];
+      expect(calledWith.type.$in).toContain('skipped_outside_overlap');
+    });
+
+    it('returns the latest terminal cycle doc', async () => {
+      const doc = { type: 'skipped', reason: 'market closed', date: '2026-04-10' };
+      CycleRun.findOne.mockReturnValue({
+        sort: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue(doc) }),
+      });
+      const result = await getLatestCycleRun();
+      expect(result.type).toBe('skipped');
     });
   });
 });
