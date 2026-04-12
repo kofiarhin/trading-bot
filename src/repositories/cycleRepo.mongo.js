@@ -34,12 +34,13 @@ export async function getLatestCompletedCycle() {
 }
 
 /**
- * Returns the most recent terminal cycle event — completed, skipped_outside_overlap, or failed.
+ * Returns the most recent terminal cycle event — completed, skipped, or failed.
+ * Also matches legacy `skipped_outside_overlap` records already in the database.
  * Use this when the dashboard needs to show what the last scheduled run actually did.
  */
 export async function getLatestCycleRun() {
   const doc = await CycleRun.findOne({
-    type: { $in: ['completed', 'skipped_outside_overlap', 'failed'] },
+    type: { $in: ['completed', 'skipped', 'skipped_outside_overlap', 'failed'] },
   }).sort({ recordedAt: -1 }).lean();
   return doc ? stripMongo(doc) : null;
 }

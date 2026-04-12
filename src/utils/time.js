@@ -170,18 +170,6 @@ export function isLSEOpen(now = new Date()) {
   return totalMinutes >= 8 * 60 && totalMinutes < 16 * 60 + 30;
 }
 
-/**
- * Returns true when NYSE and LSE are both open simultaneously.
- * The overlap window is ~14:30–16:30 London time on weekdays.
- * Set SKIP_MARKET_HOURS=true to bypass (useful for local testing).
- * @param {Date} [now]
- * @returns {boolean}
- */
-export function isMarketOverlapOpen(now = new Date()) {
-  if (process.env.SKIP_MARKET_HOURS === 'true') return true;
-  return isNYSEOpen(now) && isLSEOpen(now);
-}
-
 // ─── Tokyo timezone ────────────────────────────────────────────────────────────
 
 const TOKYO_OFFSET = 9; // JST is always UTC+9, no DST

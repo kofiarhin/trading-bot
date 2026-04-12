@@ -39,7 +39,7 @@ async function getAllJournal() {
   return events;
 }
 
-const TERMINAL_CYCLE_TYPES = ["completed", "skipped_outside_overlap", "failed"];
+const TERMINAL_CYCLE_TYPES = ["completed", "skipped", "skipped_outside_overlap", "failed"];
 
 function deriveBotStatus(cycles) {
   const last = [...cycles].reverse().find((c) => TERMINAL_CYCLE_TYPES.includes(c.type));
@@ -246,6 +246,9 @@ router.get("/cycles/latest", async (req, res) => {
       startTime,
       endTime,
       durationMs,
+      session: latest.session ?? null,
+      allowCrypto: latest.allowCrypto ?? null,
+      allowStocks: latest.allowStocks ?? null,
       scanned: latest.scanned ?? null,
       approved: latest.approved ?? null,
       rejected: latest.scanned != null ? (latest.scanned - (latest.approved ?? 0)) : null,
@@ -473,8 +476,8 @@ router.get("/activity", async (req, res) => {
           timestamp: c.recordedAt ?? c.timestamp,
         });
       } else if (c.type === "skipped_outside_overlap") {
-        // Legacy event type kept for backward compatibility with existing DB records.
-        events.push({ type: "skipped_outside_overlap", label: `Cycle skipped — outside NYSE/LSE overlap`, timestamp: c.recordedAt ?? c.timestamp });
+        // Legacy event type — kept for backward compatibility with existing DB records.
+        events.push({ type: "skipped_outside_overlap", label: `Cycle skipped — outside configured sessions`, timestamp: c.recordedAt ?? c.timestamp });
       } else if (c.type === "skipped") {
         const sessionLabel = c.session ? ` [${c.session}]` : "";
         events.push({ type: "skipped", label: `Cycle skipped${sessionLabel} — ${c.reason}`, timestamp: c.recordedAt ?? c.timestamp });
