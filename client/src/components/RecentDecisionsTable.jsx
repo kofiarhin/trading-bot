@@ -1,4 +1,5 @@
 import { useDecisions } from "../hooks/queries/useDashboard.js";
+import DecisionListMobile from "./DecisionListMobile.jsx";
 
 function fmt(n, d = 4) {
   if (n == null) return "—";
@@ -38,18 +39,34 @@ function DecisionBadge({ decision }) {
   );
 }
 
-export default function RecentDecisionsTable() {
+export default function RecentDecisionsTable({ variant = "desktop", previewCount = 4 }) {
   const { data: decisions = [], isLoading } = useDecisions();
+
+  if (variant === "mobile") {
+    return (
+      <div className="border-0 rounded-none overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wide">Recent Decisions</h2>
+          {decisions.length > 0 && (
+            <span className="text-xs text-slate-400">{decisions.length}</span>
+          )}
+        </div>
+        {isLoading ? (
+          <p className="px-4 py-3 text-slate-500 text-sm">Loading...</p>
+        ) : (
+          <DecisionListMobile decisions={decisions} previewCount={previewCount} />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-xl bg-slate-800 border border-slate-700 overflow-hidden">
       <div className="px-5 py-4 border-b border-slate-700 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wide">
-          Recent Decisions
-        </h2>
+        <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wide">Recent Decisions</h2>
         {decisions.length > 0 && (
           <span className="text-xs text-slate-400">
-            {decisions.filter((d) => d.decision === "Approved").length} approved /{" "}
+            {decisions.filter((d) => d.decision === "Approved").length} approved / {" "}
             {decisions.filter((d) => d.decision === "Rejected").length} rejected
           </span>
         )}
@@ -78,13 +95,8 @@ export default function RecentDecisionsTable() {
             </thead>
             <tbody>
               {decisions.map((d, i) => (
-                <tr
-                  key={i}
-                  className="border-b border-slate-700/50 hover:bg-slate-700/20 transition-colors"
-                >
-                  <td className="px-4 py-3 font-mono text-slate-400 text-xs whitespace-nowrap">
-                    {fmtTime(d.timestamp)}
-                  </td>
+                <tr key={i} className="border-b border-slate-700/50 hover:bg-slate-700/20 transition-colors">
+                  <td className="px-4 py-3 font-mono text-slate-400 text-xs whitespace-nowrap">{fmtTime(d.timestamp)}</td>
                   <td className="px-4 py-3 font-mono font-semibold text-white">{d.symbol}</td>
                   <td className="px-4 py-3 text-slate-400">{d.assetClass ?? "—"}</td>
                   <td className="px-4 py-3">
@@ -99,14 +111,10 @@ export default function RecentDecisionsTable() {
                   <td className="px-4 py-3 text-right font-mono text-slate-400">
                     {d.breakoutLevel != null ? `$${fmt(d.breakoutLevel, 2)}` : "—"}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-slate-400">
-                    {fmt(d.atr, 4)}
-                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-slate-400">{fmt(d.atr, 4)}</td>
                   <td
                     className={`px-4 py-3 text-right font-mono ${
-                      d.volumeRatio != null && d.volumeRatio >= 1
-                        ? "text-emerald-400"
-                        : "text-slate-400"
+                      d.volumeRatio != null && d.volumeRatio >= 1 ? "text-emerald-400" : "text-slate-400"
                     }`}
                   >
                     {d.volumeRatio != null ? `${fmt(d.volumeRatio, 2)}x` : "—"}
@@ -122,16 +130,17 @@ export default function RecentDecisionsTable() {
                   >
                     {d.distanceToBreakoutPct != null ? (
                       <>
-                        {typeof d.distanceToBreakoutPct === "number" && Number.isFinite(d.distanceToBreakoutPct) ? d.distanceToBreakoutPct.toFixed(2) : "—"}%
+                        {typeof d.distanceToBreakoutPct === "number" && Number.isFinite(d.distanceToBreakoutPct)
+                          ? d.distanceToBreakoutPct.toFixed(2)
+                          : "—"}
+                        %
                         {getWatchLevel(d.distanceToBreakoutPct) === "very-close" && (
                           <span className="ml-2 px-2 py-0.5 text-xs bg-yellow-400 text-black rounded">
                             VERY CLOSE
                           </span>
                         )}
                         {getWatchLevel(d.distanceToBreakoutPct) === "watch" && (
-                          <span className="ml-2 px-2 py-0.5 text-xs bg-yellow-600 text-white rounded">
-                            WATCH
-                          </span>
+                          <span className="ml-2 px-2 py-0.5 text-xs bg-yellow-600 text-white rounded">WATCH</span>
                         )}
                       </>
                     ) : (
