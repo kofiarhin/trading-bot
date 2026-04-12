@@ -30,7 +30,7 @@ ALPACA_BASE_URL=https://paper-api.alpaca.markets
 DEFAULT_TIMEFRAME=15Min
 RISK_PERCENT=0.005
 MAX_DAILY_LOSS_PERCENT=0.02
-MAX_OPEN_POSITIONS=3
+MAX_OPEN_POSITIONS=5
 ENABLE_CRYPTO=false
 RUN_MODE=paper
 ```
@@ -104,7 +104,7 @@ All of these must pass before any order is submitted:
 |---|---|
 | Per-trade risk | 0.5% of equity |
 | Daily loss limit | 2% of equity — locks out new trades for the day |
-| Max open positions | 3 |
+| Max open positions | 5 |
 | Duplicate symbol | No new entry if symbol already has an open position |
 | Symbol cooldown | 1 trading day (stocks) / 6 hours (crypto) after closing |
 
@@ -135,7 +135,7 @@ Edit [src/market/universe.js](src/market/universe.js) to change what the autopil
 
 ### Default crypto (requires `ENABLE_CRYPTO=true`)
 
-`BTC/USD`, `ETH/USD`, `SOL/USD`
+`BTC/USD`, `ETH/USD`, `SOL/USD`, `BNB/USD`, `XRP/USD`, `AVAX/USD`, `ADA/USD`, `LINK/USD`, `MATIC/USD`, `DOT/USD`, `LTC/USD`, `DOGE/USD`, `BCH/USD`, `UNI/USD`, `ATOM/USD`, `NEAR/USD`, `AAVE/USD`, `ETC/USD`, `FIL/USD`, `ALGO/USD`
 
 ---
 
@@ -151,7 +151,7 @@ All settings live in `.env`. See [.env.example](.env.example) for the full list.
 | `DEFAULT_TIMEFRAME` | `15Min` | Candle timeframe |
 | `RISK_PERCENT` | `0.005` | Fraction of equity risked per trade (0.5%) |
 | `MAX_DAILY_LOSS_PERCENT` | `0.02` | Daily loss lockout threshold (2%) |
-| `MAX_OPEN_POSITIONS` | `3` | Maximum concurrent open positions |
+| `MAX_OPEN_POSITIONS` | `5` | Maximum concurrent open positions |
 | `ENABLE_CRYPTO` | `false` | Set to `true` to include crypto in scans |
 | `RUN_MODE` | `paper` | Must stay `paper` in v1 |
 
@@ -243,7 +243,23 @@ npm run trade -- "buy 200 dollars of nvidia"  # no $ — safe
 | Bitcoin | bitcoin, btc, btc/usd | BTC/USD |
 | Ethereum | ethereum, eth, eth/usd | ETH/USD |
 | Solana | solana, sol, sol/usd | SOL/USD |
+| BNB | bnb, binancecoin, bnb/usd | BNB/USD |
+| XRP | xrp, ripple, xrp/usd | XRP/USD |
+| Avalanche | avax, avalanche, avax/usd | AVAX/USD |
+| Cardano | ada, cardano, ada/usd | ADA/USD |
+| Chainlink | link, chainlink, link/usd | LINK/USD |
+| Polygon | matic, polygon, matic/usd | MATIC/USD |
+| Polkadot | dot, polkadot, dot/usd | DOT/USD |
+| Litecoin | ltc, litecoin, ltc/usd | LTC/USD |
 | Dogecoin | dogecoin, doge, doge/usd | DOGE/USD |
+| Bitcoin Cash | bch, bitcoincash, bch/usd | BCH/USD |
+| Uniswap | uni, uniswap, uni/usd | UNI/USD |
+| Cosmos | atom, cosmos, atom/usd | ATOM/USD |
+| NEAR | near, near/usd | NEAR/USD |
+| Aave | aave, aave/usd | AAVE/USD |
+| Ethereum Classic | etc, ethereumclassic, etc/usd | ETC/USD |
+| Filecoin | fil, filecoin, fil/usd | FIL/USD |
+| Algorand | algo, algorand, algo/usd | ALGO/USD |
 
 ---
 

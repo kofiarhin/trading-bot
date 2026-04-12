@@ -39,14 +39,77 @@ const CRYPTO_SYMBOL_MAP = {
   sol: "SOL/USD",
   "sol/usd": "SOL/USD",
 
+  bnb: "BNB/USD",
+  binancecoin: "BNB/USD",
+  "bnb/usd": "BNB/USD",
+
+  xrp: "XRP/USD",
+  ripple: "XRP/USD",
+  "xrp/usd": "XRP/USD",
+
+  avax: "AVAX/USD",
+  avalanche: "AVAX/USD",
+  "avax/usd": "AVAX/USD",
+
+  ada: "ADA/USD",
+  cardano: "ADA/USD",
+  "ada/usd": "ADA/USD",
+
+  link: "LINK/USD",
+  chainlink: "LINK/USD",
+  "link/usd": "LINK/USD",
+
+  matic: "MATIC/USD",
+  polygon: "MATIC/USD",
+  "matic/usd": "MATIC/USD",
+
+  dot: "DOT/USD",
+  polkadot: "DOT/USD",
+  "dot/usd": "DOT/USD",
+
+  ltc: "LTC/USD",
+  litecoin: "LTC/USD",
+  "ltc/usd": "LTC/USD",
+
   dogecoin: "DOGE/USD",
   doge: "DOGE/USD",
   "doge/usd": "DOGE/USD",
+
+  bch: "BCH/USD",
+  bitcoincash: "BCH/USD",
+  "bch/usd": "BCH/USD",
+
+  uni: "UNI/USD",
+  uniswap: "UNI/USD",
+  "uni/usd": "UNI/USD",
+
+  atom: "ATOM/USD",
+  cosmos: "ATOM/USD",
+  "atom/usd": "ATOM/USD",
+
+  near: "NEAR/USD",
+  "near/usd": "NEAR/USD",
+
+  aave: "AAVE/USD",
+  "aave/usd": "AAVE/USD",
+
+  etc: "ETC/USD",
+  ethereumclassic: "ETC/USD",
+  "etc/usd": "ETC/USD",
+
+  fil: "FIL/USD",
+  filecoin: "FIL/USD",
+  "fil/usd": "FIL/USD",
+
+  algo: "ALGO/USD",
+  algorand: "ALGO/USD",
+  "algo/usd": "ALGO/USD",
 };
 
 export const SUPPORTED_ASSET_MESSAGE =
   "Supported stocks: Apple, Tesla, Microsoft, Amazon, Google, Meta, Nvidia. " +
-  "Supported crypto: BTC/USD, ETH/USD, SOL/USD, DOGE/USD.";
+  "Supported crypto: BTC/USD, ETH/USD, SOL/USD, BNB/USD, XRP/USD, AVAX/USD, ADA/USD, LINK/USD, " +
+  "MATIC/USD, DOT/USD, LTC/USD, DOGE/USD, BCH/USD, UNI/USD, ATOM/USD, NEAR/USD, AAVE/USD, ETC/USD, FIL/USD, ALGO/USD.";
 
 /**
  * Resolves a stock or crypto name/alias.
