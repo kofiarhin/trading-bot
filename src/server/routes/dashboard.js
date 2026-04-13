@@ -63,7 +63,12 @@ function deriveBotStatus(cycles) {
 function normalizeRuntimeStatus(runtime, fallbackStatus, lastCycleAt) {
   const status = runtime?.status;
   if (status === "running") return "running";
-  if (status === "completed") return "completed";
+  if (status === "completed") {
+    const endedAt = runtime?.endedAt ?? runtime?.lastCompletedAt ?? lastCycleAt;
+    if (!endedAt) return "waiting";
+    const diffMs = Date.now() - new Date(endedAt).getTime();
+    return diffMs <= COMPLETION_TRANSITION_MS ? "completed" : "waiting";
+  }
   if (status === "failed") return "failed";
   if (status === "idle") {
     if (!lastCycleAt) return "idle";
@@ -361,6 +366,7 @@ function buildActivityEvents({ todayStr, cycles, journal, decisions, closedToday
 
 const overviewCache = { data: null, ts: 0 };
 const OVERVIEW_CACHE_TTL_MS = 10_000;
+const COMPLETION_TRANSITION_MS = 8_000;
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 

@@ -10,6 +10,18 @@ import OpenPositionsMobileList from "../components/OpenPositionsMobileList.jsx";
 import { useCycleRuntime } from "../hooks/queries/useCycleRuntime.js";
 
 const REFRESH_INTERVAL_S = 15;
+const COMPLETION_TRANSITION_MS = 8_000;
+
+function resolveLiveStatus(runtime) {
+  const status = runtime?.status ?? "idle";
+  if (status !== "completed") return status;
+
+  const endedAt = runtime?.endedAt ?? runtime?.lastCompletedAt;
+  if (!endedAt) return "waiting";
+
+  const diffMs = Date.now() - new Date(endedAt).getTime();
+  return diffMs <= COMPLETION_TRANSITION_MS ? "completed" : "waiting";
+}
 
 function useRefreshTimestamp() {
   const [lastUpdated, setLastUpdated] = useState(new Date());
@@ -42,7 +54,7 @@ function AutoRefreshIndicator() {
 }
 
 function Header({ runtime }) {
-  const status = runtime?.status ?? "idle";
+  const status = resolveLiveStatus(runtime);
   const stage = runtime?.stage ? runtime.stage.replaceAll("_", " ") : null;
   const runningLabel = `Cycle running${stage ? ` — ${stage}` : ""}`;
 
