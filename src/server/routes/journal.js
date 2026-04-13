@@ -4,6 +4,19 @@ import { getOpenTrades, getClosedTrades } from "../../journal/tradeJournal.js";
 
 const router = Router();
 
+// Strategies that represent broker reconciliation/import artifacts rather than
+// real strategy signals. Extend this list to exclude additional sources.
+const NON_PERFORMANCE_STRATEGIES = new Set(["broker_sync"]);
+
+/**
+ * Returns true if the trade should be counted in performance summary metrics.
+ * Trades from broker reconciliation/import flows are excluded by default.
+ */
+function isStrategyPerformanceTrade(trade) {
+  const name = trade.strategyName ?? trade.strategy ?? trade.source ?? "";
+  return !NON_PERFORMANCE_STRATEGIES.has(name);
+}
+
 function formatAssetClass(raw) {
   if (!raw) return raw;
   const lower = raw.toLowerCase();
@@ -14,10 +27,18 @@ function formatAssetClass(raw) {
 
 // GET /api/journal/summary
 // Returns aggregate stats across all closed trades.
+//
+// Query params:
+//   includeBrokerSync — "true" to include broker_sync trades in summary metrics (default: excluded)
 router.get("/summary", async (req, res) => {
   try {
-    const closed = await getClosedTrades();
-    const open = await getOpenTrades();
+    const includeBrokerSync = req.query.includeBrokerSync === "true";
+
+    const [rawClosed, open] = await Promise.all([getClosedTrades(), getOpenTrades()]);
+
+    const closed = includeBrokerSync
+      ? rawClosed
+      : rawClosed.filter(isStrategyPerformanceTrade);
 
     const wins = closed.filter((t) => (t.pnl ?? 0) > 0);
     const losses = closed.filter((t) => (t.pnl ?? 0) < 0);

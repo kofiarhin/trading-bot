@@ -1,0 +1,167 @@
+You are working inside an existing MERN trading bot codebase.
+
+Your task is to apply a focused backend + light frontend cleanup for trade journal analytics.
+
+OBJECTIVE
+
+Fix the Journal page so that summary analytics reflect REAL STRATEGY PERFORMANCE by default, while still preserving broker reconciliation visibility.
+
+CURRENT PROBLEM
+
+The system now correctly routes live decisions through the canonical breakout evaluator, and dashboard performance already excludes broker-sync artifacts. However, the Journal summary still appears polluted because broker-synced/imported trades are being counted in headline metrics.
+
+This causes misleading values for:
+- total trades
+- closed trades
+- win rate
+- total pnl
+- avg win / avg loss
+
+REQUIRED OUTCOME
+
+By default, Journal summary cards must exclude non-strategy reconciliation trades such as:
+- strategyName === "broker_sync"
+
+The journal table may still show those rows for operational visibility, but analytics must be clean by default.
+
+SCOPE
+
+Make a focused fix only. Do not refactor unrelated UI. Do not redesign pages. Do not change deployment setup. Do not move files unless necessary.
+
+TARGET AREAS
+
+Backend likely includes files similar to:
+- src/server/routes/journal.js
+- src/journal/tradeJournal.js
+- src/journal/closedTradesStore.js
+- src/journal/openTradesStore.js
+
+Frontend likely includes:
+- client/src/hooks/queries/useJournal.js
+- client/src/pages/JournalPage.jsx
+
+If exact filenames differ slightly, locate the equivalent files and update them.
+
+REQUIREMENTS
+
+1. JOURNAL SUMMARY FILTERING
+Update the journal summary endpoint so that summary metrics exclude broker-sync trades by default.
+
+Expected default exclusion set:
+- "broker_sync"
+
+Design this cleanly so more excluded sources can be added later if needed.
+
+Recommended helper shape:
+- isStrategyPerformanceTrade(trade)
+or
+- shouldIncludeInPerformanceStats(trade)
+
+The helper should return false for reconciliation/import-only records.
+
+2. KEEP TABLE VISIBILITY INTACT
+Do NOT automatically remove broker-sync rows from the journal table unless there is already a filtering mechanism designed for that.
+The table can still display those rows.
+
+Goal:
+- cards/summary = clean by default
+- table/history = still operationally useful
+
+3. OPTIONAL QUERY PARAM SUPPORT
+If the route structure allows it cleanly, add optional query support like:
+- includeBrokerSync=true
+
+Behavior:
+- default or omitted -> exclude broker_sync from summary
+- includeBrokerSync=true -> include broker_sync in summary
+
+Only add this if it fits cleanly without breaking existing callers.
+
+4. FRONTEND QUERY SUPPORT
+If you add the query param, update the journal hook so it can request summary data cleanly.
+Do not add unnecessary UI unless it is trivial and already aligns with existing filters.
+
+If no UI toggle is added, keep the frontend calling the default clean summary.
+
+5. METRIC DEFINITIONS
+Ensure summary metrics are computed from filtered trades only:
+- totalTrades
+- open count
+- closed count
+- totalPnl
+- wins
+- losses
+- winRate
+- avgWin
+- avgLoss
+
+Be careful with:
+- zero closed trades
+- zero winning trades
+- zero losing trades
+- missing pnl fields
+- string vs number coercion
+
+6. DATA SAFETY
+Do not mutate raw stored trade records.
+Apply filtering at read/aggregation time.
+
+7. BROKER_SYNC DETECTION
+Use strategy/source detection based on existing trade shape.
+Prefer current canonical field if present, such as:
+- strategyName
+- strategy
+- source
+
+Use the real schema in the repo rather than inventing a new one.
+
+8. TESTING
+Add or update backend tests for journal summary behavior.
+
+Required cases:
+- summary excludes broker_sync by default
+- summary includes broker_sync when includeBrokerSync=true, if implemented
+- win rate and pnl calculations remain correct after filtering
+- zero-trade / zero-closed-trade edge cases handled safely
+
+Use existing backend test stack and conventions in the repo.
+Do not introduce a new test framework.
+
+9. KEEP RESPONSE SHAPE STABLE
+Preserve the existing response shape as much as possible so the current frontend does not break.
+Only add fields if they are clearly useful and backward-compatible.
+
+IMPLEMENTATION NOTES
+
+- Search the summary route first and identify where summary aggregation is currently performed.
+- Centralize the filtering logic in one place instead of scattering string checks everywhere.
+- Avoid magic inline conditions like trade.strategyName !== "broker_sync" repeated in multiple blocks.
+- Keep naming concise and production-friendly.
+- Follow current project conventions.
+
+DO NOT
+
+- Do not change strategy execution logic
+- Do not touch autopilot logic
+- Do not redesign dashboard or journal UI
+- Do not alter broker sync ingestion behavior
+- Do not remove broker_sync rows from stored data
+- Do not mix server-state into Redux
+- Do not hard-code URLs
+
+DELIVERABLES
+
+Provide the full updated files for every changed file.
+Also include:
+1. short changed-files list
+2. brief explanation of what was fixed
+3. any test commands run
+4. any assumptions if a field name differed in the repo
+
+SUCCESS CRITERIA
+
+The fix is successful when:
+- journal summary cards reflect real strategy performance by default
+- broker_sync rows can still exist in historical records
+- the frontend continues working without regression
+- tests cover the new filtering behavior

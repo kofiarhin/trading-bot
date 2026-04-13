@@ -3,6 +3,23 @@ import express from 'express';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import request from 'supertest';
 
+const BROKER_SYNC_TRADE = {
+  tradeId: 'broker-1',
+  symbol: 'TSLA',
+  normalizedSymbol: 'TSLA',
+  assetClass: 'us_equity',
+  strategyName: 'broker_sync',
+  quantity: 3,
+  entryPrice: 200,
+  exitPrice: 180,
+  pnl: -60,
+  pnlPct: -10,
+  exitReason: 'reconciliation',
+  openedAt: '2026-04-08T09:00:00.000Z',
+  closedAt: '2026-04-08T12:00:00.000Z',
+  status: 'closed',
+};
+
 const OPEN_TRADE = {
   tradeId: 'open-1',
   symbol: 'AAPL',
@@ -110,6 +127,54 @@ describe('GET /api/journal/summary', () => {
     expect(res.status).toBe(200);
     expect(res.body.openTrades).toBe(0);
     expect(res.body.totalTrades).toBe(0);
+  });
+
+  it('excludes broker_sync trades from summary by default', async () => {
+    const app = await buildApp({
+      openTrades: [OPEN_TRADE],
+      closedTrades: [CLOSED_TRADE, BROKER_SYNC_TRADE],
+    });
+    const res = await request(app).get('/api/journal/summary');
+
+    expect(res.status).toBe(200);
+    // broker_sync closed trade must not be counted
+    expect(res.body.closedTrades).toBe(1);
+    expect(res.body.totalTrades).toBe(2); // 1 open + 1 real closed
+    expect(res.body.wins).toBe(1);
+    expect(res.body.losses).toBe(0);
+    expect(res.body.winRate).toBe(100);
+    expect(res.body.totalPnl).toBe(15); // broker_sync pnl (-60) excluded
+    expect(res.body.avgWin).toBe(15);
+    expect(res.body.avgLoss).toBeNull();
+  });
+
+  it('includes broker_sync trades when includeBrokerSync=true', async () => {
+    const app = await buildApp({
+      openTrades: [OPEN_TRADE],
+      closedTrades: [CLOSED_TRADE, BROKER_SYNC_TRADE],
+    });
+    const res = await request(app).get('/api/journal/summary?includeBrokerSync=true');
+
+    expect(res.status).toBe(200);
+    expect(res.body.closedTrades).toBe(2);
+    expect(res.body.totalPnl).toBe(-45); // 15 + (-60)
+    expect(res.body.wins).toBe(1);
+    expect(res.body.losses).toBe(1);
+    expect(res.body.winRate).toBe(50);
+  });
+
+  it('handles zero closed trades safely after broker_sync filtering', async () => {
+    const app = await buildApp({ closedTrades: [BROKER_SYNC_TRADE] });
+    const res = await request(app).get('/api/journal/summary');
+
+    expect(res.status).toBe(200);
+    expect(res.body.closedTrades).toBe(0);
+    expect(res.body.winRate).toBeNull();
+    expect(res.body.totalPnl).toBe(0);
+    expect(res.body.avgWin).toBeNull();
+    expect(res.body.avgLoss).toBeNull();
+    expect(res.body.bestTrade).toBeNull();
+    expect(res.body.worstTrade).toBeNull();
   });
 });
 
