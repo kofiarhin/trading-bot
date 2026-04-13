@@ -239,7 +239,7 @@ async function handleExits(dryRun) {
   }
 }
 
-export async function runAutopilotCycle(options = {}) {
+export async function runAutopilotCycle(options = {}, triggerSource = 'cron') {
   const dryRun = isDryRunEnabled(options);
   const cycleId = randomUUID();
   const startedAt = nowIso();
@@ -284,6 +284,7 @@ export async function runAutopilotCycle(options = {}) {
       startedAt,
       session,
       dryRun,
+      triggerSource,
     });
   } catch (error) {
     if (error instanceof CycleAlreadyRunningError || error?.code === 'CYCLE_ALREADY_RUNNING') {
@@ -314,6 +315,7 @@ export async function runAutopilotCycle(options = {}) {
       allowCrypto,
       allowStocks,
       symbolCount: symbols.length,
+      triggerSource,
     });
 
     await setRuntimeStage(CYCLE_STAGES.STARTING, 'Cycle started');
@@ -512,6 +514,7 @@ export async function runAutopilotCycle(options = {}) {
       errors: counters.errors,
       startedAt,
       completedAt,
+      triggerSource,
     };
 
     await setRuntimeStage(CYCLE_STAGES.COMPLETED, 'Cycle complete', { status: 'completed', currentSymbol: null });
@@ -519,11 +522,13 @@ export async function runAutopilotCycle(options = {}) {
     await appendCycleEvent({ type: 'completed', timestamp: completedAt, ...summary });
     await completeCycleRuntime({ cycleId, message: 'Cycle complete', ...summary });
 
-    console.log(`[autopilot] cycle completed — scanned: ${summary.scanned}, approved: ${summary.approved}, placed: ${summary.placed}`);
+    const triggerLabel = triggerSource === 'manual' ? '[manual] ' : '';
+    console.log(`[autopilot] ${triggerLabel}cycle completed — scanned: ${summary.scanned}, approved: ${summary.approved}, placed: ${summary.placed}`);
 
     return {
       cycleId,
       status: 'completed',
+      triggerSource,
       summary,
       decisions,
       placements,

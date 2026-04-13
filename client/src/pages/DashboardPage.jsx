@@ -12,6 +12,7 @@ import CandidateRankingTable from "../components/CandidateRankingTable.jsx";
 import RiskExposurePanel from "../components/RiskExposurePanel.jsx";
 import RejectionBreakdown from "../components/RejectionBreakdown.jsx";
 import { useCycleRuntime } from "../hooks/queries/useCycleRuntime.js";
+import RunCycleButton from "../components/RunCycleButton.jsx";
 
 const REFRESH_INTERVAL_S = 15;
 const COMPLETION_TRANSITION_MS = 8_000;
@@ -83,9 +84,12 @@ function Header({ runtime }) {
           <h1 className="text-xl font-bold text-white tracking-tight">Trading Bot</h1>
           <p className="text-xs text-slate-500 mt-0.5">Dashboard — live view</p>
         </div>
-        <div className="flex items-center gap-2 text-sm">
-          <span className={`w-2 h-2 rounded-full ${ui.dot}`} />
-          <span className={ui.text}>{ui.label}</span>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-sm">
+            <span className={`w-2 h-2 rounded-full ${ui.dot}`} />
+            <span className={ui.text}>{ui.label}</span>
+          </div>
+          <RunCycleButton />
         </div>
       </div>
       <CycleProgressBar runtime={runtime} />

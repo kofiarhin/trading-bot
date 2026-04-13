@@ -55,6 +55,41 @@ router.post('/run', async (req, res) => {
   }
 });
 
+// POST /api/cycle/manual-run
+// Called by the dashboard. No CRON_SECRET required.
+// Auth: env flag (ALLOW_MANUAL_TRIGGER=true) for v1.
+router.post('/manual-run', async (req, res) => {
+  if (process.env.ALLOW_MANUAL_TRIGGER !== 'true') {
+    return res.status(403).json({ ok: false, code: 'MANUAL_TRIGGER_DISABLED' });
+  }
+
+  try {
+    await recoverStaleRunningCycle();
+
+    // Fire and forget — return 202 immediately
+    runAutopilotCycle({}, 'manual').catch(() => {
+      // Background errors are logged by runAutopilotCycle itself
+    });
+
+    const runtime = await getCycleRuntime({ recoverStale: false });
+    return res.status(202).json({
+      ok: true,
+      cycleId: runtime?.cycleId,
+      status: 'running',
+      triggerSource: 'manual',
+    });
+  } catch (err) {
+    if (err instanceof CycleAlreadyRunningError || err?.code === 'CYCLE_ALREADY_RUNNING') {
+      return res.status(409).json({
+        ok: false,
+        code: 'CYCLE_ALREADY_RUNNING',
+        cycleId: err.cycleId ?? null,
+      });
+    }
+    return res.status(500).json({ ok: false, code: 'CYCLE_RUN_FAILED', message: err.message });
+  }
+});
+
 router.get('/runtime', async (_req, res) => {
   try {
     const runtime = await getCycleRuntime();

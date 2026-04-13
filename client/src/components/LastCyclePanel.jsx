@@ -47,6 +47,7 @@ export default function LastCyclePanel() {
         rejected: runtime.rejected,
         placed: runtime.placed,
         errors: runtime.errors,
+        triggerSource: runtime.triggerSource ?? null,
       }
     : cycle;
 
@@ -62,6 +63,13 @@ export default function LastCyclePanel() {
         <p className="text-slate-500 text-sm">No cycle data for today.</p>
       ) : (
         <div>
+          {panelData.triggerSource && (
+            <Row
+              label="Trigger"
+              value={panelData.triggerSource}
+              color={panelData.triggerSource === 'manual' ? 'text-amber-400' : 'text-slate-400'}
+            />
+          )}
           <Row label="Start" value={fmtTime(panelData.startTime)} />
           <Row label="End" value={fmtTime(panelData.endTime)} />
           <Row label="Duration" value={fmtDuration(panelData.durationMs)} color="text-slate-300" />

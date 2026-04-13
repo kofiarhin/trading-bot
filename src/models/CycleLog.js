@@ -17,6 +17,7 @@ const cycleLogSchema = new mongoose.Schema(
     errors: Number,
     reason: String,
     payload: { type: mongoose.Schema.Types.Mixed, default: null },
+    triggerSource: { type: String, enum: ['cron', 'manual'], default: null },
   },
   {
     collection: 'cycle_runs',

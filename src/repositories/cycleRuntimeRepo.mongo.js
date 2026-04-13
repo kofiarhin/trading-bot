@@ -51,6 +51,8 @@ function normalizeRuntime(doc) {
     endedAt: rest.endedAt ?? rest.completedAt ?? rest.failedAt ?? null,
     lastCompletedAt: rest.lastCompletedAt ?? rest.completedAt ?? null,
     heartbeatAt: rest.heartbeatAt ?? rest.updatedAt ?? null,
+    triggerSource: rest.triggerSource ?? null,
+    triggeredBy: rest.triggeredBy ?? null,
     lastError: rest.lastError ?? null,
     metrics: {
       scanned: toInt(rest.scanned ?? rest.metrics?.scanned, 0),
@@ -151,6 +153,8 @@ export async function startCycleRuntime(initialPayload = {}) {
         startedAt: initialPayload.startedAt ?? timestamp,
         endedAt: null,
         heartbeatAt: timestamp,
+        triggerSource: initialPayload.triggerSource ?? 'cron',
+        triggeredBy: initialPayload.triggeredBy ?? null,
         lastError: null,
       },
     },

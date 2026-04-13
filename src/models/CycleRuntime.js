@@ -27,6 +27,8 @@ const cycleRuntimeSchema = new mongoose.Schema(
     endedAt: { type: String, default: null },
     lastCompletedAt: { type: String, default: null },
     heartbeatAt: { type: String, default: null },
+    triggerSource: { type: String, enum: ['cron', 'manual'], default: 'cron' },
+    triggeredBy: { type: String, default: null },
     lastError: {
       message: { type: String, default: null },
       stack: { type: String, default: null },
