@@ -1,32 +1,56 @@
 import { Router } from 'express';
 
 import { runAutopilotCycle } from '../../autopilot.js';
-import { getCycleRuntime } from '../../repositories/cycleRuntimeRepo.mongo.js';
+import {
+  getCycleRuntime,
+  recoverStaleRunningCycle,
+  CycleAlreadyRunningError,
+} from '../../repositories/cycleRuntimeRepo.mongo.js';
 
 const router = Router();
 
-router.post('/run', async (_req, res) => {
+function hasValidCronSecret(req) {
+  const expected = process.env.CRON_SECRET;
+  if (!expected) return false;
+
+  const authHeader = req.headers.authorization ?? '';
+  const [scheme, token] = authHeader.split(' ');
+  return scheme === 'Bearer' && token === expected;
+}
+
+router.post('/run', async (req, res) => {
   try {
-    const runtime = await getCycleRuntime();
-    if (runtime?.status === 'running') {
-      return res.status(409).json({
+    if (!hasValidCronSecret(req)) {
+      return res.status(401).json({
         ok: false,
-        error: 'cycle_already_running',
-        runtime,
+        code: 'UNAUTHORIZED',
+        message: 'Unauthorized',
       });
     }
 
+    await recoverStaleRunningCycle();
     const result = await runAutopilotCycle();
-    return res.status(200).json({ ok: true, summary: result.summary });
+
+    return res.status(200).json({
+      ok: true,
+      cycleId: result.cycleId ?? result.summary?.cycleId ?? null,
+      status: result.status ?? 'completed',
+      summary: result.summary ?? null,
+    });
   } catch (error) {
-    if (error?.code === 'CYCLE_ALREADY_RUNNING') {
-      const runtime = await getCycleRuntime();
-      return res.status(409).json({ ok: false, error: 'cycle_already_running', runtime });
+    if (error instanceof CycleAlreadyRunningError || error?.code === 'CYCLE_ALREADY_RUNNING') {
+      return res.status(409).json({
+        ok: false,
+        code: 'CYCLE_ALREADY_RUNNING',
+        message: 'Cycle already running',
+        cycleId: error.cycleId ?? null,
+      });
     }
 
     return res.status(500).json({
       ok: false,
-      error: error instanceof Error ? error.message : String(error),
+      code: 'CYCLE_RUN_FAILED',
+      message: error instanceof Error ? error.message : String(error),
     });
   }
 });
@@ -34,17 +58,7 @@ router.post('/run', async (_req, res) => {
 router.get('/runtime', async (_req, res) => {
   try {
     const runtime = await getCycleRuntime();
-    return res.json({
-      status: runtime.status,
-      stage: runtime.stage,
-      progressPct: runtime.progressPct,
-      metrics: runtime.metrics ?? {},
-      startedAt: runtime.startedAt ?? null,
-      completedAt: runtime.completedAt ?? null,
-      failedAt: runtime.failedAt ?? null,
-      updatedAt: runtime.updatedAt ?? null,
-      lastError: runtime.lastError ?? null,
-    });
+    return res.json(runtime);
   } catch (error) {
     return res.status(500).json({
       ok: false,

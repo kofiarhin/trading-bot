@@ -4,6 +4,8 @@ import { useActivity } from "../hooks/queries/useDashboard.js";
 const TYPE_STYLES = {
   cycle_complete: { dot: "bg-sky-400", text: "text-slate-200" },
   cycle_started: { dot: "bg-cyan-400", text: "text-slate-200" },
+  cycle_stage: { dot: "bg-indigo-400", text: "text-indigo-200" },
+  cycle_failed: { dot: "bg-red-400", text: "text-red-300" },
   skipped: { dot: "bg-slate-600", text: "text-slate-500" },
   failed: { dot: "bg-red-400", text: "text-red-300" },
   approved: { dot: "bg-emerald-400", text: "text-slate-200" },
@@ -13,6 +15,7 @@ const TYPE_STYLES = {
   dry_run: { dot: "bg-slate-400", text: "text-slate-300" },
   trade_opened: { dot: "bg-emerald-500", text: "text-emerald-300" },
   trade_closed: { dot: "bg-slate-400", text: "text-slate-300" },
+  trade_placed: { dot: "bg-sky-400", text: "text-sky-200" },
   stop_loss_hit: { dot: "bg-red-500", text: "text-red-300" },
   take_profit_hit: { dot: "bg-emerald-400", text: "text-emerald-300" },
   broker_sync_close: { dot: "bg-slate-500", text: "text-slate-400" },

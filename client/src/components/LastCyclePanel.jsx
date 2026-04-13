@@ -1,4 +1,5 @@
 import { useLatestCycle } from "../hooks/queries/useDashboard.js";
+import { useCycleRuntime } from "../hooks/queries/useCycleRuntime.js";
 
 function Row({ label, value, color }) {
   return (
@@ -29,32 +30,52 @@ function fmtDuration(ms) {
 
 export default function LastCyclePanel() {
   const { data: cycle, isLoading } = useLatestCycle();
+  const { data: runtime } = useCycleRuntime();
+
+  const isRunning = runtime?.status === "running";
+
+  const panelData = isRunning
+    ? {
+        startTime: runtime.startedAt,
+        endTime: null,
+        durationMs: runtime.startedAt ? Date.now() - new Date(runtime.startedAt).getTime() : null,
+        stage: runtime.stage,
+        progressPct: runtime.progressPct,
+        symbolCount: runtime.symbolCount,
+        scanned: runtime.scanned,
+        approved: runtime.approved,
+        rejected: runtime.rejected,
+        placed: runtime.placed,
+        errors: runtime.errors,
+      }
+    : cycle;
 
   return (
     <div className="rounded-xl bg-slate-800 border border-slate-700 p-5">
       <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wide mb-3">
-        Last Cycle
+        {isRunning ? "Current Cycle" : "Last Cycle"}
       </h2>
 
-      {isLoading ? (
+      {isLoading && !panelData ? (
         <p className="text-slate-500 text-sm">Loading...</p>
-      ) : !cycle ? (
+      ) : !panelData ? (
         <p className="text-slate-500 text-sm">No cycle data for today.</p>
       ) : (
         <div>
-          <Row label="Start" value={fmtTime(cycle.startTime)} />
-          <Row label="End" value={fmtTime(cycle.endTime)} />
-          <Row label="Duration" value={fmtDuration(cycle.durationMs)} color="text-slate-300" />
-          <Row label="Stage" value={cycle.stage ? cycle.stage.replaceAll("_", " ") : "—"} color="text-slate-300" />
-          <Row label="Progress" value={cycle.progressPct != null ? `${cycle.progressPct}%` : "—"} color="text-sky-300" />
-          <Row label="Scanned" value={cycle.scanned} />
-          <Row label="Approved" value={cycle.approved} color="text-emerald-400" />
-          <Row label="Rejected" value={cycle.rejected} color="text-red-400" />
-          <Row label="Placed" value={cycle.placed} color="text-sky-400" />
+          <Row label="Start" value={fmtTime(panelData.startTime)} />
+          <Row label="End" value={fmtTime(panelData.endTime)} />
+          <Row label="Duration" value={fmtDuration(panelData.durationMs)} color="text-slate-300" />
+          <Row label="Stage" value={panelData.stage ? panelData.stage.replaceAll("_", " ") : "—"} color="text-slate-300" />
+          <Row label="Progress" value={panelData.progressPct != null ? `${panelData.progressPct}%` : "—"} color="text-sky-300" />
+          <Row label="Symbols" value={panelData.symbolCount} />
+          <Row label="Scanned" value={panelData.scanned} />
+          <Row label="Approved" value={panelData.approved} color="text-emerald-400" />
+          <Row label="Rejected" value={panelData.rejected} color="text-red-400" />
+          <Row label="Placed" value={panelData.placed} color="text-sky-400" />
           <Row
             label="Errors"
-            value={cycle.errors}
-            color={cycle.errors > 0 ? "text-red-400" : "text-slate-400"}
+            value={panelData.errors}
+            color={panelData.errors > 0 ? "text-red-400" : "text-slate-400"}
           />
         </div>
       )}
