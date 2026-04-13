@@ -18,7 +18,18 @@ npm run autopilot:dry      # Same, no orders placed (safe for testing)
 npm run worker:15m         # Long-running process, triggers on 15-min candles
 npm run strategy:simulate  # Strategy-only evaluation, no execution
 npm run monitor            # View open positions
+npm run monitor:dry        # View open positions (dry-run mode)
 ```
+
+### Manual Trading CLI
+```bash
+npm run trade -- "buy 1 share of apple"
+npm run trade -- 'buy $100 of tesla'
+npm run trade -- "sell apple stock"
+npm run trade -- "close my btc position"
+npm run trade:dry -- "buy 2 shares of nvidia"  # Preview without executing
+```
+Wrap dollar-amount commands in single quotes to avoid shell `$` expansion.
 
 ### Database
 ```bash
@@ -68,6 +79,7 @@ The core loop runs per-symbol in sequence:
 | `src/indicators/` | Pure calculation functions (ATR, highest high, average volume) |
 | `src/models/` | Mongoose schemas: `OpenTrade`, `ClosedTrade`, `TradeEvent`, `Decision`, `CycleLog`, `CycleRun`, `RiskState`, `JournalRecord` |
 | `src/repositories/` | MongoDB read/write operations — used by journal and risk modules |
+| `src/repos/` | Legacy storage repo (`storageRepo.mongo.js`) — distinct from `src/repositories/` |
 | `src/positions/` | Exit logic — checks open trades against current price for stop/target hits |
 | `src/server/` | Express app + API routes (dashboard, trades, positions) — read-only, no order placement |
 | `src/db/` | MongoDB connection (`connectMongo.js`) and migration (`migrate.js`) |
@@ -83,16 +95,19 @@ All state is persisted in MongoDB. The Mongoose models map to these collections:
 Legacy JSON files under `storage/` may still exist from before the MongoDB migration. Run `npm run db:migrate` once to import them.
 
 ### Server API (`src/server/`)
-The Express server is read-only — it reads from MongoDB and queries Alpaca directly. It never writes state or places orders. Three route groups:
-- `/api/dashboard/*` — 11 GET endpoints for cycle/decision/risk summaries
+The Express server is read-only — it reads from MongoDB and queries Alpaca directly. It never writes state or places orders. Route groups:
+- `/api/dashboard/*` — cycle/decision/risk summaries
 - `/api/trades/*` — open and closed trade queries
 - `/api/positions/*` — live position data from Alpaca
+- `/api/journal/*` — raw journal records
 - `/api/health` — liveness check
+
+CORS is restricted to `CLIENT_URL` env var (defaults to `http://localhost:5173`).
 
 ### Frontend API Layer (`client/src/`)
 - Shared Axios client: `client/src/lib/api.js` (base URL from `VITE_API_URL` env var)
 - Service functions: `client/src/services/dashboard.js`
-- React Query hooks: `client/src/hooks/queries/useDashboard.js`
+- React Query hooks: `client/src/hooks/queries/useDashboard.js`, `useJournal.js`
 - All queries have 15-second refresh intervals; stale time is 10 seconds
 - Do not call API endpoints directly from components — always go through the hook layer
 
@@ -122,6 +137,13 @@ Controlled by `ENABLE_STOCKS` and `ENABLE_CRYPTO` env vars. Crypto symbols norma
 - Crypto cooldown: 6 hours after a trade
 
 ## Testing Notes
-- `tests/parser.test.js`, `tests/tradePlanner.test.js`, and some crypto tests are marked `.skip` — do not remove skip markers without checking why
+- Four test files are excluded via `testPathIgnorePatterns` in `package.json` (not `.skip`): `parser.test.js`, `tradePlanner.test.js`, `tradePlanner.crypto.test.js`, `alpaca.crypto.test.js` — do not remove these exclusions without checking why
 - Backend tests use Jest (`tests/`); there are no frontend tests currently
 - Test files directly import from `src/` — no mock of the file system unless explicitly set up in the test
+- `mongodb-memory-server` is available for in-process MongoDB in tests
+
+## Deployment
+- Backend API + worker → Heroku (`Procfile` defines `web` and `worker` dynos)
+- Frontend → Vercel (static Vite build)
+- Database → MongoDB Atlas
+- `CLIENT_URL` Heroku config var must be set to the Vercel frontend URL for CORS to work
