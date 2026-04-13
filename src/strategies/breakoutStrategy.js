@@ -1,31 +1,46 @@
 // Momentum Breakout + ATR Risk Strategy — v1 built-in strategy.
 //
 // Entry conditions (long only):
-//   1. Latest close > highest high of last N completed candles (breakout)
-//   2. Current volume > average volume of last N candles × minVolRatio
-//   3. ATR is valid (> 0)
-//   4. stopLoss < entryPrice (valid stop distance)
-//   5. quantity >= 1
-//
-// Outputs a structured decision object (see spec §7.9).
+//   1. Sufficient bar history (breakoutLookback + 2 bars minimum)
+//   2. Latest close > highest high of last N completed candles (breakout confirmed)
+//   3. Breakout is not overextended (distanceToBreakoutPct <= maxDistanceToBreakoutPct)
+//   4. Current volume > average volume × minVolRatio
+//   5. ATR is above minimum threshold (minAtr)
+//   6. stopLoss < entryPrice (valid stop distance; riskPerUnit > 0)
+//   7. Risk/reward >= minRiskReward
+//   8. Position quantity > 0 for the asset class
 
 import { calcATR } from "../indicators/atr.js";
 import { calcHighestHigh } from "../indicators/highestHigh.js";
 import { calcAverageVolume } from "../indicators/averageVolume.js";
+import { normalizeSymbol } from "../utils/symbolNorm.js";
 
-const STRATEGY_NAME = "momentum_breakout_atr_v1";
+export const STRATEGY_NAME = "momentum_breakout_atr_v1";
 
+// Read numeric env vars, falling back to a default if invalid or missing.
+function envNum(name, fallback) {
+  const v = Number(process.env[name]);
+  return Number.isFinite(v) && v > 0 ? v : fallback;
+}
+
+// Defaults are env-configurable at process start.
+// Pass `options` to evaluateBreakout() to override per-call.
 const DEFAULTS = {
-  breakoutLookback: 20,
-  volumeLookback: 20,
-  atrPeriod: 14,
-  atrMultiplier: 1.5,
-  targetMultiple: 2, // 2R
-  minVolRatio: 1.0, // current vol must exceed avg (≥1.0x)
+  breakoutLookback: envNum('BREAKOUT_LOOKBACK', 20),
+  volumeLookback: envNum('VOLUME_LOOKBACK', 20),
+  atrPeriod: envNum('ATR_PERIOD', 14),
+  atrMultiplier: envNum('ATR_MULTIPLIER', 1.5),
+  targetMultiple: envNum('TARGET_MULTIPLE', 2),
+  minVolRatio: envNum('MIN_VOL_RATIO', 1.2),
+  minAtr: envNum('MIN_ATR', 0.25),
+  maxDistanceToBreakoutPct: envNum('MAX_DISTANCE_TO_BREAKOUT_PCT', 1.0),
+  minRiskReward: envNum('MIN_RISK_REWARD', 1.5),
 };
 
 /**
  * Evaluates a symbol against the breakout strategy.
+ *
+ * Bars must be in Alpaca raw format: { t, o, h, l, c, v }
  *
  * @param {{
  *   symbol: string,
@@ -34,14 +49,10 @@ const DEFAULTS = {
  *   accountEquity: number,
  *   riskPercent: number,
  *   timeframe?: string,
+ *   options?: object,
  * }} params
- * @returns {{
- *   approved: boolean,
- *   symbol: string,
- *   reason: string,
- *   timestamp: string,
- *   [key: string]: any
- * }}
+ *
+ * @returns Canonical decision object with a `metrics` sub-object and `blockers` array.
  */
 export function evaluateBreakout({
   symbol,
@@ -54,8 +65,10 @@ export function evaluateBreakout({
 }) {
   const opts = { ...DEFAULTS, ...options };
   const timestamp = new Date().toISOString();
+  const normalizedSym = normalizeSymbol(symbol);
 
-  // Metrics accumulated as we compute them — included in every decision return.
+  // Metrics are populated incrementally and always included in the return value,
+  // even on early rejection, so the dashboard can display partial data.
   let closePrice = null;
   let breakoutLevel = null;
   let atr = null;
@@ -70,26 +83,33 @@ export function evaluateBreakout({
     return {
       approved: false,
       symbol,
+      normalizedSymbol: normalizedSym,
       assetClass,
-      timeframe,
       strategyName: STRATEGY_NAME,
-      reason,
       timestamp,
-      closePrice,
-      breakoutLevel,
-      atr,
-      volumeRatio,
-      distanceToBreakoutPct,
+      timeframe,
+      side: 'buy',
+      reason,
+      blockers: [reason],
       entryPrice: null,
       stopLoss: null,
       takeProfit: null,
       quantity: null,
       riskAmount: null,
+      riskReward: null,
+      metrics: {
+        closePrice,
+        breakoutLevel,
+        atr,
+        volumeRatio,
+        distanceToBreakoutPct,
+      },
     };
   }
 
+  // ── 1. Sufficient bar history ──────────────────────────────────────────────
   if (!Array.isArray(bars) || bars.length < opts.breakoutLookback + 2) {
-    return reject("insufficient bar history");
+    return reject('insufficient_market_data');
   }
 
   const latestBar = bars[bars.length - 1];
@@ -97,123 +117,103 @@ export function evaluateBreakout({
   const entryPrice = closePrice;
   const currentVolume = latestBar.v;
 
-  // --- Highest high (breakout level) ---
+  // ── 2. Highest high (breakout level) — excludes the current bar ───────────
   const rawBreakoutLevel = calcHighestHigh(bars, opts.breakoutLookback);
-  if (rawBreakoutLevel === null)
-    return reject("could not compute breakout level");
+  if (rawBreakoutLevel === null) return reject('insufficient_market_data');
   breakoutLevel = toMetric(rawBreakoutLevel);
 
-  // --- Volume confirmation metric ---
+  // ── 3. Volume ratio ────────────────────────────────────────────────────────
   const avgVolume = calcAverageVolume(bars, opts.volumeLookback);
-  if (avgVolume !== null && avgVolume !== 0) {
+  if (avgVolume !== null && avgVolume > 0) {
     volumeRatio = toMetric(currentVolume / avgVolume);
   }
 
-  // --- ATR metric ---
+  // ── 4. ATR ─────────────────────────────────────────────────────────────────
   const rawAtr = calcATR(bars, opts.atrPeriod);
   if (rawAtr !== null && rawAtr > 0) {
     atr = toMetric(rawAtr);
   }
 
+  // ── 5. Distance to breakout level (positive = above = breakout) ───────────
+  // Positive value means the close is above the breakout level (expected for a
+  // valid breakout). Negative means price is still below the level.
   distanceToBreakoutPct = breakoutLevel
-    ? toMetric(((breakoutLevel - entryPrice) / breakoutLevel) * 100)
+    ? toMetric(((entryPrice - rawBreakoutLevel) / rawBreakoutLevel) * 100)
     : null;
 
-  // --- TEMP TEST OVERRIDE ---
-  // Remove this block after journal pipeline validation.
-  if (symbol === "BTC/USD" || symbol === "BTCUSD") {
-    if (rawAtr === null || rawAtr <= 0) {
-      return reject("test override failed: invalid ATR");
-    }
-
-    const stopLoss = entryPrice - rawAtr;
-    const riskPerUnit = entryPrice - stopLoss;
-    const takeProfit = entryPrice + riskPerUnit * opts.targetMultiple;
-    const riskAmount = accountEquity * riskPercent;
-    const quantity =
-      assetClass === "crypto"
-        ? parseFloat((riskAmount / riskPerUnit).toFixed(8))
-        : Math.max(1, Math.floor(riskAmount / riskPerUnit));
-
-    return {
-      approved: true,
-      symbol,
-      assetClass,
-      timeframe,
-      strategyName: STRATEGY_NAME,
-      closePrice,
-      entryPrice: toMetric(entryPrice),
-      stopLoss: toMetric(stopLoss),
-      takeProfit: toMetric(takeProfit),
-      atr,
-      breakoutLevel,
-      volumeRatio,
-      distanceToBreakoutPct,
-      riskPerUnit: toMetric(riskPerUnit),
-      quantity,
-      riskAmount: toMetric(riskAmount),
-      reason:
-        "TEMP TEST OVERRIDE: force-approved BTC for journal pipeline validation",
-      timestamp,
-    };
-  }
-
+  // ── Guard: breakout confirmed ──────────────────────────────────────────────
   if (entryPrice <= rawBreakoutLevel) {
-    const reasonStr =
-      distanceToBreakoutPct !== null
-        ? `no breakout (${distanceToBreakoutPct.toFixed(2)}% below level)`
-        : "no breakout";
-    return reject(reasonStr);
+    return reject('no_breakout');
   }
 
-  // --- Volume confirmation ---
-  if (avgVolume === null || avgVolume === 0)
-    return reject("could not compute average volume");
+  // ── Guard: not overextended ────────────────────────────────────────────────
+  if (distanceToBreakoutPct !== null && distanceToBreakoutPct > opts.maxDistanceToBreakoutPct) {
+    return reject('breakout_too_extended');
+  }
+
+  // ── Guard: volume confirmation ─────────────────────────────────────────────
+  if (avgVolume === null || avgVolume === 0 || volumeRatio === null) {
+    return reject('weak_volume');
+  }
   if (volumeRatio < opts.minVolRatio) {
-    return reject(
-      `volume confirmation failed: ratio ${volumeRatio.toFixed(2)} < ${opts.minVolRatio}`,
-    );
+    return reject('weak_volume');
   }
 
-  // --- ATR ---
-  if (rawAtr === null || rawAtr <= 0) return reject("invalid ATR");
+  // ── Guard: ATR minimum ─────────────────────────────────────────────────────
+  if (rawAtr === null || rawAtr <= 0 || rawAtr < opts.minAtr) {
+    return reject('atr_too_low');
+  }
 
-  // --- Stop-loss ---
-  const stopLoss = entryPrice - opts.atrMultiplier * atr;
+  // ── Stop-loss and take-profit via ATR ──────────────────────────────────────
+  const stopLoss = entryPrice - opts.atrMultiplier * rawAtr;
   const riskPerUnit = entryPrice - stopLoss;
-  if (riskPerUnit <= 0) return reject("invalid stop-loss distance");
+  if (riskPerUnit <= 0) return reject('invalid_stop_distance');
 
-  // --- Take-profit ---
   const takeProfit = entryPrice + opts.targetMultiple * riskPerUnit;
 
-  // --- Position sizing ---
-  const riskAmount = accountEquity * riskPercent;
-  if (riskAmount <= 0) return reject("invalid risk amount");
+  // ── Guard: risk/reward ─────────────────────────────────────────────────────
+  const rewardPerUnit = takeProfit - entryPrice;
+  const riskReward = riskPerUnit > 0 ? rewardPerUnit / riskPerUnit : null;
+  if (!riskReward || riskReward < opts.minRiskReward) {
+    return reject('invalid_risk_reward');
+  }
+
+  // ── Position sizing ────────────────────────────────────────────────────────
+  // riskAmount = total planned dollar risk for the trade (not per-share risk).
+  const riskAmount = (accountEquity ?? 0) * (riskPercent ?? 0.005);
+  if (riskAmount <= 0) return reject('invalid_risk_reward');
+
   const quantity =
-    assetClass === "crypto"
+    assetClass === 'crypto'
       ? parseFloat((riskAmount / riskPerUnit).toFixed(8))
       : Math.floor(riskAmount / riskPerUnit);
-  if (assetClass !== "crypto" && quantity < 1) return reject("position size rounds to zero");
-  if (quantity <= 0) return reject("position size rounds to zero");
+
+  if (assetClass !== 'crypto' && quantity < 1) return reject('invalid_risk_reward');
+  if (quantity <= 0) return reject('invalid_risk_reward');
 
   return {
     approved: true,
     symbol,
+    normalizedSymbol: normalizedSym,
     assetClass,
-    timeframe,
     strategyName: STRATEGY_NAME,
-    closePrice,
-    entryPrice,
+    timestamp,
+    timeframe,
+    side: 'buy',
+    reason: 'breakout_confirmed',
+    blockers: [],
+    entryPrice: toMetric(entryPrice),
     stopLoss: toMetric(stopLoss),
     takeProfit: toMetric(takeProfit),
-    atr,
-    breakoutLevel,
-    volumeRatio,
-    distanceToBreakoutPct,
-    riskPerUnit: toMetric(riskPerUnit),
     quantity,
     riskAmount: toMetric(riskAmount),
-    reason: "15m breakout confirmed by volume",
-    timestamp,
+    riskReward: toMetric(riskReward),
+    metrics: {
+      closePrice: toMetric(closePrice),
+      breakoutLevel: toMetric(breakoutLevel),
+      atr: toMetric(atr),
+      volumeRatio: toMetric(volumeRatio),
+      distanceToBreakoutPct: toMetric(distanceToBreakoutPct),
+    },
   };
 }

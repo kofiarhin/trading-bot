@@ -1,0 +1,266 @@
+You are working inside an existing MERN-stack trading bot project.
+
+Project context
+- Backend: Node.js + Express + MongoDB, ESM modules
+- Frontend: React + Vite
+- Root package.json exists at project root
+- Keep current architecture and APIs unless explicitly stated below
+- Do not move API logic into React components
+- Keep changes production-leaning and minimal
+- Keep existing desktop dashboard layout intact
+- Preserve current endpoints unless a bug fix requires returning cleaner data from the same endpoint
+- Use the existing journal / storage system rather than inventing a parallel one
+
+Objective
+Apply a full integrity fix for the current breakout trading system without changing the core strategy family.
+
+The current problems to fix
+1. src/autopilot.js has its own local breakout decision logic instead of using the real strategy module.
+2. Debug / forced-trade paths are polluting live behavior and journal stats.
+3. Journal summary cards are mixing real strategy trades with broker_sync records.
+4. Open positions and journal records need fully consistent canonical trade context.
+5. Decision metrics and rejection reasons are too weak for analysis.
+6. Activity feed is too shallow to diagnose why cycles produced zero trades.
+
+Repository facts already observed
+- src/autopilot.js currently contains a local buildDecision() implementation.
+- src/strategies/breakoutStrategy.js contains the real evaluateBreakout() strategy evaluator.
+- src/strategies/forceTrade.js exists and is currently used by autopilot.
+- broker_sync records are written through src/journal/tradeJournal.js and currently appear in journal stats.
+- client already has dashboard + journal UI that should keep working after this fix.
+
+What to implement
+
+PART 1 — Make the breakout strategy a single source of truth
+A. Refactor src/autopilot.js so it does not use its own homemade breakout approval logic anymore.
+B. Replace the local buildDecision() strategy math with a call into src/strategies/breakoutStrategy.js.
+C. Keep autopilot responsible for:
+   - fetching market data
+   - session/universe filtering
+   - risk guards
+   - saving decisions
+   - placing orders
+   - cycle logging
+   - syncing broker/journal state
+D. Make the strategy module responsible for the actual signal decision.
+E. Preserve existing autopilot response/cycle shape as much as possible.
+
+Important mapping rule
+If evaluateBreakout() does not yet return the exact fields autopilot needs, update evaluateBreakout() so it returns a canonical decision object that autopilot can use directly.
+
+Required canonical decision shape
+Use one consistent shape across strategy -> autopilot -> order placement -> decision persistence -> dashboard:
+
+{
+  approved: boolean,
+  symbol: string,
+  normalizedSymbol: string,
+  assetClass: 'stock' | 'crypto',
+  strategyName: string,
+  timestamp: string,
+  side: 'buy',
+  reason: string,
+  blockers: string[],
+  entryPrice: number,
+  stopLoss: number,
+  takeProfit: number,
+  quantity: number,
+  riskAmount: number,
+  riskReward: number,
+  metrics: {
+    closePrice: number,
+    breakoutLevel: number,
+    atr: number,
+    volumeRatio: number,
+    distanceToBreakoutPct: number
+  }
+}
+
+Notes
+- normalizedSymbol should use the project’s existing normalizeSymbol utility.
+- riskAmount should mean total planned dollar risk for the trade, not per-share risk.
+- quantity must be valid for the asset class and match the system’s current order flow expectations.
+
+PART 2 — Remove debug / force-trade contamination from live flow
+A. Remove or disable forced trade behavior from normal autopilot execution.
+B. Specifically stop autopilot from using maybeForceTrade() during normal cycles.
+C. Remove any BTC-only or similar debug override inside src/strategies/breakoutStrategy.js.
+D. Do not delete the helper files if they may still be useful later, but make sure live autopilot behavior is clean by default.
+E. If you keep any debug capability, it must be opt-in through an explicit env flag that defaults to disabled.
+
+PART 3 — Harden the current breakout strategy without changing the strategy family
+Keep it as a breakout strategy, but make the evaluator more analyzable and less permissive.
+
+Required behavior
+1. Reject when there is insufficient data.
+2. Reject when latest close does not actually break the breakout level.
+3. Reject when volume ratio is below a configurable minimum.
+4. Reject when ATR is below a configurable minimum.
+5. Reject when breakout is too extended above the breakout level.
+6. Compute stop loss and take profit using ATR-based logic.
+7. Compute risk/reward and reject if it is invalid or below a configurable minimum.
+
+Use env-driven defaults where appropriate
+Suggested defaults
+- breakoutLookback: 20
+- volumeLookback: 20
+- atrPeriod: 14
+- atrMultiplier: 1.5
+- targetMultiple: 2
+- minVolRatio: 1.2
+- minAtr: 0.25
+- maxDistanceToBreakoutPct: 1.0
+- minRiskReward: 1.5
+- riskPercent: existing project default if present, otherwise 0.5% of equity
+
+Use exact rejection reasons
+Prefer exact reasons like:
+- insufficient_market_data
+- no_breakout
+- weak_volume
+- atr_too_low
+- breakout_too_extended
+- invalid_stop_distance
+- invalid_risk_reward
+
+blockers should also be precise where relevant.
+
+PART 4 — Keep risk guards in autopilot, but make them additive and transparent
+Autopilot should still apply execution/risk guards after strategy approval, including:
+- duplicate_position_guard
+- max_positions_guard
+- daily_loss_guard if already supported by project state
+
+Rules
+- Strategy decides signal quality.
+- Autopilot decides execution eligibility.
+- If guards block an otherwise valid strategy setup, keep approved false at the final persisted decision stage and append blockers cleanly.
+- Persist the original strategy reason plus guard blockers in a way the dashboard can show clearly.
+
+PART 5 — Canonical trade journal integrity
+Unify trade persistence so real trades are journaled with canonical fields.
+For every real placed trade, ensure the open trade record contains at minimum:
+- tradeId
+- symbol
+- normalizedSymbol
+- assetClass
+- strategyName
+- status
+- side
+- entryPrice
+- stopLoss
+- takeProfit
+- quantity
+- riskAmount
+- riskReward
+- openedAt
+- brokerOrderId if available
+- metrics
+
+For closed trades, ensure canonical closed records include:
+- tradeId
+- symbol
+- strategyName
+- entryPrice
+- exitPrice
+- quantity
+- riskAmount
+- riskReward
+- pnl
+- pnlPct
+- openedAt
+- closedAt
+- exitReason
+- metrics if available
+
+Do not create a second incompatible journal schema.
+Use the existing normalization helpers / stores where possible.
+
+PART 6 — Clean journal summary statistics
+Current journal summary cards are being polluted by broker_sync records.
+Fix this.
+
+Requirements
+A. Keep broker_sync records available for reconciliation/history if the current system needs them.
+B. Exclude broker_sync records from strategy-performance summary calculations by default.
+C. Journal summary cards such as total trades, win rate, total pnl, avg win/loss should be based on real strategy trades only.
+D. The journal table may still show broker_sync rows, but performance calculations must not treat them as strategy trades.
+E. Implement this on the backend if possible so frontend cards receive clean values without hacky UI-only filtering.
+
+PART 7 — Improve dashboard decision data quality
+Ensure the dashboard API returns structured decision metrics, not only reason strings.
+For recent decisions and related dashboard views, return:
+- strategyName
+- reason
+- blockers
+- close
+- breakoutLevel
+- atr
+- volumeRatio
+- distanceToBreakoutPct
+- approved / rejected state
+- timestamp
+
+Make sure the frontend can render these values without breaking if some older records are missing fields.
+Backward-compatible null-safe behavior is required.
+
+PART 8 — Improve activity feed usefulness
+Make the activity feed more diagnostic without bloating it.
+During each cycle, include events such as:
+- cycle started
+- symbol rejected with exact reason when useful
+- trade placed
+- trade closed with exit reason
+- cycle completed with counts
+
+Do not spam the feed excessively, but make it materially more informative than repeated “cycle complete” lines.
+
+PART 9 — Tests
+Add or update backend tests to cover the fix.
+At minimum include tests for:
+1. Strategy evaluator returns canonical structured decision output.
+2. Strategy rejects no_breakout.
+3. Strategy rejects weak_volume.
+4. Strategy rejects atr_too_low.
+5. Strategy rejects breakout_too_extended.
+6. Autopilot uses evaluateBreakout() instead of its previous local decision math.
+7. Journal summary calculations exclude broker_sync records.
+8. Canonical riskAmount is total planned risk, not per-share risk.
+
+Use the project’s current backend test setup and conventions.
+Do not add a new test framework.
+
+PART 10 — Constraints
+- Do not redesign the frontend.
+- Do not break existing route URLs.
+- Do not move package.json.
+- Do not introduce Redux or frontend architectural changes.
+- Do not create fake placeholder data.
+- Do not remove existing broker sync capability; just keep it out of strategy-performance stats.
+- Prefer minimal, surgical updates over large refactors.
+
+Files likely involved
+You are free to inspect and adjust what is necessary, but these are the expected primary files:
+- src/autopilot.js
+- src/strategies/breakoutStrategy.js
+- src/strategies/forceTrade.js
+- src/journal/tradeJournal.js
+- src/execution/orderManager.js
+- src/positions/positionMonitor.js
+- src/server/routes/dashboard.js
+- any journal summary or normalization helpers used by these files
+- relevant backend tests
+
+Implementation expectations
+1. Inspect the existing code before editing.
+2. Reuse existing helpers/utilities where possible.
+3. Keep naming consistent with the current codebase.
+4. Preserve backward compatibility for older journal/decision records where possible.
+5. After changes, run the relevant test suite or targeted tests and fix failures.
+
+Output format required from you
+When you finish:
+1. Show a short “changed files” list.
+2. Explain the fix in a compact bullet list.
+3. Mention any migration/backfill note if existing old journal records will remain imperfect.
+4. Include any env vars added or changed.

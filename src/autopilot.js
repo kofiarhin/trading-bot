@@ -19,24 +19,32 @@ import { appendCycleEvent } from './repositories/cycleRepo.mongo.js';
 import { loadRiskState } from './risk/riskState.js';
 import { checkOpenTradesForExit } from './positions/positionMonitor.js';
 import { closeTrade } from './execution/orderManager.js';
-import { normalizeSymbol } from './utils/symbolNorm.js';
-import { maybeForceTrade } from './strategies/forceTrade.js';
+import { evaluateBreakout } from './strategies/breakoutStrategy.js';
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function toNumber(value, fallback = 0) {
   const numericValue = Number(value);
   return Number.isFinite(numericValue) ? numericValue : fallback;
 }
 
-function roundPrice(value) {
-  return Number(toNumber(value, 0).toFixed(2));
+function inferAssetClass(symbol) {
+  return typeof symbol === 'string' && symbol.includes('/') ? 'crypto' : 'stock';
 }
 
-function average(values) {
-  if (!values.length) {
-    return 0;
-  }
-
-  return values.reduce((total, value) => total + value, 0) / values.length;
+/**
+ * Converts any bar format (Alpaca raw or long-name normalized) to the raw
+ * short-name format expected by the strategy indicators: { t, o, h, l, c, v }.
+ */
+function toStrategyBars(bars) {
+  return (bars ?? []).map((b) => ({
+    t: b.timestamp ?? b.t,
+    o: b.open ?? b.o,
+    h: b.high ?? b.h,
+    l: b.low ?? b.l,
+    c: b.close ?? b.c,
+    v: b.volume ?? b.v,
+  }));
 }
 
 function getConfiguredSymbols() {
@@ -59,47 +67,13 @@ function getConfiguredSymbols() {
   return universeEntries.map((e) => e.symbol);
 }
 
-function calculateAtr(bars, period = 14) {
-  if (!bars.length) {
-    return 0;
-  }
-
-  const startIndex = Math.max(1, bars.length - period);
-  const trueRanges = [];
-
-  for (let index = startIndex; index < bars.length; index += 1) {
-    const currentBar = bars[index];
-    const previousBar = bars[index - 1] ?? currentBar;
-    const intrabarRange = currentBar.high - currentBar.low;
-    const highToPreviousClose = Math.abs(currentBar.high - previousBar.close);
-    const lowToPreviousClose = Math.abs(currentBar.low - previousBar.close);
-    trueRanges.push(Math.max(intrabarRange, highToPreviousClose, lowToPreviousClose));
-  }
-
-  return average(trueRanges);
-}
-
-function inferAssetClass(symbol) {
-  return typeof symbol === 'string' && symbol.includes('/') ? 'crypto' : 'stock';
-}
-
-function normalizeBar(bar) {
-  return {
-    timestamp: bar.t,
-    open: toNumber(bar.o),
-    high: toNumber(bar.h),
-    low: toNumber(bar.l),
-    close: toNumber(bar.c),
-    volume: toNumber(bar.v),
-  };
-}
-
 async function fetchBarsBySymbol(symbols) {
   const stockSymbols = symbols.filter((s) => inferAssetClass(s) === 'stock');
   const cryptoSymbols = symbols.filter((s) => inferAssetClass(s) === 'crypto');
   const results = {};
 
-  // Stocks: use the multi-symbol limit-based endpoint (works outside market hours)
+  // Stocks: use the multi-symbol limit-based endpoint (works outside market hours).
+  // getBarsForSymbols returns long-name format; toStrategyBars() converts at call site.
   if (stockSymbols.length) {
     try {
       const stockBars = await getBarsForSymbols(stockSymbols, { timeframe: '15Min', limit: 60 });
@@ -110,12 +84,11 @@ async function fetchBarsBySymbol(symbols) {
     }
   }
 
-  // Crypto: must use the dedicated crypto endpoint — stocks endpoint rejects these symbols
+  // Crypto: dedicated endpoint returns raw { t, o, h, l, c, v } format directly.
   await Promise.all(
     cryptoSymbols.map(async (symbol) => {
       try {
-        const rawBars = await fetchCryptoBars(symbol, 60);
-        results[symbol] = rawBars.map(normalizeBar);
+        results[symbol] = await fetchCryptoBars(symbol, 60);
       } catch (err) {
         console.error(`Failed to fetch crypto bars for ${symbol}: ${err.message}`);
         results[symbol] = [];
@@ -126,106 +99,26 @@ async function fetchBarsBySymbol(symbols) {
   return results;
 }
 
-function buildDecision(symbol, bars, account) {
-  const timestamp = nowIso();
-  const normalizedSym = normalizeSymbol(symbol);
-  const assetClass = inferAssetClass(symbol);
+/**
+ * Evaluates a single symbol by delegating to the canonical strategy module.
+ * Returns a decision in the canonical shape with a unique `id`.
+ */
+function evaluateSymbol(symbol, bars, account) {
+  const equity = toNumber(account?.equity, 100000);
+  const riskPercent = toNumber(process.env.RISK_PERCENT, 0.005);
 
-  if (!Array.isArray(bars) || bars.length < 21) {
-    return {
-      id: randomUUID(),
-      symbol,
-      normalizedSymbol: normalizedSym,
-      assetClass,
-      strategyName: 'breakout',
-      timestamp,
-      approved: false,
-      side: 'buy',
-      reason: 'insufficient_market_data',
-      entryPrice: 0,
-      stopLoss: 0,
-      takeProfit: 0,
-      quantity: 0,
-      riskAmount: 0,
-      metrics: {
-        closePrice: 0,
-        breakoutLevel: 0,
-        atr: 0,
-        volumeRatio: 0,
-        distanceToBreakoutPct: 0,
-      },
-      blockers: ['insufficient_market_data'],
-    };
-  }
+  // Convert bars to raw short-name format expected by indicators / strategy.
+  const rawBars = toStrategyBars(bars);
 
-  const recentBars = bars.slice(-21);
-  const priorBars = recentBars.slice(0, -1);
-  const currentBar = recentBars[recentBars.length - 1];
-  const close = toNumber(currentBar.close, 0);
-
-  const forcedResult = maybeForceTrade({ symbol, assetClass, latestPrice: close });
-  if (forcedResult) {
-    const forcedQty = Number(process.env.FORCE_FIRST_TRADE_QTY ?? 0.001);
-    const sl = Number((close * 0.99).toFixed(2));
-    const tp = Number((close * 1.02).toFixed(2));
-    return {
-      id: randomUUID(),
-      symbol,
-      normalizedSymbol: normalizedSym,
-      assetClass,
-      strategyName: forcedResult.strategyName,
-      timestamp,
-      approved: true,
-      side: 'buy',
-      reason: forcedResult.reason,
-      entryPrice: roundPrice(close),
-      stopLoss: sl,
-      takeProfit: tp,
-      quantity: forcedQty,
-      riskAmount: Number((close * 0.01 * forcedQty).toFixed(2)),
-      metrics: forcedResult.metrics,
-      isForced: true,
-      blockers: [],
-    };
-  }
-
-  const breakoutLevel = Math.max(...priorBars.map((bar) => toNumber(bar.high, 0)));
-  const atr = calculateAtr(bars.slice(-15));
-  const averageVolume = average(priorBars.slice(-10).map((bar) => toNumber(bar.volume, 0)));
-  const volumeRatio = averageVolume ? toNumber(currentBar.volume, 0) / averageVolume : 0;
-  const distanceToBreakoutPct = breakoutLevel ? ((close - breakoutLevel) / breakoutLevel) * 100 : 0;
-  const stopLoss = roundPrice(close - atr * 1.5);
-  const takeProfit = roundPrice(close + atr * 3);
-  const riskPerShare = Math.max(roundPrice(close - stopLoss), 0.01);
-  const riskBudget = toNumber(account?.equity, 100000) * 0.005;
-  const quantity = Math.max(1, Math.floor(riskBudget / riskPerShare));
-  const approved = close >= breakoutLevel && volumeRatio >= 1.2 && atr > 0;
-  const blockers = approved ? [] : ['signal_not_confirmed'];
-
-  return {
-    id: randomUUID(),
+  const decision = evaluateBreakout({
     symbol,
-    normalizedSymbol: normalizedSym,
-    assetClass,
-    strategyName: 'breakout',
-    timestamp,
-    approved,
-    side: 'buy',
-    reason: approved ? 'breakout_confirmed' : 'breakout_not_confirmed',
-    entryPrice: roundPrice(close),
-    stopLoss,
-    takeProfit,
-    quantity,
-    riskAmount: riskPerShare,
-    metrics: {
-      closePrice: roundPrice(close),
-      breakoutLevel: roundPrice(breakoutLevel),
-      atr: roundPrice(atr),
-      volumeRatio: Number(volumeRatio.toFixed(2)),
-      distanceToBreakoutPct: Number(distanceToBreakoutPct.toFixed(2)),
-    },
-    blockers,
-  };
+    assetClass: inferAssetClass(symbol),
+    bars: rawBars,
+    accountEquity: equity,
+    riskPercent,
+  });
+
+  return { id: randomUUID(), ...decision };
 }
 
 async function getRiskState() {
@@ -273,6 +166,7 @@ async function recordDecision(decision) {
     timestamp: decision.timestamp ?? nowIso(),
     recordedAt: nowIso(),
     symbol: decision.symbol,
+    normalizedSymbol: decision.normalizedSymbol ?? null,
     assetClass: decision.assetClass ?? null,
     approved: !!decision.approved,
     reason: decision.reason ?? null,
@@ -288,6 +182,8 @@ async function recordDecision(decision) {
     takeProfit: decision.takeProfit ?? null,
     quantity: decision.quantity ?? null,
     riskAmount: decision.riskAmount ?? null,
+    riskReward: decision.riskReward ?? null,
+    blockers: decision.blockers ?? [],
   });
   await appendCycleEvent({
     type: 'decision_recorded',
@@ -295,6 +191,7 @@ async function recordDecision(decision) {
     decisionId: decision.id,
     symbol: decision.symbol,
     approved: decision.approved,
+    reason: decision.reason,
     strategyName: decision.strategyName,
   });
 }
@@ -324,6 +221,15 @@ async function handleExits(dryRun) {
       reason: exit.reason,
       dryRun,
     });
+
+    await appendCycleEvent({
+      type: 'trade_closed',
+      timestamp: nowIso(),
+      symbol: exit.symbol,
+      tradeId: exit.tradeId,
+      reason: exit.reason,
+      exitPrice: exit.currentPrice,
+    });
   }
 }
 
@@ -334,6 +240,17 @@ export async function runAutopilotCycle(options = {}) {
 
   const { session, allowCrypto, allowStocks } = resolveSession();
 
+  const account = await getAccount();
+
+  // Filter the configured universe to assets eligible in the current session.
+  const allSymbols = getConfiguredSymbols();
+  const universeEntries = allSymbols.map((s) => ({
+    symbol: s,
+    assetClass: inferAssetClass(s) === 'crypto' ? 'crypto' : 'stock',
+  }));
+  const symbols = filterEligible(universeEntries).map((e) => e.symbol);
+
+  // Emit cycle_start after symbol filtering so symbolCount is accurate.
   await appendCycleEvent({
     type: 'cycle_start',
     timestamp: startedAt,
@@ -344,17 +261,9 @@ export async function runAutopilotCycle(options = {}) {
     session,
     allowCrypto,
     allowStocks,
+    symbolCount: symbols.length,
   });
 
-  const account = await getAccount();
-
-  // Filter the configured universe to assets eligible in the current session.
-  const allSymbols = getConfiguredSymbols();
-  const universeEntries = allSymbols.map((s) => ({
-    symbol: s,
-    assetClass: inferAssetClass(s) === 'crypto' ? 'crypto' : 'stock',
-  }));
-  const symbols = filterEligible(universeEntries).map((e) => e.symbol);
   const brokerPositionsBefore = await getPositions();
   const brokerOrdersBefore = await getOrders({ status: 'all', limit: 200, nested: true, direction: 'desc' });
 
@@ -366,10 +275,28 @@ export async function runAutopilotCycle(options = {}) {
   await handleExits(dryRun);
 
   const barsBySymbol = await fetchBarsBySymbol(symbols);
-  const decisions = symbols.map((symbol) => buildDecision(symbol, barsBySymbol[symbol] ?? [], account));
+
+  // Delegate all signal evaluation to the canonical strategy module.
+  const decisions = symbols.map((symbol) => evaluateSymbol(symbol, barsBySymbol[symbol] ?? [], account));
 
   for (const decision of decisions) {
     await recordDecision(decision);
+
+    // Emit a diagnostic cycle event for actionable rejections so the activity
+    // feed can show which symbols were filtered and why — without flooding it
+    // with data-missing rejections.
+    if (!decision.approved) {
+      const diagnosticReasons = ['no_breakout', 'weak_volume', 'atr_too_low', 'breakout_too_extended', 'invalid_risk_reward', 'invalid_stop_distance'];
+      if (diagnosticReasons.includes(decision.reason)) {
+        await appendCycleEvent({
+          type: 'symbol_rejected',
+          timestamp: nowIso(),
+          symbol: decision.symbol,
+          reason: decision.reason,
+          metrics: decision.metrics ?? null,
+        });
+      }
+    }
   }
 
   let approvedCount = 0;
@@ -383,7 +310,10 @@ export async function runAutopilotCycle(options = {}) {
 
     const brokerPositions = await getPositions();
     const guardResult = await evaluateExecutionGuards(decision, brokerPositions);
-    decision.blockers = guardResult.blockers;
+
+    // Append guard blockers to the decision's blockers array while preserving
+    // the strategy's original blockers (should be empty for an approved decision).
+    decision.blockers = [...(decision.blockers ?? []), ...guardResult.blockers];
 
     await recordApproval(decision, guardResult.blockers);
 
@@ -481,4 +411,3 @@ if (executedFile?.endsWith('/src/autopilot.js')) {
     }
   })();
 }
- 

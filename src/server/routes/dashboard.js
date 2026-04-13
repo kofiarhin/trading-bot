@@ -228,11 +228,19 @@ function buildActivityEvents({ todayStr, cycles, journal, decisions, closedToday
   }
 
   for (const c of cycles) {
-    if (c.type === "completed") {
+    if (c.type === "cycle_start") {
+      const sessionLabel = c.session ? ` [${c.session}]` : "";
+      const countLabel = c.symbolCount != null ? ` — ${c.symbolCount} symbols in scope` : "";
+      events.push({
+        type: "cycle_started",
+        label: `Cycle started${sessionLabel}${countLabel}`,
+        timestamp: c.recordedAt ?? c.timestamp,
+      });
+    } else if (c.type === "completed") {
       const sessionLabel = c.session ? ` [${c.session}]` : "";
       events.push({
         type: "cycle_complete",
-        label: `Cycle complete${sessionLabel} — scanned ${c.scanned}, approved ${c.approved}, placed ${c.placed}`,
+        label: `Cycle complete${sessionLabel} — scanned ${c.scanned ?? "?"}, approved ${c.approved ?? 0}, placed ${c.placed ?? 0}`,
         timestamp: c.recordedAt ?? c.timestamp,
       });
     } else if (c.type === "skipped_outside_overlap") {
@@ -243,6 +251,25 @@ function buildActivityEvents({ todayStr, cycles, journal, decisions, closedToday
       events.push({ type: "skipped", label: `Cycle skipped${sessionLabel} — ${c.reason}`, timestamp: c.recordedAt ?? c.timestamp });
     } else if (c.type === "failed") {
       events.push({ type: "failed", label: `Cycle failed — ${c.error ?? "unknown error"}`, timestamp: c.recordedAt ?? c.timestamp });
+    } else if (c.type === "symbol_rejected") {
+      // Actionable rejection from strategy — not emitted for data-missing cases.
+      events.push({
+        type: "symbol_rejected",
+        label: `Signal rejected — ${c.symbol}: ${c.reason}`,
+        timestamp: c.recordedAt ?? c.timestamp,
+      });
+    } else if (c.type === "order_submitted") {
+      events.push({
+        type: "trade_placed",
+        label: `Trade placed — ${c.symbol} qty ${c.quantity}`,
+        timestamp: c.recordedAt ?? c.timestamp,
+      });
+    } else if (c.type === "trade_closed") {
+      events.push({
+        type: "trade_closed",
+        label: `Trade closed — ${c.symbol} (${c.reason ?? "exit"})${c.exitPrice != null ? ` @ ${c.exitPrice}` : ""}`,
+        timestamp: c.recordedAt ?? c.timestamp,
+      });
     }
   }
 
@@ -392,7 +419,8 @@ router.get("/overview", async (req, res) => {
         assetClass: formatAssetClass(d.assetClass),
         decision: d.approved ? "Approved" : "Rejected",
         strategyName: d.strategyName ?? null,
-        reason: d.reason,
+        reason: d.reason ?? null,
+        blockers: d.blockers ?? [],
         closePrice: d.metrics?.closePrice ?? d.closePrice ?? null,
         breakoutLevel: d.metrics?.breakoutLevel ?? d.breakoutLevel ?? null,
         atr: d.metrics?.atr ?? d.atr ?? null,
@@ -403,6 +431,7 @@ router.get("/overview", async (req, res) => {
         takeProfit: d.takeProfit ?? null,
         quantity: d.quantity ?? null,
         riskAmount: d.riskAmount ?? null,
+        riskReward: d.riskReward ?? null,
       }))
       .reverse();
 
@@ -580,7 +609,8 @@ router.get("/decisions", async (req, res) => {
       assetClass: formatAssetClass(d.assetClass),
       decision: d.approved ? "Approved" : "Rejected",
       strategyName: d.strategyName ?? null,
-      reason: d.reason,
+      reason: d.reason ?? null,
+      blockers: d.blockers ?? [],
       closePrice: d.metrics?.closePrice ?? d.closePrice ?? null,
       breakoutLevel: d.metrics?.breakoutLevel ?? d.breakoutLevel ?? null,
       atr: d.metrics?.atr ?? d.atr ?? null,
@@ -591,6 +621,7 @@ router.get("/decisions", async (req, res) => {
       takeProfit: d.takeProfit ?? null,
       quantity: d.quantity ?? null,
       riskAmount: d.riskAmount ?? null,
+      riskReward: d.riskReward ?? null,
     }));
 
     mapped.reverse();
@@ -649,9 +680,11 @@ router.get("/positions/closed", async (req, res) => {
 // GET /api/dashboard/performance
 router.get("/performance", async (req, res) => {
   try {
-    // Use a reasonable cap to avoid unbounded reads
+    // Use a reasonable cap to avoid unbounded reads.
+    // Exclude broker_sync records — they are reconciliation artefacts, not
+    // strategy trades, and must not pollute performance statistics.
     const all = await getClosedTrades(1000);
-    const closed = all.filter((e) => e.pnl != null);
+    const closed = all.filter((e) => e.pnl != null && e.strategyName !== 'broker_sync');
 
     const totalTrades = closed.length;
     const winners = closed.filter((e) => e.pnl > 0);

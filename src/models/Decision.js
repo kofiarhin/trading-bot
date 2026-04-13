@@ -17,6 +17,8 @@ const decisionSchema = new mongoose.Schema(
     takeProfit: Number,
     quantity: Number,
     riskAmount: Number,
+    riskReward: Number,
+    blockers: { type: [String], default: [] },
     metrics: { type: mongoose.Schema.Types.Mixed, default: {} },
     closePrice: Number,
     breakoutLevel: Number,
