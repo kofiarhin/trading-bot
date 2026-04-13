@@ -328,7 +328,10 @@ export async function syncTradesWithBroker({ brokerPositions = [], brokerOrders 
     }
 
     if (trade.status === 'open') {
-      const reason = inferCloseReason(trade, brokerOrders);
+      const isBrokerSyncTrade = trade.strategyName === 'broker_sync';
+      const reason = isBrokerSyncTrade
+        ? 'broker_sync_reconciled'
+        : inferCloseReason(trade, brokerOrders);
       await markTradeClosed({ tradeId: trade.tradeId, brokerOrder, reason });
     }
   }

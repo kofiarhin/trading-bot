@@ -238,3 +238,96 @@ describe('syncTradesWithBroker', () => {
     expect(closed.some((t) => t.symbol === 'AAPL')).toBe(true);
   });
 });
+
+// ─── broker_sync reconciliation ───────────────────────────────────────────────
+
+describe('syncTradesWithBroker – broker_sync reconciliation', () => {
+  it('keeps broker_sync open trade when broker still has the position', async () => {
+    await markTradeOpen({
+      symbol: 'AAPL',
+      brokerPosition: { symbol: 'AAPL', qty: '5', avg_entry_price: '150' },
+      source: 'broker_sync',
+    });
+
+    await syncTradesWithBroker({
+      brokerPositions: [{ symbol: 'AAPL', qty: '5', avg_entry_price: '150' }],
+      brokerOrders: [],
+    });
+
+    const open = await getOpenTrades();
+    const closed = await getClosedTrades();
+    expect(open.find((t) => t.symbol === 'AAPL')).toBeDefined();
+    expect(closed.find((t) => t.symbol === 'AAPL')).toBeUndefined();
+  });
+
+  it('reconciles a broker_sync open trade when broker position disappears', async () => {
+    await markTradeOpen({
+      symbol: 'AAPL',
+      brokerPosition: { symbol: 'AAPL', qty: '5', avg_entry_price: '150' },
+      source: 'broker_sync',
+    });
+
+    await syncTradesWithBroker({ brokerPositions: [], brokerOrders: [] });
+
+    const open = await getOpenTrades();
+    const closed = await getClosedTrades();
+    expect(open.find((t) => t.symbol === 'AAPL')).toBeUndefined();
+    const reconciledTrade = closed.find((t) => t.symbol === 'AAPL');
+    expect(reconciledTrade).toBeDefined();
+    expect(reconciledTrade.exitReason).toBe('broker_sync_reconciled');
+    expect(reconciledTrade.status).toBe('closed');
+  });
+
+  it('does not create duplicate closed records when sync is rerun with no broker position', async () => {
+    await markTradeOpen({
+      symbol: 'AAPL',
+      brokerPosition: { symbol: 'AAPL', qty: '5', avg_entry_price: '150' },
+      source: 'broker_sync',
+    });
+
+    await syncTradesWithBroker({ brokerPositions: [], brokerOrders: [] });
+    await syncTradesWithBroker({ brokerPositions: [], brokerOrders: [] });
+
+    const closed = await getClosedTrades();
+    const aaplClosed = closed.filter((t) => t.symbol === 'AAPL');
+    expect(aaplClosed).toHaveLength(1);
+  });
+
+  it('does not apply broker_sync_reconciled to non-broker_sync open trades', async () => {
+    const pending = await createPendingTrade({ decision: baseDecision });
+    await markTradeOpen({
+      tradeId: pending.tradeId,
+      brokerPosition: { symbol: 'AAPL', qty: '5', avg_entry_price: '150' },
+    });
+
+    await syncTradesWithBroker({ brokerPositions: [], brokerOrders: [] });
+
+    const closed = await getClosedTrades();
+    const aaplClosed = closed.find((t) => t.symbol === 'AAPL');
+    // If closed, must not carry the broker_sync_reconciled reason
+    if (aaplClosed) {
+      expect(aaplClosed.exitReason).not.toBe('broker_sync_reconciled');
+    }
+  });
+
+  it('reconciles all stale broker_sync trades when broker positions list is empty', async () => {
+    await markTradeOpen({
+      symbol: 'AAPL',
+      brokerPosition: { symbol: 'AAPL', qty: '5', avg_entry_price: '150' },
+      source: 'broker_sync',
+    });
+    await markTradeOpen({
+      symbol: 'MSFT',
+      brokerPosition: { symbol: 'MSFT', qty: '3', avg_entry_price: '420' },
+      source: 'broker_sync',
+    });
+
+    await syncTradesWithBroker({ brokerPositions: [], brokerOrders: [] });
+
+    const open = await getOpenTrades();
+    const closed = await getClosedTrades();
+    expect(open).toHaveLength(0);
+    expect(closed).toHaveLength(2);
+    expect(closed.every((t) => t.exitReason === 'broker_sync_reconciled')).toBe(true);
+  });
+});

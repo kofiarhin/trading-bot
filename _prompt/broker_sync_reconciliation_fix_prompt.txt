@@ -1,0 +1,167 @@
+You are working inside an existing MERN trading bot codebase.
+
+Your task is to implement a focused reconciliation fix for stale local broker-sync open trades.
+
+OBJECTIVE
+
+When the broker no longer reports a position, any matching local open `broker_sync` trade must be reconciled automatically so the Journal and summary cards stop showing phantom open positions.
+
+CURRENT BUG
+
+The current behavior is partially correct:
+
+- When Alpaca/broker reports an open position, the app creates or maintains a local open trade with:
+  - `strategyName: "broker_sync"` and/or
+  - `source: "broker_sync"`
+
+However, when that position is later closed directly in Alpaca, the local broker-sync trade remains open in the app.
+
+This causes:
+- Dashboard broker positions to become empty
+- But Journal summary still showing `OPEN 1`
+- And Journal table still showing a stale `broker_sync` row as `open`
+
+This is a reconciliation bug.
+
+REQUIRED OUTCOME
+
+During broker reconciliation/sync:
+
+- if broker still has the symbol open -> keep or update local broker-sync open trade
+- if broker no longer has the symbol open -> automatically reconcile the local broker-sync open trade
+
+The stale local `broker_sync` open trade must no longer remain open once the broker is flat.
+
+SCOPE
+
+Make a focused backend fix only unless a tiny frontend adjustment is absolutely necessary.
+Do not redesign UI.
+Do not change strategy logic.
+Do not change autopilot entry rules.
+Do not change deployment config.
+
+LIKELY FILES
+
+Search the repo for the broker sync / reconciliation flow and update the real files involved.
+Likely areas include files similar to:
+
+- src/journal/tradeJournal.js
+- src/journal/openTradesStore.js
+- src/journal/closedTradesStore.js
+- src/server/routes/journal.js
+- src/server/routes/dashboard.js
+- sync/reconciliation helpers
+- broker position sync service
+- autopilot cycle code if reconciliation is triggered there
+
+Use the actual file structure in the repo.
+
+REQUIREMENTS
+
+1. RECONCILE ORPHANED BROKER_SYNC OPEN TRADES
+Find the code path that syncs broker positions into local journal/open trade state.
+
+Add logic so that after broker positions are fetched, local open trades are checked.
+
+For each local open trade that is a broker-sync trade:
+- if its symbol is NOT present in current broker open positions
+- reconcile it automatically
+
+Reconciliation can be done by either:
+- marking it closed and moving it to closed history, or
+- updating it to a closed/reconciled status using the repo’s existing trade lifecycle conventions
+
+Use the existing lifecycle pattern in the project rather than inventing a second closure system.
+
+2. ONLY APPLY THIS TO BROKER_SYNC-TYPE TRADES
+Do not automatically close real strategy-managed open trades from this rule.
+
+This reconciliation behavior must be limited to local trades that clearly represent imported broker positions, such as:
+- `strategyName === "broker_sync"`
+- or equivalent `strategy/source` field used in the repo
+
+Use the actual schema in the codebase.
+
+3. PRESERVE AUDITABILITY
+When reconciling a stale broker-sync open trade, record a meaningful exit/close reason such as:
+- `broker_sync_reconciled`
+- `broker_position_closed`
+- `broker_no_longer_open`
+
+Use one concise, production-safe reason string consistently.
+
+If the repo supports closed timestamps and exit metadata, populate them.
+
+4. AVOID DUPLICATE CLOSED RECORDS
+The reconciliation must be idempotent.
+
+If the sync runs repeatedly after the broker position is gone, it must not keep creating duplicate closed records for the same stale broker-sync trade.
+
+5. KEEP JOURNAL SUMMARY HONEST
+After reconciliation:
+- stale broker-sync trades must no longer count as open
+- Journal summary `open` should drop correctly
+- `totalTrades` should reflect the real intended behavior of the current summary logic
+- if the summary already excludes broker_sync from performance metrics, keep that behavior intact
+
+6. KEEP DASHBOARD BEHAVIOR CONSISTENT
+Do not regress dashboard open positions logic.
+If the broker is flat, dashboard open positions should remain empty.
+The journal must now match that reality too.
+
+7. DO NOT JUST HIDE IT IN THE UI
+Do not fix this by filtering stale open rows only in React.
+The source-of-truth local trade state must be reconciled correctly in backend storage/state.
+
+8. HANDLE EMPTY BROKER POSITION LIST
+Important edge case:
+- broker returns zero open positions
+- local storage still has one or more open broker-sync trades
+
+All such broker-sync trades should be reconciled cleanly.
+
+9. TESTING
+Add or update backend tests for reconciliation behavior.
+
+Required test cases:
+- broker has open position -> broker_sync trade remains open
+- broker position disappears -> matching broker_sync trade is reconciled/closed
+- sync is rerun again with no broker position -> no duplicate closed records
+- non-broker_sync open trades are not auto-closed by this rule
+- empty broker positions list reconciles stale broker_sync opens correctly
+
+Use the existing backend test framework and conventions already in the repo.
+
+10. KEEP RESPONSE SHAPES STABLE
+Do not break current API responses for dashboard or journal routes.
+Only adjust returned data if needed to reflect correctly reconciled state.
+
+IMPLEMENTATION GUIDANCE
+
+- Search for the function that currently imports broker positions into local trade state.
+- Centralize the broker-sync detection in a helper if useful.
+- Compare normalized symbols carefully using the project’s existing symbol format conventions.
+- If the repo distinguishes open-trade storage from closed-trade storage, use the normal close/move workflow.
+- Be careful not to treat manual/real strategy trades the same as broker_sync imports.
+- Follow the project’s current naming and folder conventions.
+
+DELIVERABLES
+
+Provide:
+1. full updated files for every changed file
+2. short changed-files list
+3. brief explanation of the reconciliation fix
+4. test files added/updated
+5. test commands run
+6. any assumptions about symbol normalization or field names
+
+SUCCESS CRITERIA
+
+The fix is successful when all of the following are true:
+
+- Alpaca/broker shows 0 positions
+- Dashboard shows no open positions
+- Journal no longer shows stale broker_sync trades as open
+- Journal summary `OPEN` count drops correctly
+- repeated sync cycles do not create duplicate reconciled records
+- real strategy trades are unaffected
