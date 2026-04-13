@@ -32,8 +32,11 @@ function fmtTime(iso) {
   });
 }
 
+const DASHBOARD_PREVIEW_PARAMS = { limit: 10 };
+
 export default function ActivityFeed({ variant = "desktop", previewCount = 5 }) {
-  const { data: events = [], isLoading } = useActivity();
+  const { data, isLoading } = useActivity(DASHBOARD_PREVIEW_PARAMS);
+  const events = data?.items ?? [];
   const [expanded, setExpanded] = useState(false);
 
   const isMobile = variant === "mobile";

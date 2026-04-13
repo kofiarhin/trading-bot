@@ -39,8 +39,12 @@ function DecisionBadge({ decision }) {
   );
 }
 
+const DASHBOARD_PREVIEW_PARAMS = { limit: 10 };
+
 export default function RecentDecisionsTable({ variant = "desktop", previewCount = 4 }) {
-  const { data: decisions = [], isLoading } = useDecisions();
+  const { data, isLoading } = useDecisions(DASHBOARD_PREVIEW_PARAMS);
+  const decisions = data?.items ?? [];
+  const summary = data?.summary;
 
   if (variant === "mobile") {
     return (
@@ -64,10 +68,9 @@ export default function RecentDecisionsTable({ variant = "desktop", previewCount
     <div className="rounded-xl bg-slate-800 border border-slate-700 overflow-hidden">
       <div className="px-5 py-4 border-b border-slate-700 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wide">Recent Decisions</h2>
-        {decisions.length > 0 && (
+        {summary && (summary.approved > 0 || summary.rejected > 0) && (
           <span className="text-xs text-slate-400">
-            {decisions.filter((d) => d.decision === "Approved").length} approved / {" "}
-            {decisions.filter((d) => d.decision === "Rejected").length} rejected
+            {summary.approved} approved / {summary.rejected} rejected
           </span>
         )}
       </div>

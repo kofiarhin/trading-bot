@@ -1,0 +1,217 @@
+You are working inside an existing MERN trading bot codebase.
+
+Your task is to implement a proper long-term dashboard/history architecture for decisions and activity logs.
+
+## Goal
+
+The dashboard must stay lightweight and preview-only.
+
+History views must support real pagination and filtering.
+
+Implement:
+
+- `page`
+- `limit`
+- optional filters such as `decision=rejected`
+
+The final result should be:
+
+- **Dashboard** = preview only
+- **History page** = paginated browsing for decisions + activity
+- **Trade Journal** = remains separate for trade history
+
+---
+
+## Problem to solve
+
+Right now the dashboard keeps growing because:
+
+1. **Recent Decisions** renders the full daily decision list
+2. **Activity Feed** renders the full daily activity list
+3. As the bot continues scanning, those arrays grow indefinitely and make the dashboard noisy and inefficient
+
+That architecture is wrong.
+
+The dashboard should only show a small recent preview.
+Full browsing belongs in a dedicated history view.
+
+---
+
+## What to implement
+
+# 1) BACKEND: add proper pagination + filtering support
+
+Work in the dashboard/history API layer and implement paginated responses for:
+
+- `GET /api/dashboard/decisions`
+- `GET /api/dashboard/activity`
+
+## Decisions endpoint requirements
+
+Support query params:
+
+- `page` default `1`
+- `limit` default `25`
+- `decision` optional: `approved` or `rejected`
+- `symbol` optional
+- `assetClass` optional
+
+Behavior:
+
+- read the decision history source already used by the app
+- normalize records into the existing frontend-friendly shape
+- apply filters before pagination
+- sort newest first
+- return paginated response
+
+Expected response shape:
+
+{
+  "items": [],
+  "pagination": {
+    "page": 1,
+    "limit": 25,
+    "total": 0,
+    "pages": 0,
+    "hasPrevPage": false,
+    "hasNextPage": false
+  },
+  "filters": {
+    "decision": "rejected",
+    "symbol": "ETH/USD",
+    "assetClass": "crypto"
+  },
+  "summary": {
+    "approved": 0,
+    "rejected": 0
+  }
+}
+
+Notes:
+- `summary` should reflect the filtered dataset before pagination unless there is already a clearer established convention in the codebase
+- do not break existing metric fields
+- keep existing fallback behavior if present
+
+## Activity endpoint requirements
+
+Support query params:
+
+- `page` default `1`
+- `limit` default `25`
+- `type` optional
+- `search` optional
+
+Behavior:
+
+- use existing activity builder
+- apply filters before pagination
+- sort newest first
+- return paginated response
+
+Expected response shape:
+
+{
+  "items": [],
+  "pagination": {
+    "page": 1,
+    "limit": 25,
+    "total": 0,
+    "pages": 0,
+    "hasPrevPage": false,
+    "hasNextPage": false
+  },
+  "filters": {
+    "type": "decision",
+    "search": "ETH/USD"
+  }
+}
+
+Constraints:
+
+- pagination must be server-side
+- clamp limit to max 100
+- validate params cleanly
+- preserve existing behavior
+
+---
+
+# 2) DASHBOARD: convert to preview-only
+
+- Decisions → limit=10
+- Activity → limit=10
+- Positions → open only
+
+---
+
+# 3) FRONTEND SERVICES + QUERY HOOKS
+
+- add param support to services + hooks
+- include params in query keys
+- keep API logic out of components
+
+---
+
+# 4) NEW HISTORY PAGE
+
+Route: /history
+
+Sections:
+- Decision History
+- Activity History
+
+Features:
+- pagination
+- filters
+- page size selector
+- prev/next controls
+
+---
+
+# 5) NAVIGATION
+
+Add History link
+
+Final structure:
+- Dashboard
+- Trade Journal
+- History
+
+---
+
+# 6) URL STATE
+
+Sync:
+- page
+- limit
+- filters
+
+---
+
+# 7) TESTING
+
+Backend (Jest):
+- pagination works
+- filters work
+
+Frontend (Vitest):
+- preview limits work
+- history pagination works
+
+---
+
+# 8) IMPLEMENTATION RULES
+
+- use TanStack Query
+- keep API logic out of components
+- Tailwind for styling
+- validate inputs
+- handle loading/error states
+
+---
+
+# 9) DELIVERABLE
+
+Return:
+1. summary
+2. changed files
+3. notes

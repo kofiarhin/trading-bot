@@ -180,6 +180,16 @@ function buildOpenPositions(brokerPositions, openTrades) {
 }
 
 /**
+ * Parse and validate pagination params from a request.
+ * Returns { page, limit } with defaults applied and limit clamped to max 100.
+ */
+function parsePaginationParams(query, { defaultLimit = 25 } = {}) {
+  const page = Math.max(1, parseInt(query.page, 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(query.limit, 10) || defaultLimit));
+  return { page, limit };
+}
+
+/**
  * Build the activity event list from pre-fetched data.
  * Accepts today's date string and the already-fetched collections.
  */
@@ -297,7 +307,7 @@ function buildActivityEvents({ todayStr, cycles, journal, decisions, closedToday
   }
 
   events.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  return events.slice(0, 100);
+  return events;
 }
 
 // ─── In-memory cache for /overview ────────────────────────────────────────────
@@ -592,6 +602,11 @@ router.get("/cycles/latest", async (req, res) => {
 // GET /api/dashboard/decisions
 router.get("/decisions", async (req, res) => {
   try {
+    const { page, limit } = parsePaginationParams(req.query);
+    const filterDecision = req.query.decision?.toLowerCase(); // 'approved' | 'rejected'
+    const filterSymbol = req.query.symbol?.toUpperCase();
+    const filterAssetClass = req.query.assetClass?.toLowerCase();
+
     const decisionLog = await getDecisionLogForToday({
       fallbackToLatest: shouldUseDecisionFallback(req.query.fallbackLatest ?? req.query.fallback),
     });
@@ -603,31 +618,69 @@ router.get("/decisions", async (req, res) => {
       });
     }
 
-    const mapped = decisionLog.records.map((d) => ({
-      timestamp: d.timestamp,
-      symbol: d.symbol,
-      assetClass: formatAssetClass(d.assetClass),
-      decision: d.approved ? "Approved" : "Rejected",
-      strategyName: d.strategyName ?? null,
-      reason: d.reason ?? null,
-      blockers: d.blockers ?? [],
-      closePrice: d.metrics?.closePrice ?? d.closePrice ?? null,
-      breakoutLevel: d.metrics?.breakoutLevel ?? d.breakoutLevel ?? null,
-      atr: d.metrics?.atr ?? d.atr ?? null,
-      volumeRatio: d.metrics?.volumeRatio ?? d.volumeRatio ?? null,
-      distanceToBreakoutPct: d.metrics?.distanceToBreakoutPct ?? d.distanceToBreakoutPct ?? null,
-      entryPrice: d.entryPrice ?? null,
-      stopLoss: d.stopLoss ?? null,
-      takeProfit: d.takeProfit ?? null,
-      quantity: d.quantity ?? null,
-      riskAmount: d.riskAmount ?? null,
-      riskReward: d.riskReward ?? null,
-    }));
+    // Normalize all records, newest first
+    let items = decisionLog.records
+      .map((d) => ({
+        timestamp: d.timestamp,
+        symbol: d.symbol,
+        assetClass: formatAssetClass(d.assetClass),
+        decision: d.approved ? "Approved" : "Rejected",
+        strategyName: d.strategyName ?? null,
+        reason: d.reason ?? null,
+        blockers: d.blockers ?? [],
+        closePrice: d.metrics?.closePrice ?? d.closePrice ?? null,
+        breakoutLevel: d.metrics?.breakoutLevel ?? d.breakoutLevel ?? null,
+        atr: d.metrics?.atr ?? d.atr ?? null,
+        volumeRatio: d.metrics?.volumeRatio ?? d.volumeRatio ?? null,
+        distanceToBreakoutPct: d.metrics?.distanceToBreakoutPct ?? d.distanceToBreakoutPct ?? null,
+        entryPrice: d.entryPrice ?? null,
+        stopLoss: d.stopLoss ?? null,
+        takeProfit: d.takeProfit ?? null,
+        quantity: d.quantity ?? null,
+        riskAmount: d.riskAmount ?? null,
+        riskReward: d.riskReward ?? null,
+      }))
+      .reverse();
 
-    mapped.reverse();
+    // Apply filters
+    if (filterDecision === "approved") items = items.filter((d) => d.decision === "Approved");
+    else if (filterDecision === "rejected") items = items.filter((d) => d.decision === "Rejected");
+    if (filterSymbol) items = items.filter((d) => d.symbol?.toUpperCase().includes(filterSymbol));
+    if (filterAssetClass) {
+      items = items.filter((d) => d.assetClass?.toLowerCase() === filterAssetClass);
+    }
+
+    // Summary counts from the filtered set (before pagination)
+    const approvedCount = items.filter((d) => d.decision === "Approved").length;
+    const rejectedCount = items.filter((d) => d.decision === "Rejected").length;
+
+    // Paginate
+    const total = items.length;
+    const pages = Math.ceil(total / limit) || 0;
+    const offset = (page - 1) * limit;
+    const pagedItems = items.slice(offset, offset + limit);
+
+    // Build active filters object (only include set filters)
+    const filters = {};
+    if (filterDecision) filters.decision = filterDecision;
+    if (filterSymbol) filters.symbol = req.query.symbol;
+    if (filterAssetClass) filters.assetClass = req.query.assetClass;
+
     res.set("X-Decisions-Date", decisionLog.date);
     res.set("X-Decisions-Fallback", decisionLog.isFallback ? "true" : "false");
-    res.json(mapped);
+    res.json({
+      items: pagedItems,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages,
+        hasPrevPage: page > 1,
+        hasNextPage: page < pages,
+      },
+      filters,
+      summary: { approved: approvedCount, rejected: rejectedCount },
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -713,6 +766,10 @@ router.get("/performance", async (req, res) => {
 // GET /api/dashboard/activity
 router.get("/activity", async (req, res) => {
   try {
+    const { page, limit } = parsePaginationParams(req.query);
+    const filterType = req.query.type;
+    const filterSearch = req.query.search?.toLowerCase();
+
     const todayStr = londonDateString();
     // All queries are now date-scoped — no full-collection reads
     const [cycles, journal, decisionLog, closedToday, tradeEvents] = await Promise.all([
@@ -723,14 +780,41 @@ router.get("/activity", async (req, res) => {
       getTradeEventsForDate(todayStr),
     ]);
 
-    res.json(buildActivityEvents({
+    let events = buildActivityEvents({
       todayStr,
       cycles,
       journal,
       decisions: decisionLog.records,
       closedToday,
       tradeEvents,
-    }));
+    });
+
+    // Apply filters
+    if (filterType) events = events.filter((e) => e.type === filterType);
+    if (filterSearch) events = events.filter((e) => e.label?.toLowerCase().includes(filterSearch));
+
+    // Paginate
+    const total = events.length;
+    const pages = Math.ceil(total / limit) || 0;
+    const offset = (page - 1) * limit;
+    const pagedItems = events.slice(offset, offset + limit);
+
+    const filters = {};
+    if (filterType) filters.type = filterType;
+    if (filterSearch) filters.search = req.query.search;
+
+    res.json({
+      items: pagedItems,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages,
+        hasPrevPage: page > 1,
+        hasNextPage: page < pages,
+      },
+      filters,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -41,18 +41,20 @@ export function useOpenPositions() {
   });
 }
 
-export function useDecisions() {
+export function useDecisions(params = {}) {
   return useQuery({
-    queryKey: ["dashboard", "decisions"],
-    queryFn: dashboardService.getDecisions,
+    queryKey: ["dashboard", "decisions", params],
+    queryFn: () => dashboardService.getDecisions(params),
     refetchInterval: 15_000,
+    placeholderData: (prev) => prev,
   });
 }
 
-export function useActivity() {
+export function useActivity(params = {}) {
   return useQuery({
-    queryKey: ["dashboard", "activity"],
-    queryFn: dashboardService.getActivity,
+    queryKey: ["dashboard", "activity", params],
+    queryFn: () => dashboardService.getActivity(params),
     refetchInterval: 15_000,
+    placeholderData: (prev) => prev,
   });
 }

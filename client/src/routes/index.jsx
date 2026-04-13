@@ -3,6 +3,7 @@ import Layout from "../components/Layout.jsx";
 import DashboardPage from "../pages/DashboardPage.jsx";
 import JournalPage from "../pages/JournalPage.jsx";
 import TradeDetailPage from "../pages/TradeDetailPage.jsx";
+import HistoryPage from "../pages/HistoryPage.jsx";
 
 export const router = createBrowserRouter([
   {
@@ -13,6 +14,7 @@ export const router = createBrowserRouter([
       { path: "dashboard", element: <DashboardPage /> },
       { path: "journal", element: <JournalPage /> },
       { path: "journal/:tradeId", element: <TradeDetailPage /> },
+      { path: "history", element: <HistoryPage /> },
     ],
   },
 ]);
