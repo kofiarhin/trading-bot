@@ -42,11 +42,8 @@ function PnlCard({ realized, unrealized, equity }) {
 }
 
 function StatusCard({ statusLabel, runMode, dryRun }) {
-  const isRunning =
-    statusLabel === "Running" ||
-    statusLabel === "Paper Trading" ||
-    statusLabel === "Dry Run" ||
-    statusLabel === "Waiting for next cycle";
+  const normalized = String(statusLabel ?? "Idle").toLowerCase();
+  const isRunning = normalized.includes("running");
 
   const dotColor = isRunning ? "bg-emerald-400 animate-pulse" : "bg-slate-500";
   const textColor = isRunning ? "text-emerald-400" : "text-slate-400";
@@ -84,7 +81,7 @@ export default function SummaryCards() {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
       <StatusCard
-        statusLabel={status?.statusLabel ?? (status?.botStatus === "active" ? "Active" : "Idle")}
+        statusLabel={status?.statusLabel ?? "Idle"}
         runMode={status?.runMode}
         dryRun={status?.dryRun}
       />

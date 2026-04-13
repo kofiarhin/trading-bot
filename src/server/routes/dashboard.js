@@ -16,6 +16,7 @@ import {
 import { loadRiskState } from "../../risk/riskState.js";
 import { normalizeSymbol } from "../../utils/symbolNorm.js";
 import { logger } from "../../utils/logger.js";
+import { CYCLE_STAGES } from "../../autopilot/cycleStages.js";
 
 const router = Router();
 
@@ -53,7 +54,7 @@ function deriveBotStatus(cycles) {
   if (!last) return { botStatus: "idle", lastCycleAt: null, lastCycleType: null };
   const diffMs = Date.now() - new Date(last.timestamp).getTime();
   return {
-    botStatus: diffMs < 25 * 60 * 1000 ? "active" : "idle",
+    botStatus: diffMs < 25 * 60 * 1000 ? "waiting" : "idle",
     lastCycleAt: last.timestamp,
     lastCycleType: last.type,
   };
@@ -69,7 +70,8 @@ function normalizeRuntimeStatus(runtime, fallbackStatus, lastCycleAt) {
     const diffMs = Date.now() - new Date(lastCycleAt).getTime();
     return diffMs < 20 * 60 * 1000 ? "waiting" : "idle";
   }
-  if (fallbackStatus === "active") return "running";
+  if (fallbackStatus === "running") return "running";
+  if (fallbackStatus === "waiting") return "waiting";
   return lastCycleAt ? "waiting" : "idle";
 }
 
@@ -300,9 +302,10 @@ function buildActivityEvents({ todayStr, cycles, journal, decisions, closedToday
     } else if (c.type === "failed" || c.type === "cycle_failed") {
       events.push({ type: "failed", label: `Cycle failed — ${c.error ?? "unknown error"}`, timestamp: c.recordedAt ?? c.timestamp });
     } else if (c.type === "cycle_stage") {
+      const stageLabel = stageLabelByKey[c.stage] ?? (c.stage ?? "running").replaceAll("_", " ");
       events.push({
         type: "cycle_stage",
-        label: `Cycle stage — ${(c.stage ?? "running").replaceAll("_", " ")}${c.currentSymbol ? ` (${c.currentSymbol})` : ""}`,
+        label: `Cycle stage — ${stageLabel}${c.currentSymbol ? ` (${c.currentSymbol})` : ""}`,
         timestamp: c.recordedAt ?? c.timestamp,
       });
     } else if (c.type === "symbol_rejected") {
@@ -875,3 +878,15 @@ router.get("/activity", async (req, res) => {
 });
 
 export default router;
+  const stageLabelByKey = {
+    [CYCLE_STAGES.STARTING]: "Starting",
+    [CYCLE_STAGES.SYNCING_BROKER]: "Syncing broker",
+    [CYCLE_STAGES.MONITORING_POSITIONS]: "Monitoring positions",
+    [CYCLE_STAGES.FETCHING_MARKET_DATA]: "Fetching market data",
+    [CYCLE_STAGES.EVALUATING_SIGNALS]: "Evaluating signals",
+    [CYCLE_STAGES.APPLYING_RISK_GUARDS]: "Applying risk guards",
+    [CYCLE_STAGES.PLACING_ORDERS]: "Placing orders",
+    [CYCLE_STAGES.FINAL_SYNC]: "Final sync",
+    [CYCLE_STAGES.COMPLETED]: "Completed",
+    [CYCLE_STAGES.FAILED]: "Failed",
+  };

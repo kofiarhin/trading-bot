@@ -2,7 +2,7 @@ import CycleRuntime from '../models/CycleRuntime.js';
 import { CYCLE_STAGES, stageToProgress } from '../autopilot/cycleStages.js';
 
 const RUNTIME_KEY = 'cycle-runtime';
-const DEFAULT_STALE_MINUTES = 40;
+const DEFAULT_STALE_MINUTES = 5;
 
 export class CycleAlreadyRunningError extends Error {
   constructor(cycleId) {

@@ -43,18 +43,19 @@ function AutoRefreshIndicator() {
 
 function Header({ runtime }) {
   const status = runtime?.status ?? "idle";
-  const stage = runtime?.stage ? runtime.stage.replaceAll("_", " ") : "";
+  const stage = runtime?.stage ? runtime.stage.replaceAll("_", " ") : null;
+  const runningLabel = `Cycle running${stage ? ` — ${stage}` : ""}`;
 
   const statusConfig = {
     running: {
       dot: "bg-emerald-400 animate-pulse",
       text: "text-emerald-400",
-      label: runtime?.message ?? `Cycle running${stage ? ` — ${stage}` : ""}`,
+      label: runningLabel,
     },
     completed: { dot: "bg-sky-400", text: "text-sky-300", label: "Cycle complete" },
     waiting: { dot: "bg-slate-500", text: "text-slate-400", label: "Waiting for next trigger" },
     failed: { dot: "bg-red-400", text: "text-red-300", label: "Cycle failed" },
-    idle: { dot: "bg-slate-500", text: "text-slate-400", label: "Waiting for next trigger" },
+    idle: { dot: "bg-slate-500", text: "text-slate-400", label: "Idle" },
   };
 
   const ui = statusConfig[status] ?? statusConfig.idle;

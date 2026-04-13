@@ -22,6 +22,7 @@ const {
 describe('cycleRuntimeRepo.mongo', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    delete process.env.CYCLE_RUNTIME_STALE_MINUTES;
   });
 
   it('returns existing runtime from getCycleRuntime', async () => {
@@ -68,5 +69,28 @@ describe('cycleRuntimeRepo.mongo', () => {
     CycleRuntime.findOneAndUpdate.mockReturnValue({ lean: jest.fn().mockResolvedValue({ status: 'failed', message: 'Cycle failed (stale runtime recovered)' }) });
     const result = await recoverStaleRunningCycle();
     expect(result.status).toBe('failed');
+  });
+
+  it('uses 5 minute stale cutoff by default', async () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date('2026-04-13T12:00:00.000Z').getTime());
+    CycleRuntime.findOneAndUpdate.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
+
+    await recoverStaleRunningCycle();
+
+    const filter = CycleRuntime.findOneAndUpdate.mock.calls[0][0];
+    expect(filter.heartbeatAt.$lte).toBe('2026-04-13T11:55:00.000Z');
+    nowSpy.mockRestore();
+  });
+
+  it('honors CYCLE_RUNTIME_STALE_MINUTES override', async () => {
+    process.env.CYCLE_RUNTIME_STALE_MINUTES = '9';
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date('2026-04-13T12:00:00.000Z').getTime());
+    CycleRuntime.findOneAndUpdate.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
+
+    await recoverStaleRunningCycle();
+
+    const filter = CycleRuntime.findOneAndUpdate.mock.calls[0][0];
+    expect(filter.heartbeatAt.$lte).toBe('2026-04-13T11:51:00.000Z');
+    nowSpy.mockRestore();
   });
 });

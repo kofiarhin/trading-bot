@@ -230,9 +230,10 @@ export async function runAutopilotCycle(options = {}) {
   const counters = { symbolCount: 0, scanned: 0, approved: 0, rejected: 0, placed: 0, blocked: 0, errors: 0 };
 
   const setRuntimeStage = async (stage, message, patch = {}) => {
+    const runtimeStatus = patch.status ?? 'running';
     await updateCycleRuntime({
       cycleId,
-      status: 'running',
+      status: runtimeStatus,
       stage,
       message,
       session,
@@ -297,6 +298,7 @@ export async function runAutopilotCycle(options = {}) {
       symbolCount: symbols.length,
     });
 
+    await setRuntimeStage(CYCLE_STAGES.STARTING, 'Cycle started');
     await setRuntimeStage(CYCLE_STAGES.SYNCING_BROKER, 'Syncing broker positions');
 
     const brokerPositionsBefore = await getPositions();
@@ -425,6 +427,7 @@ export async function runAutopilotCycle(options = {}) {
       completedAt,
     };
 
+    await setRuntimeStage(CYCLE_STAGES.COMPLETED, 'Cycle complete', { status: 'completed', currentSymbol: null });
     await appendCycleEvent({ type: 'cycle_complete', timestamp: completedAt, ...summary });
     await appendCycleEvent({ type: 'completed', timestamp: completedAt, ...summary });
     await completeCycleRuntime({ cycleId, message: 'Cycle complete', ...summary });
@@ -449,6 +452,11 @@ export async function runAutopilotCycle(options = {}) {
       error: errorMessage,
     });
     await appendCycleEvent({ type: 'failed', timestamp: nowIso(), cycleId, error: errorMessage });
+    try {
+      await setRuntimeStage(CYCLE_STAGES.FAILED, 'Cycle failed', { status: 'failed', currentSymbol: null });
+    } catch {
+      // best effort; failCycleRuntime remains authoritative
+    }
 
     await failCycleRuntime({
       cycleId,
