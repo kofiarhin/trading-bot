@@ -17,7 +17,8 @@
 
 import { getPositionMap } from './positionMonitor.js';
 import { getOpenTrades } from '../journal/tradeJournal.js';
-import { upsertOpenTrade } from '../repositories/tradeJournalRepo.mongo.js';
+import { upsertOpenTrade, appendTradeEvent } from '../repositories/tradeJournalRepo.mongo.js';
+import { config } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { normalizeSymbol } from '../utils/symbolNorm.js';
 
@@ -55,8 +56,8 @@ export async function evaluateExits(openTrades) {
     return [];
   }
 
-  const atrMultiplier = toNumber(process.env.TRAILING_ATR_MULTIPLIER, 1.5);
-  const maxHoldBarsDefault = toNumber(process.env.MAX_HOLD_BARS, 48);
+  const atrMultiplier = config.trading.trailingAtrMultiplier;
+  const maxHoldBarsDefault = config.trading.maxHoldBars;
 
   const results = [];
 
@@ -127,6 +128,21 @@ export async function evaluateExits(openTrades) {
       };
       logger.info('Breakeven triggered', { symbol: key, newStop, currentPrice });
       try { await upsertOpenTrade(updatedTrade); } catch { /* best effort */ }
+      try {
+        await appendTradeEvent({
+          type: 'trade_stop_updated',
+          tradeId: trade.tradeId,
+          symbol: trade.symbol,
+          timestamp: new Date().toISOString(),
+          reason: 'breakeven_stop',
+          payload: {
+            oldStop: toNumber(stopLoss, 0),
+            newStop,
+            trailingStopPrice: updatedTrade.trailingStopPrice,
+            currentPrice,
+          },
+        });
+      } catch { /* best effort */ }
       results.push({ tradeId: trade.tradeId, symbol: trade.symbol, shouldExit: false, reason: 'breakeven_stop', currentPrice, updatedTrade });
       continue;
     }
@@ -136,6 +152,20 @@ export async function evaluateExits(openTrades) {
       if (newTrailingStop > trailingStopPrice) {
         updatedTrade = { ...trade, trailingStopPrice: newTrailingStop, barsHeld };
         try { await upsertOpenTrade(updatedTrade); } catch { /* best effort */ }
+        try {
+          await appendTradeEvent({
+            type: 'trade_stop_updated',
+            tradeId: trade.tradeId,
+            symbol: trade.symbol,
+            timestamp: new Date().toISOString(),
+            reason: 'stop_trailed',
+            payload: {
+              oldTrailingStop: trailingStopPrice,
+              newTrailingStop,
+              currentPrice,
+            },
+          });
+        } catch { /* best effort */ }
         results.push({ tradeId: trade.tradeId, symbol: trade.symbol, shouldExit: false, reason: 'trailing_stop', currentPrice, updatedTrade });
         continue;
       }

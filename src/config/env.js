@@ -27,6 +27,20 @@ function loadEnv() {
     );
   }
 
+  const trailingAtrMultiplier = parseFloat(process.env.TRAILING_ATR_MULTIPLIER ?? "1.5");
+  if (!Number.isFinite(trailingAtrMultiplier) || trailingAtrMultiplier <= 0) {
+    throw new Error(
+      `TRAILING_ATR_MULTIPLIER must be a positive number. Got: "${process.env.TRAILING_ATR_MULTIPLIER}"`
+    );
+  }
+
+  const maxHoldBars = parseInt(process.env.MAX_HOLD_BARS ?? "48", 10);
+  if (!Number.isFinite(maxHoldBars) || maxHoldBars <= 0) {
+    throw new Error(
+      `MAX_HOLD_BARS must be a positive integer. Got: "${process.env.MAX_HOLD_BARS}"`
+    );
+  }
+
   return {
     alpaca: {
       key: process.env.ALPACA_API_KEY,
@@ -45,6 +59,8 @@ function loadEnv() {
       enableStocks: process.env.ENABLE_STOCKS !== "false",
       enableCrypto: process.env.ENABLE_CRYPTO !== "false",
       runMode: process.env.RUN_MODE ?? "paper",
+      trailingAtrMultiplier,
+      maxHoldBars,
     },
   };
 }
