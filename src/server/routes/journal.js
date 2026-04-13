@@ -34,11 +34,16 @@ router.get("/summary", async (req, res) => {
   try {
     const includeBrokerSync = req.query.includeBrokerSync === "true";
 
-    const [rawClosed, open] = await Promise.all([getClosedTrades(), getOpenTrades()]);
+    const [rawClosed, rawOpen] = await Promise.all([getClosedTrades(), getOpenTrades()]);
 
     const closed = includeBrokerSync
       ? rawClosed
       : rawClosed.filter(isStrategyPerformanceTrade);
+
+    const activeOpen = rawOpen.filter((t) => t.status !== "canceled");
+    const filteredOpen = includeBrokerSync
+      ? activeOpen
+      : activeOpen.filter(isStrategyPerformanceTrade);
 
     const wins = closed.filter((t) => (t.pnl ?? 0) > 0);
     const losses = closed.filter((t) => (t.pnl ?? 0) < 0);
@@ -51,9 +56,9 @@ router.get("/summary", async (req, res) => {
     const worstTrade = sortedByPnl[sortedByPnl.length - 1] ?? null;
 
     res.json({
-      totalTrades: closed.length + open.filter((t) => t.status !== "canceled").length,
+      totalTrades: closed.length + filteredOpen.length,
       closedTrades: closed.length,
-      openTrades: open.filter((t) => t.status !== "canceled").length,
+      openTrades: filteredOpen.length,
       wins: wins.length,
       losses: losses.length,
       winRate: closed.length ? Number(((wins.length / closed.length) * 100).toFixed(1)) : null,

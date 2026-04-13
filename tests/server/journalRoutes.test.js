@@ -36,6 +36,18 @@ const OPEN_TRADE = {
   metrics: { atr: 1.5 },
 };
 
+const BROKER_SYNC_OPEN_TRADE = {
+  tradeId: 'broker-open-1',
+  symbol: 'NVDA',
+  normalizedSymbol: 'NVDA',
+  assetClass: 'us_equity',
+  strategyName: 'broker_sync',
+  quantity: 1,
+  entryPrice: 500,
+  openedAt: '2026-04-11T09:30:00.000Z',
+  status: 'open',
+};
+
 const CLOSED_TRADE = {
   tradeId: 'closed-1',
   symbol: 'MSFT',
@@ -161,6 +173,43 @@ describe('GET /api/journal/summary', () => {
     expect(res.body.wins).toBe(1);
     expect(res.body.losses).toBe(1);
     expect(res.body.winRate).toBe(50);
+  });
+
+  it('excludes broker_sync open trades from openTrades by default', async () => {
+    const app = await buildApp({
+      openTrades: [OPEN_TRADE, BROKER_SYNC_OPEN_TRADE],
+      closedTrades: [CLOSED_TRADE],
+    });
+    const res = await request(app).get('/api/journal/summary');
+
+    expect(res.status).toBe(200);
+    // BROKER_SYNC_OPEN_TRADE must not be counted
+    expect(res.body.openTrades).toBe(1);
+    expect(res.body.totalTrades).toBe(2); // 1 real open + 1 real closed
+  });
+
+  it('excludes broker_sync open trades from totalTrades by default', async () => {
+    const app = await buildApp({
+      openTrades: [BROKER_SYNC_OPEN_TRADE],
+      closedTrades: [CLOSED_TRADE],
+    });
+    const res = await request(app).get('/api/journal/summary');
+
+    expect(res.status).toBe(200);
+    expect(res.body.openTrades).toBe(0);
+    expect(res.body.totalTrades).toBe(1); // only the 1 real closed trade
+  });
+
+  it('includes broker_sync open trades in openTrades when includeBrokerSync=true', async () => {
+    const app = await buildApp({
+      openTrades: [OPEN_TRADE, BROKER_SYNC_OPEN_TRADE],
+      closedTrades: [CLOSED_TRADE],
+    });
+    const res = await request(app).get('/api/journal/summary?includeBrokerSync=true');
+
+    expect(res.status).toBe(200);
+    expect(res.body.openTrades).toBe(2);
+    expect(res.body.totalTrades).toBe(3); // 2 open + 1 closed
   });
 
   it('handles zero closed trades safely after broker_sync filtering', async () => {

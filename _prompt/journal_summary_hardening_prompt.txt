@@ -1,0 +1,135 @@
+You are working inside an existing MERN trading bot codebase.
+
+Your task is to apply one final journal analytics hardening fix.
+
+OBJECTIVE
+
+Make the Journal summary cards represent strategy-managed trades only by default.
+
+CURRENT ISSUE
+
+The codebase already:
+- excludes `broker_sync` from closed-trade performance metrics
+- reconciles stale open `broker_sync` trades when broker positions disappear
+
+However, the Journal summary still counts all open non-canceled trades in:
+- `openTrades`
+- `totalTrades`
+
+That means any current or future `broker_sync` open trade can still inflate the summary cards even though those rows are operational broker imports, not true strategy-managed trades.
+
+REQUIRED OUTCOME
+
+By default, Journal summary cards must exclude `broker_sync` from:
+- openTrades
+- totalTrades
+- and any related default headline analytics
+
+The journal table/history may still display broker-sync rows for visibility.
+
+SCOPE
+
+Focused fix only.
+Do not redesign UI.
+Do not alter strategy logic.
+Do not change deployment configuration.
+Do not remove broker_sync rows from stored records.
+
+LIKELY FILES
+
+Update the real files in the repo. Likely areas include:
+- src/server/routes/journal.js
+- shared journal summary helpers if they exist
+- backend tests for journal summary
+- possibly frontend hook/tests only if required
+
+Use the actual file structure in the repo.
+
+REQUIREMENTS
+
+1. SUMMARY CARDS = STRATEGY-MANAGED TRADES ONLY
+Update the journal summary aggregation so default summary counts exclude broker-sync/import/reconciliation trades from:
+- openTrades
+- totalTrades
+- closedTrades if not already excluded
+- wins / losses / winRate / totalPnl / avgWin / avgLoss if not already excluded
+
+The summary should be internally consistent and based on one filtered trade set for analytics purposes.
+
+2. CENTRALIZE THE FILTER
+Do not scatter `strategyName !== "broker_sync"` inline everywhere.
+
+Use or extend the existing centralized helper if present, such as:
+- `isStrategyPerformanceTrade(trade)`
+- `shouldIncludeInPerformanceStats(trade)`
+
+If one already exists, reuse it for open and total counts too.
+
+3. TABLE VISIBILITY STAYS INTACT
+Do not remove broker_sync rows from the journal table/history response by default.
+The table should remain operationally useful.
+
+4. OPTIONAL QUERY PARAM SUPPORT
+If the summary route already supports something like:
+- `includeBrokerSync=true`
+
+Then preserve and extend that behavior consistently so:
+- default / omitted -> strategy-only summary cards
+- includeBrokerSync=true -> broker_sync may be included in summary
+
+If the param does not already exist, only add it if it fits cleanly without breaking current callers.
+
+5. DEFINE TOTAL TRADES CORRECTLY
+`totalTrades` should be calculated from the same filtered summary universe as the other cards.
+
+That means by default:
+- totalTrades = filteredOpenTrades + filteredClosedTrades
+not raw open + filtered closed
+
+6. HANDLE EDGE CASES
+Ensure safe handling for:
+- zero open trades
+- zero closed trades
+- zero wins
+- zero losses
+- missing pnl values
+- mixed string/number pnl values
+- canceled records if your current code already excludes them
+
+7. DO NOT CHANGE STORAGE
+Filtering must happen at summary aggregation time.
+Do not mutate stored trade records.
+
+8. TESTING
+Add or update backend tests.
+
+Required cases:
+- default summary excludes broker_sync from openTrades
+- default summary excludes broker_sync from totalTrades
+- default summary remains correct for closed performance metrics
+- includeBrokerSync=true includes broker_sync in open/total if supported
+- mixed open and closed records produce internally consistent counts
+
+Use the repo’s existing backend test framework and conventions.
+
+9. KEEP RESPONSE SHAPE STABLE
+Preserve the current summary response shape so the frontend keeps working.
+
+DELIVERABLES
+
+Provide:
+1. full updated files for every changed file
+2. short changed-files list
+3. brief explanation of the analytics hardening fix
+4. test files added/updated
+5. test commands run
+6. any assumptions about field names or query param behavior
+
+SUCCESS CRITERIA
+
+The fix is successful when:
+- broker_sync rows can still appear in the journal table
+- summary cards no longer count broker_sync by default
+- openTrades reflects real strategy-managed opens only
+- totalTrades reflects the same filtered summary universe
+- the frontend continues working without regression
