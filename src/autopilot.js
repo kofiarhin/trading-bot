@@ -10,10 +10,7 @@ import { getUniverse } from './market/universe.js';
 import { nowIso } from './lib/storage.js';
 import { resolveSession } from './utils/time.js';
 import { filterEligible } from './market/marketHours.js';
-import {
-  getOpenTrades,
-  syncTradesWithBroker,
-} from './journal/tradeJournal.js';
+import { getOpenTrades, syncTradesWithBroker } from './journal/tradeJournal.js';
 import { saveDecision } from './repositories/decisionRepo.mongo.js';
 import { appendCycleEvent } from './repositories/cycleRepo.mongo.js';
 import { loadRiskState } from './risk/riskState.js';
@@ -26,9 +23,8 @@ import {
   updateCycleRuntime,
   completeCycleRuntime,
   failCycleRuntime,
+  CycleAlreadyRunningError,
 } from './repositories/cycleRuntimeRepo.mongo.js';
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function toNumber(value, fallback = 0) {
   const numericValue = Number(value);
@@ -39,10 +35,6 @@ function inferAssetClass(symbol) {
   return typeof symbol === 'string' && symbol.includes('/') ? 'crypto' : 'stock';
 }
 
-/**
- * Converts any bar format (Alpaca raw or long-name normalized) to the raw
- * short-name format expected by the strategy indicators: { t, o, h, l, c, v }.
- */
 function toStrategyBars(bars) {
   return (bars ?? []).map((b) => ({
     t: b.timestamp ?? b.t,
@@ -55,7 +47,6 @@ function toStrategyBars(bars) {
 }
 
 function getConfiguredSymbols() {
-  // Explicit override — comma-separated list in env takes priority.
   const rawSymbols =
     process.env.AUTOPILOT_SYMBOLS ??
     process.env.SYMBOLS ??
@@ -66,7 +57,6 @@ function getConfiguredSymbols() {
     return [...new Set(rawSymbols.split(',').map((symbol) => symbol.trim()).filter(Boolean))];
   }
 
-  // Default: derive from the configured universe, respecting ENABLE_STOCKS / ENABLE_CRYPTO.
   const universeEntries = getUniverse({
     enableStocks: process.env.ENABLE_STOCKS !== 'false',
     enableCrypto: process.env.ENABLE_CRYPTO !== 'false',
@@ -79,8 +69,6 @@ async function fetchBarsBySymbol(symbols) {
   const cryptoSymbols = symbols.filter((s) => inferAssetClass(s) === 'crypto');
   const results = {};
 
-  // Stocks: use the multi-symbol limit-based endpoint (works outside market hours).
-  // getBarsForSymbols returns long-name format; toStrategyBars() converts at call site.
   if (stockSymbols.length) {
     try {
       const stockBars = await getBarsForSymbols(stockSymbols, { timeframe: '15Min', limit: 60 });
@@ -91,7 +79,6 @@ async function fetchBarsBySymbol(symbols) {
     }
   }
 
-  // Crypto: dedicated endpoint returns raw { t, o, h, l, c, v } format directly.
   await Promise.all(
     cryptoSymbols.map(async (symbol) => {
       try {
@@ -106,15 +93,9 @@ async function fetchBarsBySymbol(symbols) {
   return results;
 }
 
-/**
- * Evaluates a single symbol by delegating to the canonical strategy module.
- * Returns a decision in the canonical shape with a unique `id`.
- */
 function evaluateSymbol(symbol, bars, account) {
   const equity = toNumber(account?.equity, 100000);
   const riskPercent = toNumber(process.env.RISK_PERCENT, 0.005);
-
-  // Convert bars to raw short-name format expected by indicators / strategy.
   const rawBars = toStrategyBars(bars);
 
   const decision = evaluateBreakout({
@@ -244,27 +225,55 @@ export async function runAutopilotCycle(options = {}) {
   const dryRun = isDryRunEnabled(options);
   const cycleId = randomUUID();
   const startedAt = nowIso();
+  const { session, allowCrypto, allowStocks } = resolveSession();
 
-  const runtimeStarted = await startCycleRuntime({
-    metrics: {
-      scanned: 0,
-      approved: 0,
-      blocked: 0,
-      placed: 0,
-      rejected: 0,
-      errors: 0,
-    },
-  });
+  const counters = { symbolCount: 0, scanned: 0, approved: 0, rejected: 0, placed: 0, blocked: 0, errors: 0 };
 
-  if (!runtimeStarted) {
-    const concurrencyError = new Error('Cycle already running');
-    concurrencyError.code = 'CYCLE_ALREADY_RUNNING';
-    throw concurrencyError;
+  const setRuntimeStage = async (stage, message, patch = {}) => {
+    await updateCycleRuntime({
+      cycleId,
+      status: 'running',
+      stage,
+      message,
+      session,
+      dryRun,
+      symbolCount: counters.symbolCount,
+      scanned: counters.scanned,
+      approved: counters.approved,
+      rejected: counters.rejected,
+      placed: counters.placed,
+      errors: counters.errors,
+      currentSymbol: patch.currentSymbol,
+      ...patch,
+    });
+
+    await appendCycleEvent({
+      type: 'cycle_stage',
+      timestamp: nowIso(),
+      cycleId,
+      stage,
+      message,
+      currentSymbol: patch.currentSymbol ?? null,
+    });
+  };
+
+  try {
+    await startCycleRuntime({
+      cycleId,
+      stage: CYCLE_STAGES.STARTING,
+      message: 'Cycle started',
+      startedAt,
+      session,
+      dryRun,
+    });
+  } catch (error) {
+    if (error instanceof CycleAlreadyRunningError || error?.code === 'CYCLE_ALREADY_RUNNING') {
+      throw error;
+    }
+    throw error;
   }
 
   try {
-    const { session, allowCrypto, allowStocks } = resolveSession();
-
     const account = await getAccount();
 
     const allSymbols = getConfiguredSymbols();
@@ -273,9 +282,10 @@ export async function runAutopilotCycle(options = {}) {
       assetClass: inferAssetClass(s) === 'crypto' ? 'crypto' : 'stock',
     }));
     const symbols = filterEligible(universeEntries).map((e) => e.symbol);
+    counters.symbolCount = symbols.length;
 
     await appendCycleEvent({
-      type: 'cycle_start',
+      type: 'cycle_started',
       timestamp: startedAt,
       id: cycleId,
       cycleId,
@@ -287,10 +297,7 @@ export async function runAutopilotCycle(options = {}) {
       symbolCount: symbols.length,
     });
 
-    await updateCycleRuntime({
-      stage: CYCLE_STAGES.SYNCING_BROKER,
-      metrics: { scanned: symbols.length, approved: 0, blocked: 0, placed: 0, rejected: 0, errors: 0 },
-    });
+    await setRuntimeStage(CYCLE_STAGES.SYNCING_BROKER, 'Syncing broker positions');
 
     const brokerPositionsBefore = await getPositions();
     const brokerOrdersBefore = await getOrders({ status: 'all', limit: 200, nested: true, direction: 'desc' });
@@ -300,20 +307,22 @@ export async function runAutopilotCycle(options = {}) {
       brokerOrders: brokerOrdersBefore,
     });
 
-    await updateCycleRuntime({ stage: CYCLE_STAGES.MONITORING_POSITIONS });
+    await setRuntimeStage(CYCLE_STAGES.MONITORING_POSITIONS, 'Checking open trades for exits');
     await handleExits(dryRun);
 
-    await updateCycleRuntime({ stage: CYCLE_STAGES.FETCHING_MARKET_DATA });
+    await setRuntimeStage(CYCLE_STAGES.FETCHING_MARKET_DATA, 'Fetching latest market data');
     const barsBySymbol = await fetchBarsBySymbol(symbols);
 
-    await updateCycleRuntime({ stage: CYCLE_STAGES.EVALUATING_SIGNALS });
+    await setRuntimeStage(CYCLE_STAGES.EVALUATING_SIGNALS, 'Evaluating strategy signals');
     const decisions = symbols.map((symbol) => evaluateSymbol(symbol, barsBySymbol[symbol] ?? [], account));
 
-    let rejectedCount = 0;
     for (const decision of decisions) {
+      counters.scanned += 1;
+      await updateCycleRuntime({ cycleId, currentSymbol: decision.symbol, scanned: counters.scanned, heartbeatAt: nowIso() });
       await recordDecision(decision);
+
       if (!decision.approved) {
-        rejectedCount += 1;
+        counters.rejected += 1;
         const diagnosticReasons = ['no_breakout', 'weak_volume', 'atr_too_low', 'breakout_too_extended', 'invalid_risk_reward', 'invalid_stop_distance'];
         if (diagnosticReasons.includes(decision.reason)) {
           await appendCycleEvent({
@@ -327,51 +336,32 @@ export async function runAutopilotCycle(options = {}) {
       }
     }
 
-    await updateCycleRuntime({
-      stage: CYCLE_STAGES.APPLYING_RISK_GUARDS,
-      metrics: { scanned: decisions.length, approved: 0, blocked: 0, placed: 0, rejected: rejectedCount, errors: 0 },
-    });
+    await setRuntimeStage(CYCLE_STAGES.APPLYING_RISK_GUARDS, 'Applying risk guards');
 
-    let approvedCount = 0;
-    let blockedCount = 0;
-    let placedCount = 0;
     const placements = [];
-
     for (const decision of decisions) {
-      if (!decision.approved) {
-        continue;
-      }
+      if (!decision.approved) continue;
 
+      await updateCycleRuntime({ cycleId, currentSymbol: decision.symbol });
       const brokerPositions = await getPositions();
       const guardResult = await evaluateExecutionGuards(decision, brokerPositions);
       decision.blockers = [...(decision.blockers ?? []), ...guardResult.blockers];
       await recordApproval(decision, guardResult.blockers);
 
       if (!guardResult.allowed) {
-        blockedCount += 1;
+        counters.blocked += 1;
         continue;
       }
 
-      approvedCount += 1;
+      counters.approved += 1;
     }
 
-    await updateCycleRuntime({
-      stage: CYCLE_STAGES.PLACING_ORDERS,
-      metrics: {
-        scanned: decisions.length,
-        approved: approvedCount,
-        blocked: blockedCount,
-        placed: placedCount,
-        rejected: rejectedCount,
-        errors: 0,
-      },
-    });
+    await setRuntimeStage(CYCLE_STAGES.PLACING_ORDERS, 'Placing approved orders');
 
     for (const decision of decisions) {
-      if (!decision.approved || (decision.blockers?.length ?? 0) > 0) {
-        continue;
-      }
+      if (!decision.approved || (decision.blockers?.length ?? 0) > 0) continue;
 
+      await updateCycleRuntime({ cycleId, currentSymbol: decision.symbol });
       const placement = await placeOrder({ decision, dryRun });
       placements.push({ decision, placement });
 
@@ -387,11 +377,11 @@ export async function runAutopilotCycle(options = {}) {
         continue;
       }
 
-      placedCount += 1;
-
+      counters.placed += 1;
       await appendCycleEvent({
-        type: 'order_submitted',
+        type: 'trade_placed',
         timestamp: nowIso(),
+        cycleId,
         decisionId: decision.id,
         symbol: decision.symbol,
         brokerOrderId: placement.orderId ?? null,
@@ -399,18 +389,16 @@ export async function runAutopilotCycle(options = {}) {
       });
 
       await updateCycleRuntime({
-        metrics: {
-          scanned: decisions.length,
-          approved: approvedCount,
-          blocked: blockedCount,
-          placed: placedCount,
-          rejected: rejectedCount,
-          errors: 0,
-        },
+        cycleId,
+        scanned: counters.scanned,
+        approved: counters.approved,
+        rejected: counters.rejected,
+        placed: counters.placed,
+        errors: counters.errors,
       });
     }
 
-    await updateCycleRuntime({ stage: CYCLE_STAGES.FINAL_SYNC });
+    await setRuntimeStage(CYCLE_STAGES.FINAL_SYNC, 'Finalizing cycle state', { currentSymbol: null });
 
     const brokerPositionsAfter = await getPositions();
     const brokerOrdersAfter = await getOrders({ status: 'all', limit: 200, nested: true, direction: 'desc' });
@@ -420,41 +408,51 @@ export async function runAutopilotCycle(options = {}) {
       brokerOrders: brokerOrdersAfter,
     });
 
+    const completedAt = nowIso();
     const summary = {
       cycleId,
       dryRun,
       session,
       allowCrypto,
       allowStocks,
-      scanned: decisions.length,
-      approved: approvedCount,
-      placed: placedCount,
+      symbolCount: counters.symbolCount,
+      scanned: counters.scanned,
+      approved: counters.approved,
+      rejected: counters.rejected,
+      placed: counters.placed,
+      errors: counters.errors,
       startedAt,
-      completedAt: nowIso(),
+      completedAt,
     };
 
-    await appendCycleEvent({ type: 'completed', timestamp: nowIso(), ...summary });
-    await completeCycleRuntime({
-      metrics: {
-        scanned: decisions.length,
-        approved: approvedCount,
-        blocked: blockedCount,
-        placed: placedCount,
-        rejected: rejectedCount,
-        errors: 0,
-      },
-    });
+    await appendCycleEvent({ type: 'cycle_complete', timestamp: completedAt, ...summary });
+    await appendCycleEvent({ type: 'completed', timestamp: completedAt, ...summary });
+    await completeCycleRuntime({ cycleId, message: 'Cycle complete', ...summary });
 
     console.log(`[autopilot] cycle completed — scanned: ${summary.scanned}, approved: ${summary.approved}, placed: ${summary.placed}`);
 
     return {
+      cycleId,
+      status: 'completed',
       summary,
       decisions,
       placements,
     };
   } catch (error) {
+    counters.errors += 1;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    await appendCycleEvent({
+      type: 'cycle_failed',
+      timestamp: nowIso(),
+      cycleId,
+      error: errorMessage,
+    });
+    await appendCycleEvent({ type: 'failed', timestamp: nowIso(), cycleId, error: errorMessage });
+
     await failCycleRuntime({
-      message: error instanceof Error ? error.message : String(error),
+      cycleId,
+      message: errorMessage,
       stack: error instanceof Error ? error.stack : null,
       context: { cycleId },
     });
@@ -475,7 +473,6 @@ if (executedFile?.endsWith('/src/autopilot.js')) {
       await runAutopilotCycle();
     } catch (error) {
       console.error(`[autopilot] cycle failed: ${error instanceof Error ? error.message : error}`);
-      // Best-effort: try to persist the failure before exiting.
       try {
         await appendCycleEvent({
           type: 'failed',

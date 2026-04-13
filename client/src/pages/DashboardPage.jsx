@@ -7,7 +7,6 @@ import ActivityFeed from "../components/ActivityFeed.jsx";
 import MobileFeedTabs from "../components/MobileFeedTabs.jsx";
 import CycleProgressBar from "../components/CycleProgressBar.jsx";
 import OpenPositionsMobileList from "../components/OpenPositionsMobileList.jsx";
-import { useStatus } from "../hooks/queries/useDashboard.js";
 import { useCycleRuntime } from "../hooks/queries/useCycleRuntime.js";
 
 const REFRESH_INTERVAL_S = 15;
@@ -42,20 +41,37 @@ function AutoRefreshIndicator() {
   );
 }
 
-function Header() {
-  const { data: status } = useStatus();
-  const isActive = status?.botStatus === "active";
+function Header({ runtime }) {
+  const status = runtime?.status ?? "idle";
+  const stage = runtime?.stage ? runtime.stage.replaceAll("_", " ") : "";
+
+  const statusConfig = {
+    running: {
+      dot: "bg-emerald-400 animate-pulse",
+      text: "text-emerald-400",
+      label: runtime?.message ?? `Cycle running${stage ? ` — ${stage}` : ""}`,
+    },
+    completed: { dot: "bg-sky-400", text: "text-sky-300", label: "Cycle complete" },
+    waiting: { dot: "bg-slate-500", text: "text-slate-400", label: "Waiting for next trigger" },
+    failed: { dot: "bg-red-400", text: "text-red-300", label: "Cycle failed" },
+    idle: { dot: "bg-slate-500", text: "text-slate-400", label: "Waiting for next trigger" },
+  };
+
+  const ui = statusConfig[status] ?? statusConfig.idle;
 
   return (
-    <div className="flex items-center justify-between mb-4 md:mb-6">
-      <div>
-        <h1 className="text-xl font-bold text-white tracking-tight">Trading Bot</h1>
-        <p className="text-xs text-slate-500 mt-0.5">Dashboard — live view</p>
+    <div className="mb-4 md:mb-6 space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-white tracking-tight">Trading Bot</h1>
+          <p className="text-xs text-slate-500 mt-0.5">Dashboard — live view</p>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <span className={`w-2 h-2 rounded-full ${ui.dot}`} />
+          <span className={ui.text}>{ui.label}</span>
+        </div>
       </div>
-      <div className="flex items-center gap-2 text-sm">
-        <span className={`w-2 h-2 rounded-full ${isActive ? "bg-emerald-400 animate-pulse" : "bg-slate-500"}`} />
-        <span className={isActive ? "text-emerald-400" : "text-slate-400"}>{isActive ? "Bot running" : "Bot idle"}</span>
-      </div>
+      <CycleProgressBar runtime={runtime} />
     </div>
   );
 }
@@ -66,11 +82,9 @@ export default function DashboardPage() {
   return (
     <main className="px-4 py-4 md:px-8 md:py-6">
       <div className="max-w-screen-2xl mx-auto space-y-4 md:space-y-6">
-        <Header />
+        <Header runtime={runtime} />
 
         <SummaryCards />
-
-        <CycleProgressBar runtime={runtime} />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-1">

@@ -5,7 +5,8 @@ export function useCycleRuntime() {
   return useQuery({
     queryKey: ['cycle', 'runtime'],
     queryFn: cycleService.getRuntime,
-    refetchInterval: (query) => (query.state.data?.status === 'running' ? 5_000 : 15_000),
-    staleTime: 10_000,
+    refetchInterval: (query) => (query.state.data?.status === 'running' ? 2_000 : 10_000),
+    staleTime: 2_000,
+    placeholderData: (prev) => prev,
   });
 }
