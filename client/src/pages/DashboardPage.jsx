@@ -5,8 +5,10 @@ import RecentDecisionsTable from "../components/RecentDecisionsTable.jsx";
 import OpenPositionsTable from "../components/OpenPositionsTable.jsx";
 import ActivityFeed from "../components/ActivityFeed.jsx";
 import MobileFeedTabs from "../components/MobileFeedTabs.jsx";
+import CycleProgressBar from "../components/CycleProgressBar.jsx";
 import OpenPositionsMobileList from "../components/OpenPositionsMobileList.jsx";
 import { useStatus } from "../hooks/queries/useDashboard.js";
+import { useCycleRuntime } from "../hooks/queries/useCycleRuntime.js";
 
 const REFRESH_INTERVAL_S = 15;
 
@@ -59,12 +61,16 @@ function Header() {
 }
 
 export default function DashboardPage() {
+  const { data: runtime } = useCycleRuntime();
+
   return (
     <main className="px-4 py-4 md:px-8 md:py-6">
       <div className="max-w-screen-2xl mx-auto space-y-4 md:space-y-6">
         <Header />
 
         <SummaryCards />
+
+        <CycleProgressBar runtime={runtime} />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-1">

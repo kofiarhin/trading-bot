@@ -7,6 +7,7 @@ import {
   getClosedTrades,
 } from "../../journal/tradeJournal.js";
 import { getCyclesForDate } from "../../repositories/cycleRepo.mongo.js";
+import { getCycleRuntime } from "../../repositories/cycleRuntimeRepo.mongo.js";
 import { londonDateString, resolveSession } from "../../utils/time.js";
 import {
   getTradeEventsForDate,
@@ -330,7 +331,7 @@ router.get("/overview", async (req, res) => {
     const fallbackToLatest = shouldUseDecisionFallback(req.query.fallbackLatest ?? req.query.fallback);
 
     // Single batch of all DB reads
-    const [cycles, journal, decisionLog, riskState, openTrades, closedToday, tradeEvents] =
+    const [cycles, journal, decisionLog, riskState, openTrades, closedToday, tradeEvents, runtime] =
       await Promise.all([
         getTodayCycles(),
         getTodayJournal(),
@@ -339,6 +340,7 @@ router.get("/overview", async (req, res) => {
         getOpenTrades(),
         getClosedTradesForDate(todayStr),
         getTradeEventsForDate(todayStr),
+        getCycleRuntime(),
       ]);
 
     // Single batch of Alpaca calls
@@ -351,7 +353,8 @@ router.get("/overview", async (req, res) => {
     }
 
     // ── status ──
-    const { botStatus, lastCycleAt, lastCycleType } = deriveBotStatus(cycles);
+    const { botStatus: inferredStatus, lastCycleAt, lastCycleType } = deriveBotStatus(cycles);
+    const botStatus = runtime?.status === 'running' ? 'active' : inferredStatus;
     const { session: currentSession, allowCrypto, allowStocks } = resolveSession();
     const runMode = config.trading.runMode;
     const dryRun = config.trading.dryRun;
@@ -396,28 +399,26 @@ router.get("/overview", async (req, res) => {
     // ── latestCycle ──
     const terminalIndexes = cycles.map((c, i) => ({ c, i })).filter(({ c }) => ALL_TERMINAL_TYPES.includes(c.type));
     let latestCycle = null;
-    if (terminalIndexes.length) {
-      const { c: latest, i: latestIndex } = terminalIndexes[terminalIndexes.length - 1];
-      const startEvent = latestIndex > 0 ? cycles[latestIndex - 1] : null;
-      const startTime = startEvent?.recordedAt ?? null;
-      const endTime = latest.recordedAt ?? null;
+    if (runtime?.startedAt || terminalIndexes.length) {
+      const latest = terminalIndexes.length ? terminalIndexes[terminalIndexes.length - 1].c : null;
+      const startTime = runtime?.startedAt ?? null;
+      const endTime = runtime?.completedAt ?? latest?.recordedAt ?? null;
       let durationMs = null;
       if (startTime && endTime) durationMs = new Date(endTime).getTime() - new Date(startTime).getTime();
       latestCycle = {
-        type: latest.type,
+        type: runtime?.status ?? latest?.type ?? null,
+        stage: runtime?.stage ?? null,
+        progressPct: runtime?.progressPct ?? 0,
         startTime,
         endTime,
         durationMs,
-        session: latest.session ?? null,
-        allowCrypto: latest.allowCrypto ?? null,
-        allowStocks: latest.allowStocks ?? null,
-        scanned: latest.scanned ?? null,
-        approved: latest.approved ?? null,
-        rejected: latest.scanned != null ? (latest.scanned - (latest.approved ?? 0)) : null,
-        placed: latest.placed ?? null,
-        errors: latest.errors ?? null,
-        reason: latest.reason ?? null,
-        timestamp: latest.timestamp,
+        scanned: runtime?.metrics?.scanned ?? latest?.scanned ?? null,
+        approved: runtime?.metrics?.approved ?? latest?.approved ?? null,
+        rejected: runtime?.metrics?.rejected ?? null,
+        placed: runtime?.metrics?.placed ?? latest?.placed ?? null,
+        errors: runtime?.metrics?.errors ?? latest?.errors ?? null,
+        reason: latest?.reason ?? null,
+        timestamp: runtime?.updatedAt ?? latest?.timestamp ?? null,
       };
     }
 
@@ -473,7 +474,8 @@ router.get("/overview", async (req, res) => {
 router.get("/status", async (req, res) => {
   try {
     const cycles = await getTodayCycles();
-    const { botStatus, lastCycleAt, lastCycleType } = deriveBotStatus(cycles);
+    const { botStatus: inferredStatus, lastCycleAt, lastCycleType } = deriveBotStatus(cycles);
+    const botStatus = runtime?.status === 'running' ? 'active' : inferredStatus;
     const { session: currentSession, allowCrypto, allowStocks } = resolveSession();
 
     let statusLabel = botStatus;
@@ -561,38 +563,35 @@ router.get("/summary", async (req, res) => {
 // GET /api/dashboard/cycles/latest
 router.get("/cycles/latest", async (req, res) => {
   try {
-    const cycles = await getTodayCycles();
+    const [cycles, runtime] = await Promise.all([getTodayCycles(), getCycleRuntime()]);
     const terminalIndexes = cycles
       .map((c, i) => ({ c, i }))
       .filter(({ c }) => ALL_TERMINAL_TYPES.includes(c.type));
 
-    if (!terminalIndexes.length) return res.json(null);
+    if (!runtime?.startedAt && !terminalIndexes.length) return res.json(null);
 
-    const { c: latest, i: latestIndex } = terminalIndexes[terminalIndexes.length - 1];
-    const startEvent = latestIndex > 0 ? cycles[latestIndex - 1] : null;
-
-    const startTime = startEvent?.recordedAt ?? null;
-    const endTime = latest.recordedAt ?? null;
+    const latest = terminalIndexes.length ? terminalIndexes[terminalIndexes.length - 1].c : null;
+    const startTime = runtime?.startedAt ?? null;
+    const endTime = runtime?.completedAt ?? latest?.recordedAt ?? null;
     let durationMs = null;
     if (startTime && endTime) {
       durationMs = new Date(endTime).getTime() - new Date(startTime).getTime();
     }
 
     res.json({
-      type: latest.type,
+      type: runtime?.status ?? latest?.type ?? null,
+      stage: runtime?.stage ?? null,
+      progressPct: runtime?.progressPct ?? 0,
       startTime,
       endTime,
       durationMs,
-      session: latest.session ?? null,
-      allowCrypto: latest.allowCrypto ?? null,
-      allowStocks: latest.allowStocks ?? null,
-      scanned: latest.scanned ?? null,
-      approved: latest.approved ?? null,
-      rejected: latest.scanned != null ? (latest.scanned - (latest.approved ?? 0)) : null,
-      placed: latest.placed ?? null,
-      errors: latest.errors ?? null,
-      reason: latest.reason ?? null,
-      timestamp: latest.timestamp,
+      scanned: runtime?.metrics?.scanned ?? latest?.scanned ?? null,
+      approved: runtime?.metrics?.approved ?? latest?.approved ?? null,
+      rejected: runtime?.metrics?.rejected ?? null,
+      placed: runtime?.metrics?.placed ?? latest?.placed ?? null,
+      errors: runtime?.metrics?.errors ?? latest?.errors ?? null,
+      reason: latest?.reason ?? null,
+      timestamp: runtime?.updatedAt ?? latest?.timestamp ?? null,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

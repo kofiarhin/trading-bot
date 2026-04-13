@@ -20,6 +20,13 @@ import { loadRiskState } from './risk/riskState.js';
 import { checkOpenTradesForExit } from './positions/positionMonitor.js';
 import { closeTrade } from './execution/orderManager.js';
 import { evaluateBreakout } from './strategies/breakoutStrategy.js';
+import { CYCLE_STAGES } from './autopilot/cycleStages.js';
+import {
+  startCycleRuntime,
+  updateCycleRuntime,
+  completeCycleRuntime,
+  failCycleRuntime,
+} from './repositories/cycleRuntimeRepo.mongo.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -238,148 +245,221 @@ export async function runAutopilotCycle(options = {}) {
   const cycleId = randomUUID();
   const startedAt = nowIso();
 
-  const { session, allowCrypto, allowStocks } = resolveSession();
-
-  const account = await getAccount();
-
-  // Filter the configured universe to assets eligible in the current session.
-  const allSymbols = getConfiguredSymbols();
-  const universeEntries = allSymbols.map((s) => ({
-    symbol: s,
-    assetClass: inferAssetClass(s) === 'crypto' ? 'crypto' : 'stock',
-  }));
-  const symbols = filterEligible(universeEntries).map((e) => e.symbol);
-
-  // Emit cycle_start after symbol filtering so symbolCount is accurate.
-  await appendCycleEvent({
-    type: 'cycle_start',
-    timestamp: startedAt,
-    id: cycleId,
-    cycleId,
-    dryRun,
-    startedAt,
-    session,
-    allowCrypto,
-    allowStocks,
-    symbolCount: symbols.length,
+  const runtimeStarted = await startCycleRuntime({
+    metrics: {
+      scanned: 0,
+      approved: 0,
+      blocked: 0,
+      placed: 0,
+      rejected: 0,
+      errors: 0,
+    },
   });
 
-  const brokerPositionsBefore = await getPositions();
-  const brokerOrdersBefore = await getOrders({ status: 'all', limit: 200, nested: true, direction: 'desc' });
-
-  await syncTradesWithBroker({
-    brokerPositions: brokerPositionsBefore,
-    brokerOrders: brokerOrdersBefore,
-  });
-
-  await handleExits(dryRun);
-
-  const barsBySymbol = await fetchBarsBySymbol(symbols);
-
-  // Delegate all signal evaluation to the canonical strategy module.
-  const decisions = symbols.map((symbol) => evaluateSymbol(symbol, barsBySymbol[symbol] ?? [], account));
-
-  for (const decision of decisions) {
-    await recordDecision(decision);
-
-    // Emit a diagnostic cycle event for actionable rejections so the activity
-    // feed can show which symbols were filtered and why — without flooding it
-    // with data-missing rejections.
-    if (!decision.approved) {
-      const diagnosticReasons = ['no_breakout', 'weak_volume', 'atr_too_low', 'breakout_too_extended', 'invalid_risk_reward', 'invalid_stop_distance'];
-      if (diagnosticReasons.includes(decision.reason)) {
-        await appendCycleEvent({
-          type: 'symbol_rejected',
-          timestamp: nowIso(),
-          symbol: decision.symbol,
-          reason: decision.reason,
-          metrics: decision.metrics ?? null,
-        });
-      }
-    }
+  if (!runtimeStarted) {
+    const concurrencyError = new Error('Cycle already running');
+    concurrencyError.code = 'CYCLE_ALREADY_RUNNING';
+    throw concurrencyError;
   }
 
-  let approvedCount = 0;
-  let placedCount = 0;
-  const placements = [];
+  try {
+    const { session, allowCrypto, allowStocks } = resolveSession();
 
-  for (const decision of decisions) {
-    if (!decision.approved) {
-      continue;
+    const account = await getAccount();
+
+    const allSymbols = getConfiguredSymbols();
+    const universeEntries = allSymbols.map((s) => ({
+      symbol: s,
+      assetClass: inferAssetClass(s) === 'crypto' ? 'crypto' : 'stock',
+    }));
+    const symbols = filterEligible(universeEntries).map((e) => e.symbol);
+
+    await appendCycleEvent({
+      type: 'cycle_start',
+      timestamp: startedAt,
+      id: cycleId,
+      cycleId,
+      dryRun,
+      startedAt,
+      session,
+      allowCrypto,
+      allowStocks,
+      symbolCount: symbols.length,
+    });
+
+    await updateCycleRuntime({
+      stage: CYCLE_STAGES.SYNCING_BROKER,
+      metrics: { scanned: symbols.length, approved: 0, blocked: 0, placed: 0, rejected: 0, errors: 0 },
+    });
+
+    const brokerPositionsBefore = await getPositions();
+    const brokerOrdersBefore = await getOrders({ status: 'all', limit: 200, nested: true, direction: 'desc' });
+
+    await syncTradesWithBroker({
+      brokerPositions: brokerPositionsBefore,
+      brokerOrders: brokerOrdersBefore,
+    });
+
+    await updateCycleRuntime({ stage: CYCLE_STAGES.MONITORING_POSITIONS });
+    await handleExits(dryRun);
+
+    await updateCycleRuntime({ stage: CYCLE_STAGES.FETCHING_MARKET_DATA });
+    const barsBySymbol = await fetchBarsBySymbol(symbols);
+
+    await updateCycleRuntime({ stage: CYCLE_STAGES.EVALUATING_SIGNALS });
+    const decisions = symbols.map((symbol) => evaluateSymbol(symbol, barsBySymbol[symbol] ?? [], account));
+
+    let rejectedCount = 0;
+    for (const decision of decisions) {
+      await recordDecision(decision);
+      if (!decision.approved) {
+        rejectedCount += 1;
+        const diagnosticReasons = ['no_breakout', 'weak_volume', 'atr_too_low', 'breakout_too_extended', 'invalid_risk_reward', 'invalid_stop_distance'];
+        if (diagnosticReasons.includes(decision.reason)) {
+          await appendCycleEvent({
+            type: 'symbol_rejected',
+            timestamp: nowIso(),
+            symbol: decision.symbol,
+            reason: decision.reason,
+            metrics: decision.metrics ?? null,
+          });
+        }
+      }
     }
 
-    const brokerPositions = await getPositions();
-    const guardResult = await evaluateExecutionGuards(decision, brokerPositions);
+    await updateCycleRuntime({
+      stage: CYCLE_STAGES.APPLYING_RISK_GUARDS,
+      metrics: { scanned: decisions.length, approved: 0, blocked: 0, placed: 0, rejected: rejectedCount, errors: 0 },
+    });
 
-    // Append guard blockers to the decision's blockers array while preserving
-    // the strategy's original blockers (should be empty for an approved decision).
-    decision.blockers = [...(decision.blockers ?? []), ...guardResult.blockers];
+    let approvedCount = 0;
+    let blockedCount = 0;
+    let placedCount = 0;
+    const placements = [];
 
-    await recordApproval(decision, guardResult.blockers);
+    for (const decision of decisions) {
+      if (!decision.approved) {
+        continue;
+      }
 
-    if (!guardResult.allowed) {
-      continue;
+      const brokerPositions = await getPositions();
+      const guardResult = await evaluateExecutionGuards(decision, brokerPositions);
+      decision.blockers = [...(decision.blockers ?? []), ...guardResult.blockers];
+      await recordApproval(decision, guardResult.blockers);
+
+      if (!guardResult.allowed) {
+        blockedCount += 1;
+        continue;
+      }
+
+      approvedCount += 1;
     }
 
-    approvedCount += 1;
+    await updateCycleRuntime({
+      stage: CYCLE_STAGES.PLACING_ORDERS,
+      metrics: {
+        scanned: decisions.length,
+        approved: approvedCount,
+        blocked: blockedCount,
+        placed: placedCount,
+        rejected: rejectedCount,
+        errors: 0,
+      },
+    });
 
-    const placement = await placeOrder({ decision, dryRun });
-    placements.push({ decision, placement });
+    for (const decision of decisions) {
+      if (!decision.approved || (decision.blockers?.length ?? 0) > 0) {
+        continue;
+      }
 
-    if (!placement.placed) {
+      const placement = await placeOrder({ decision, dryRun });
+      placements.push({ decision, placement });
+
+      if (!placement.placed) {
+        await appendCycleEvent({
+          type: 'order_skipped',
+          timestamp: nowIso(),
+          decisionId: decision.id,
+          symbol: decision.symbol,
+          reason: placement.message,
+          dryRun: placement.dryRun,
+        });
+        continue;
+      }
+
+      placedCount += 1;
+
       await appendCycleEvent({
-        type: 'order_skipped',
+        type: 'order_submitted',
         timestamp: nowIso(),
         decisionId: decision.id,
         symbol: decision.symbol,
-        reason: placement.message,
-        dryRun: placement.dryRun,
+        brokerOrderId: placement.orderId ?? null,
+        quantity: decision.quantity,
       });
-      continue;
+
+      await updateCycleRuntime({
+        metrics: {
+          scanned: decisions.length,
+          approved: approvedCount,
+          blocked: blockedCount,
+          placed: placedCount,
+          rejected: rejectedCount,
+          errors: 0,
+        },
+      });
     }
 
-    placedCount += 1;
+    await updateCycleRuntime({ stage: CYCLE_STAGES.FINAL_SYNC });
 
-    await appendCycleEvent({
-      type: 'order_submitted',
-      timestamp: nowIso(),
-      decisionId: decision.id,
-      symbol: decision.symbol,
-      brokerOrderId: placement.orderId ?? null,
-      quantity: decision.quantity,
+    const brokerPositionsAfter = await getPositions();
+    const brokerOrdersAfter = await getOrders({ status: 'all', limit: 200, nested: true, direction: 'desc' });
+
+    await syncTradesWithBroker({
+      brokerPositions: brokerPositionsAfter,
+      brokerOrders: brokerOrdersAfter,
     });
+
+    const summary = {
+      cycleId,
+      dryRun,
+      session,
+      allowCrypto,
+      allowStocks,
+      scanned: decisions.length,
+      approved: approvedCount,
+      placed: placedCount,
+      startedAt,
+      completedAt: nowIso(),
+    };
+
+    await appendCycleEvent({ type: 'completed', timestamp: nowIso(), ...summary });
+    await completeCycleRuntime({
+      metrics: {
+        scanned: decisions.length,
+        approved: approvedCount,
+        blocked: blockedCount,
+        placed: placedCount,
+        rejected: rejectedCount,
+        errors: 0,
+      },
+    });
+
+    console.log(`[autopilot] cycle completed — scanned: ${summary.scanned}, approved: ${summary.approved}, placed: ${summary.placed}`);
+
+    return {
+      summary,
+      decisions,
+      placements,
+    };
+  } catch (error) {
+    await failCycleRuntime({
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : null,
+      context: { cycleId },
+    });
+    throw error;
   }
-
-  const brokerPositionsAfter = await getPositions();
-  const brokerOrdersAfter = await getOrders({ status: 'all', limit: 200, nested: true, direction: 'desc' });
-
-  await syncTradesWithBroker({
-    brokerPositions: brokerPositionsAfter,
-    brokerOrders: brokerOrdersAfter,
-  });
-
-  const summary = {
-    cycleId,
-    dryRun,
-    session,
-    allowCrypto,
-    allowStocks,
-    scanned: decisions.length,
-    approved: approvedCount,
-    placed: placedCount,
-    startedAt,
-    completedAt: nowIso(),
-  };
-
-  await appendCycleEvent({ type: 'completed', timestamp: nowIso(), ...summary });
-
-  console.log(`[autopilot] cycle completed — scanned: ${summary.scanned}, approved: ${summary.approved}, placed: ${summary.placed}`);
-
-  return {
-    summary,
-    decisions,
-    placements,
-  };
 }
 
 export default runAutopilotCycle;

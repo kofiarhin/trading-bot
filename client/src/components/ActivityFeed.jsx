@@ -3,6 +3,7 @@ import { useActivity } from "../hooks/queries/useDashboard.js";
 
 const TYPE_STYLES = {
   cycle_complete: { dot: "bg-sky-400", text: "text-slate-200" },
+  cycle_started: { dot: "bg-cyan-400", text: "text-slate-200" },
   skipped: { dot: "bg-slate-600", text: "text-slate-500" },
   failed: { dot: "bg-red-400", text: "text-red-300" },
   approved: { dot: "bg-emerald-400", text: "text-slate-200" },
