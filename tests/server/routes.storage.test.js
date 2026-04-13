@@ -155,6 +155,7 @@ describe('dashboard route canonical shape', () => {
           orderStatus: 'filled',
         },
       ]),
+      getClosedTradesForDate: jest.fn(async () => []),
     }));
     jest.unstable_mockModule('../../src/risk/riskState.js', () => ({
       loadRiskState: jest.fn(async () => ({ dailyRealizedLoss: 0 })),

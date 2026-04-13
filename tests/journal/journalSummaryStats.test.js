@@ -21,7 +21,6 @@ afterAll(async () => {
 });
 
 function makeClosedTrade(overrides = {}) {
-  const { randomUUID } = await import('node:crypto');
   return {
     tradeId: Math.random().toString(36).slice(2),
     symbol: overrides.symbol ?? 'AAPL',
