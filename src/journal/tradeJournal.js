@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { normalizeSymbol } from '../utils/symbolNorm.js';
 import { normalizeTradeForRead, normalizeTradeForWrite } from './normalizeTrade.js';
+import { resolveSession } from '../utils/time.js';
 import {
   getOpenTrades as repoGetOpenTrades,
   getOpenTradeById as repoGetOpenTradeById,
@@ -111,6 +112,8 @@ function buildCanonicalTradeRecord({ decision = {}, order = {}, trade = {}, sour
     orphaned: Boolean(trade.orphaned ?? false),
     source: trade.source ?? source,
     notes: trade.notes ?? null,
+    setupScore: trade.setupScore ?? decision.setupScore ?? null,
+    setupGrade: trade.setupGrade ?? decision.setupGrade ?? null,
     updatedAt: nowIso(),
   };
 
@@ -259,15 +262,18 @@ export async function markTradeClosed({ tradeId, symbol, reason = 'broker_sync',
 
   if (!matchingTrade) return null;
 
+  const closedAt = brokerOrder.filled_at ?? nowIso();
+  const exitPrice =
+    toNumber(brokerOrder.filled_avg_price, 0) ||
+    toNumber(brokerPosition.current_price, 0) ||
+    toNumber(matchingTrade.exitPrice, 0) ||
+    null;
+
   const closedTrade = {
     ...matchingTrade,
     status: 'closed',
-    closedAt: brokerOrder.filled_at ?? nowIso(),
-    exitPrice:
-      toNumber(brokerOrder.filled_avg_price, 0) ||
-      toNumber(brokerPosition.current_price, 0) ||
-      toNumber(matchingTrade.exitPrice, 0) ||
-      null,
+    closedAt,
+    exitPrice,
     orphaned: false,
     exitReason: reason,
     updatedAt: nowIso(),
@@ -279,6 +285,30 @@ export async function markTradeClosed({ tradeId, symbol, reason = 'broker_sync',
       (((closedTrade.exitPrice - closedTrade.entryPrice) / closedTrade.entryPrice) * 100).toFixed(4),
     );
   }
+
+  // ── Enrichment fields (Phase 7) ──────────────────────────────────────────
+  // R multiple: (exitPrice - entryPrice) / riskPerUnit
+  const entryNum = toNumber(matchingTrade.entryPrice, 0);
+  const stopNum = toNumber(matchingTrade.stopLoss, 0);
+  if (entryNum > 0 && exitPrice != null && stopNum > 0 && entryNum > stopNum) {
+    const riskPerUnit = entryNum - stopNum;
+    closedTrade.rMultiple = Number(((exitPrice - entryNum) / riskPerUnit).toFixed(4));
+  }
+
+  // Duration in minutes
+  const openedAtMs = matchingTrade.openedAt ? new Date(matchingTrade.openedAt).getTime() : null;
+  const closedAtMs = new Date(closedAt).getTime();
+  if (openedAtMs && Number.isFinite(openedAtMs) && Number.isFinite(closedAtMs)) {
+    closedTrade.durationMinutes = Math.round((closedAtMs - openedAtMs) / 60000);
+  }
+
+  // Session at close time
+  const { session } = resolveSession();
+  closedTrade.session = session;
+
+  // Copy setup score/grade from the open trade record
+  if (matchingTrade.setupScore != null) closedTrade.setupScore = matchingTrade.setupScore;
+  if (matchingTrade.setupGrade != null) closedTrade.setupGrade = matchingTrade.setupGrade;
 
   const canonicalClosed = normalizeTradeForWrite(closedTrade);
 

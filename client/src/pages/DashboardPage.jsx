@@ -7,6 +7,10 @@ import ActivityFeed from "../components/ActivityFeed.jsx";
 import MobileFeedTabs from "../components/MobileFeedTabs.jsx";
 import CycleProgressBar from "../components/CycleProgressBar.jsx";
 import OpenPositionsMobileList from "../components/OpenPositionsMobileList.jsx";
+import PerformanceCards from "../components/PerformanceCards.jsx";
+import CandidateRankingTable from "../components/CandidateRankingTable.jsx";
+import RiskExposurePanel from "../components/RiskExposurePanel.jsx";
+import RejectionBreakdown from "../components/RejectionBreakdown.jsx";
 import { useCycleRuntime } from "../hooks/queries/useCycleRuntime.js";
 
 const REFRESH_INTERVAL_S = 15;
@@ -97,6 +101,22 @@ export default function DashboardPage() {
       <div className="max-w-screen-2xl mx-auto space-y-4 md:space-y-6">
         <Header runtime={runtime} />
 
+        {/* Performance section */}
+        <section>
+          <p className="text-xs text-slate-500 uppercase tracking-widest mb-2">Performance</p>
+          <PerformanceCards days={30} />
+        </section>
+
+        {/* Candidates + Risk Exposure */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2">
+            <CandidateRankingTable />
+          </div>
+          <div className="lg:col-span-1">
+            <RiskExposurePanel />
+          </div>
+        </div>
+
         <SummaryCards />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -121,6 +141,11 @@ export default function DashboardPage() {
         </div>
 
         <OpenPositionsMobileList previewCount={3} />
+
+        {/* Rejection breakdown */}
+        <div className="hidden md:block">
+          <RejectionBreakdown days={7} />
+        </div>
 
         <AutoRefreshIndicator />
       </div>

@@ -22,6 +22,11 @@ const closedTradeSchema = new mongoose.Schema(
     orphaned: { type: Boolean, default: false },
     metrics: { type: mongoose.Schema.Types.Mixed, default: {} },
     decisionId: String,
+    setupScore: Number,
+    setupGrade: String,
+    rMultiple: Number,
+    durationMinutes: Number,
+    session: String,
     side: String,
     pendingAt: String,
     brokerOrderId: String,
@@ -35,5 +40,6 @@ const closedTradeSchema = new mongoose.Schema(
 
 // Compound index for per-symbol history and date-range queries
 closedTradeSchema.index({ symbol: 1, closedAt: -1 });
+closedTradeSchema.index({ closedAt: -1, setupGrade: 1 });
 
 export default mongoose.models.ClosedTrade || mongoose.model('ClosedTrade', closedTradeSchema);

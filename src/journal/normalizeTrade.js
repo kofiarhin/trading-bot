@@ -17,6 +17,11 @@ const CANONICAL_TRADE_FIELDS = [
   'pnlPct',
   'exitReason',
   'metrics',
+  'setupScore',
+  'setupGrade',
+  'rMultiple',
+  'durationMinutes',
+  'session',
 ];
 
 const READ_ALIASES = {
@@ -38,6 +43,11 @@ const READ_ALIASES = {
   pnlPct: ['pnlPct'],
   exitReason: ['exitReason'],
   metrics: ['metrics'],
+  setupScore: ['setupScore'],
+  setupGrade: ['setupGrade'],
+  rMultiple: ['rMultiple'],
+  durationMinutes: ['durationMinutes'],
+  session: ['session'],
 };
 
 const TRADE_MARKERS = new Set([
@@ -65,6 +75,11 @@ const TRADE_MARKERS = new Set([
   'pnlPct',
   'exitReason',
   'metrics',
+  'setupScore',
+  'setupGrade',
+  'rMultiple',
+  'durationMinutes',
+  'session',
 ]);
 
 const STRONG_TRADE_MARKERS = new Set([
@@ -162,6 +177,11 @@ export function normalizeTradeRecord(trade = {}) {
     pnlPct: pickFirst(trade, READ_ALIASES.pnlPct),
     exitReason: pickFirst(trade, READ_ALIASES.exitReason),
     metrics: pickFirst(trade, READ_ALIASES.metrics),
+    setupScore: pickFirst(trade, READ_ALIASES.setupScore),
+    setupGrade: pickFirst(trade, READ_ALIASES.setupGrade),
+    rMultiple: pickFirst(trade, READ_ALIASES.rMultiple),
+    durationMinutes: pickFirst(trade, READ_ALIASES.durationMinutes),
+    session: pickFirst(trade, READ_ALIASES.session),
   };
 
   return omitUndefined(canonicalTrade);

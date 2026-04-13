@@ -17,6 +17,7 @@ import { loadRiskState } from './risk/riskState.js';
 import { checkOpenTradesForExit } from './positions/positionMonitor.js';
 import { closeTrade } from './execution/orderManager.js';
 import { evaluateBreakout } from './strategies/breakoutStrategy.js';
+import { checkPortfolioRisk } from './risk/portfolioRisk.js';
 import { CYCLE_STAGES } from './autopilot/cycleStages.js';
 import {
   startCycleRuntime,
@@ -172,6 +173,10 @@ async function recordDecision(decision) {
     riskAmount: decision.riskAmount ?? null,
     riskReward: decision.riskReward ?? null,
     blockers: decision.blockers ?? [],
+    setupScore: decision.setupScore ?? null,
+    setupGrade: decision.setupGrade ?? null,
+    rejectionClass: decision.rejectionClass ?? null,
+    context: decision.context ?? null,
   });
   await appendCycleEvent({
     type: 'decision_recorded',
@@ -200,7 +205,20 @@ async function handleExits(dryRun) {
   const exitDecisions = await checkOpenTradesForExit(openTrades);
 
   for (const exit of exitDecisions) {
-    if (!exit.shouldExit) continue;
+    if (!exit.shouldExit) {
+      // Stop level updated (breakeven / trailing) — emit informational event
+      await appendCycleEvent({
+        type: 'trade_stop_updated',
+        timestamp: nowIso(),
+        symbol: exit.symbol,
+        tradeId: exit.tradeId,
+        reason: exit.reason,
+        currentPrice: exit.currentPrice,
+        newStop: exit.updatedTrade?.stopLoss ?? null,
+        trailingStopPrice: exit.updatedTrade?.trailingStopPrice ?? null,
+      });
+      continue;
+    }
 
     await closeTrade({
       tradeId: exit.tradeId,
@@ -338,11 +356,50 @@ export async function runAutopilotCycle(options = {}) {
       }
     }
 
+    // ── Rank candidates ────────────────────────────────────────────────────────
+    const maxCandidates = toNumber(process.env.MAX_CANDIDATES_PER_CYCLE, 3);
+    const approvedDecisions = decisions.filter((d) => d.approved);
+
+    // Sort descending by setupScore (null scores treated as 0)
+    approvedDecisions.sort((a, b) => (b.setupScore ?? 0) - (a.setupScore ?? 0));
+
+    const candidatePool = approvedDecisions.slice(0, maxCandidates);
+    const rankedOutDecisions = approvedDecisions.slice(maxCandidates);
+
+    await setRuntimeStage(CYCLE_STAGES.RANKING_CANDIDATES, `Ranked ${candidatePool.length} candidates (${rankedOutDecisions.length} ranked out)`);
+
+    // Emit ranked-out events
+    for (let i = 0; i < rankedOutDecisions.length; i++) {
+      const d = rankedOutDecisions[i];
+      // Mark as no longer eligible so placing orders loop skips them
+      d._rankedOut = true;
+      await appendCycleEvent({
+        type: 'candidate_ranked_out',
+        timestamp: nowIso(),
+        cycleId,
+        symbol: d.symbol,
+        setupScore: d.setupScore ?? null,
+        rank: maxCandidates + i + 1,
+      });
+    }
+
+    if (candidatePool.length > 0) {
+      await appendCycleEvent({
+        type: 'candidates_ranked',
+        timestamp: nowIso(),
+        cycleId,
+        count: candidatePool.length,
+        candidates: candidatePool.map((d, i) => ({ rank: i + 1, symbol: d.symbol, setupScore: d.setupScore ?? null, setupGrade: d.setupGrade ?? null })),
+      });
+    }
+
     await setRuntimeStage(CYCLE_STAGES.APPLYING_RISK_GUARDS, 'Applying risk guards');
 
+    // ── Per-symbol execution guards ───────────────────────────────────────────
     const placements = [];
+    const perGuardPassed = [];
     for (const decision of decisions) {
-      if (!decision.approved) continue;
+      if (!decision.approved || decision._rankedOut) continue;
 
       await updateCycleRuntime({ cycleId, currentSymbol: decision.symbol });
       const brokerPositions = await getPositions();
@@ -355,13 +412,43 @@ export async function runAutopilotCycle(options = {}) {
         continue;
       }
 
+      perGuardPassed.push(decision);
+    }
+
+    // ── Portfolio-level risk batch check ──────────────────────────────────────
+    const brokerPositionsForPortfolio = await getPositions();
+    const openTradesForPortfolio = await getOpenTrades();
+    const riskStateForPortfolio = await getRiskState();
+    const { account: _acct } = { account };
+    const portfolioResult = checkPortfolioRisk({
+      candidates: perGuardPassed,
+      openTrades: openTradesForPortfolio,
+      brokerPositions: brokerPositionsForPortfolio,
+      accountEquity: toNumber(account?.equity, 100000),
+      riskState: riskStateForPortfolio,
+      maxCandidatesOverride: toNumber(process.env.MAX_CANDIDATES_PER_CYCLE, 3),
+    });
+
+    for (const { candidate, reason } of portfolioResult.blocked) {
+      candidate._portfolioBlocked = true;
+      counters.blocked += 1;
+      await appendCycleEvent({
+        type: 'candidate_portfolio_blocked',
+        timestamp: nowIso(),
+        cycleId,
+        symbol: candidate.symbol,
+        reason,
+      });
+    }
+
+    for (const candidate of portfolioResult.allowed) {
       counters.approved += 1;
     }
 
     await setRuntimeStage(CYCLE_STAGES.PLACING_ORDERS, 'Placing approved orders');
 
     for (const decision of decisions) {
-      if (!decision.approved || (decision.blockers?.length ?? 0) > 0) continue;
+      if (!decision.approved || decision._rankedOut || decision._portfolioBlocked || (decision.blockers?.length ?? 0) > 0) continue;
 
       await updateCycleRuntime({ cycleId, currentSymbol: decision.symbol });
       const placement = await placeOrder({ decision, dryRun });

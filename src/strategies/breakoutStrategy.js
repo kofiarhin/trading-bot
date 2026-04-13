@@ -14,6 +14,7 @@ import { calcATR } from "../indicators/atr.js";
 import { calcHighestHigh } from "../indicators/highestHigh.js";
 import { calcAverageVolume } from "../indicators/averageVolume.js";
 import { normalizeSymbol } from "../utils/symbolNorm.js";
+import { resolveSession } from "../utils/time.js";
 
 export const STRATEGY_NAME = "momentum_breakout_atr_v1";
 
@@ -80,6 +81,10 @@ export function evaluateBreakout({
   }
 
   function reject(reason) {
+    const { score, setupGrade, context } = computeScore(
+      { distanceToBreakoutPct, volumeRatio, atr, closePrice, riskReward: null },
+      opts,
+    );
     return {
       approved: false,
       symbol,
@@ -97,6 +102,10 @@ export function evaluateBreakout({
       quantity: null,
       riskAmount: null,
       riskReward: null,
+      setupScore: score,
+      setupGrade,
+      rejectionClass: mapRejectionClass(reason),
+      context,
       metrics: {
         closePrice,
         breakoutLevel,
@@ -191,6 +200,11 @@ export function evaluateBreakout({
   if (assetClass !== 'crypto' && quantity < 1) return reject('invalid_risk_reward');
   if (quantity <= 0) return reject('invalid_risk_reward');
 
+  const { score, setupGrade, context } = computeScore(
+    { distanceToBreakoutPct, volumeRatio, atr, closePrice, riskReward: toMetric(riskReward) },
+    opts,
+  );
+
   return {
     approved: true,
     symbol,
@@ -208,6 +222,10 @@ export function evaluateBreakout({
     quantity,
     riskAmount: toMetric(riskAmount),
     riskReward: toMetric(riskReward),
+    setupScore: score,
+    setupGrade,
+    rejectionClass: null,
+    context,
     metrics: {
       closePrice: toMetric(closePrice),
       breakoutLevel: toMetric(breakoutLevel),
@@ -216,4 +234,104 @@ export function evaluateBreakout({
       distanceToBreakoutPct: toMetric(distanceToBreakoutPct),
     },
   };
+}
+
+// ── Scoring helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Computes a numeric setup score (0–100) and grade for a candidate.
+ *
+ * Components (each 0–25):
+ *   - Momentum: tighter distance to breakout = higher score
+ *   - Volume:   volumeRatio capped at 3×
+ *   - ATR:      mid-range ATR relative to price preferred
+ *   - R:R:      higher risk/reward = higher score (ceiling 4)
+ *
+ * @param {{ distanceToBreakoutPct: number|null, volumeRatio: number|null, atr: number|null, closePrice: number|null, riskReward: number|null }} metrics
+ * @param {object} opts
+ * @returns {{ score: number, setupGrade: "A"|"B"|"C", context: object }}
+ */
+export function computeScore(metrics, opts = {}) {
+  const {
+    distanceToBreakoutPct,
+    volumeRatio,
+    atr,
+    closePrice,
+    riskReward,
+  } = metrics;
+
+  const maxDist = opts.maxDistanceToBreakoutPct ?? envNum('MAX_DISTANCE_TO_BREAKOUT_PCT', 1.0);
+  const minRR = opts.minRiskReward ?? envNum('MIN_RISK_REWARD', 1.5);
+
+  // Momentum: 0 distance = 25, maxDist = 0. Clamp to [0, 25].
+  let momentumScore = 0;
+  if (typeof distanceToBreakoutPct === 'number' && Number.isFinite(distanceToBreakoutPct) && distanceToBreakoutPct >= 0) {
+    momentumScore = Math.max(0, 25 * (1 - distanceToBreakoutPct / maxDist));
+  }
+
+  // Volume: ratio capped at 3× → full 25 pts.
+  let volumeScore = 0;
+  if (typeof volumeRatio === 'number' && Number.isFinite(volumeRatio) && volumeRatio > 0) {
+    volumeScore = Math.min(25, (volumeRatio / 3) * 25);
+  }
+
+  // ATR quality: 0.5–2% of price is considered mid-range (best). Outside that range, score drops.
+  let atrScore = 0;
+  if (typeof atr === 'number' && Number.isFinite(atr) && atr > 0 &&
+      typeof closePrice === 'number' && Number.isFinite(closePrice) && closePrice > 0) {
+    const atrPct = (atr / closePrice) * 100;
+    // Ideal band: 0.5% – 2%. Normalize within that band.
+    if (atrPct >= 0.5 && atrPct <= 2.0) {
+      atrScore = 25;
+    } else if (atrPct < 0.5) {
+      atrScore = Math.max(0, (atrPct / 0.5) * 25);
+    } else {
+      // atrPct > 2%: diminishing returns beyond 4%
+      atrScore = Math.max(0, 25 * (1 - (atrPct - 2.0) / 2.0));
+    }
+  }
+
+  // R:R: normalized against ceiling of 4.
+  let rrScore = 0;
+  if (typeof riskReward === 'number' && Number.isFinite(riskReward) && riskReward >= minRR) {
+    rrScore = Math.min(25, ((riskReward - minRR) / (4 - minRR)) * 25);
+  }
+
+  const score = Math.round(momentumScore + volumeScore + atrScore + rrScore);
+
+  let setupGrade;
+  if (score >= 75) setupGrade = 'A';
+  else if (score >= 50) setupGrade = 'B';
+  else setupGrade = 'C';
+
+  const { session } = resolveSession();
+
+  let volatilityLabel = 'mid';
+  if (typeof atr === 'number' && Number.isFinite(atr) && typeof closePrice === 'number' && closePrice > 0) {
+    const atrPct = (atr / closePrice) * 100;
+    if (atrPct < 0.5) volatilityLabel = 'low';
+    else if (atrPct > 2.0) volatilityLabel = 'high';
+  }
+
+  return {
+    score,
+    setupGrade,
+    context: {
+      session,
+      volatilityLabel,
+      trendLabel: 'breakout',
+    },
+  };
+}
+
+/**
+ * Maps a strategy rejection reason string to a broad rejection class.
+ * @param {string} reason
+ * @returns {"no_signal"|"weak_conditions"|"sizing_error"|"unknown"}
+ */
+export function mapRejectionClass(reason) {
+  if (['no_breakout', 'breakout_too_extended'].includes(reason)) return 'no_signal';
+  if (['weak_volume', 'atr_too_low'].includes(reason)) return 'weak_conditions';
+  if (['invalid_risk_reward', 'invalid_stop_distance', 'insufficient_market_data'].includes(reason)) return 'sizing_error';
+  return 'unknown';
 }
