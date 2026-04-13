@@ -45,6 +45,8 @@ export default function LastCyclePanel() {
           <Row label="Start" value={fmtTime(cycle.startTime)} />
           <Row label="End" value={fmtTime(cycle.endTime)} />
           <Row label="Duration" value={fmtDuration(cycle.durationMs)} color="text-slate-300" />
+          <Row label="Stage" value={cycle.stage ? cycle.stage.replaceAll("_", " ") : "—"} color="text-slate-300" />
+          <Row label="Progress" value={cycle.progressPct != null ? `${cycle.progressPct}%` : "—"} color="text-sky-300" />
           <Row label="Scanned" value={cycle.scanned} />
           <Row label="Approved" value={cycle.approved} color="text-emerald-400" />
           <Row label="Rejected" value={cycle.rejected} color="text-red-400" />

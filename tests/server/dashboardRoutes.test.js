@@ -55,6 +55,10 @@ async function buildApp({ decisions = [], activityEvents = [] } = {}) {
     getCyclesForDate: jest.fn(async () => []),
   }));
 
+  jest.unstable_mockModule("../../src/repositories/cycleRuntimeRepo.mongo.js", () => ({
+    getCycleRuntime: jest.fn(async () => ({ status: "idle", stage: null, progressPct: 0, metrics: {} })),
+  }));
+
   jest.unstable_mockModule("../../src/repositories/tradeJournalRepo.mongo.js", () => ({
     getTradeEventsForDate: jest.fn(async () => []),
     getClosedTradesForDate: jest.fn(async () => []),
