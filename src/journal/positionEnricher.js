@@ -50,6 +50,18 @@ function round2(n) {
   return Math.round(n * 100) / 100;
 }
 
+function deriveRiskAmount({ managementStatus, journalRiskAmount, riskPerUnit, quantity }) {
+  if (managementStatus === 'managed' && journalRiskAmount != null) {
+    const risk = toNumber(journalRiskAmount, 0);
+    return risk > 0 ? round2(risk) : null;
+  }
+  if (managementStatus !== 'derived') return null;
+  const perUnit = toNumber(riskPerUnit, 0);
+  const qty = Math.abs(toNumber(quantity, 0));
+  if (perUnit <= 0 || qty <= 0) return null;
+  return round2(perUnit * qty);
+}
+
 /**
  * Enriches a single merged position record with management metadata.
  *
@@ -60,6 +72,7 @@ function round2(n) {
  *   stopLoss?: number|null,
  *   takeProfit?: number|null,
  *   riskAmount?: number|null,
+ *   quantity?: number|null,
  *   entryPrice?: number|null,
  *   avgEntryPrice?: number|null,
  *   metrics?: { atr?: number },
@@ -92,6 +105,12 @@ export function enrichPosition(journalTrade, brokerPosition = null) {
       stopLoss: hasStop ? journalTrade.stopLoss : null,
       takeProfit: hasTarget ? journalTrade.takeProfit : null,
       riskPerUnit,
+      riskAmount: deriveRiskAmount({
+        managementStatus: 'managed',
+        journalRiskAmount: journalTrade.riskAmount,
+        riskPerUnit,
+        quantity: journalTrade.quantity,
+      }),
     };
   }
 
@@ -118,6 +137,12 @@ export function enrichPosition(journalTrade, brokerPosition = null) {
       stopLoss: journalStop,
       takeProfit: journalTarget,
       riskPerUnit,
+      riskAmount: deriveRiskAmount({
+        managementStatus: 'managed',
+        journalRiskAmount: journalTrade?.riskAmount,
+        riskPerUnit,
+        quantity: journalTrade?.quantity ?? brokerPosition?.qty,
+      }),
     };
   }
 
@@ -145,6 +170,12 @@ export function enrichPosition(journalTrade, brokerPosition = null) {
       stopLoss: derivedStop,
       takeProfit: derivedTarget,
       riskPerUnit,
+      riskAmount: deriveRiskAmount({
+        managementStatus: 'derived',
+        journalRiskAmount: journalTrade?.riskAmount,
+        riskPerUnit,
+        quantity: journalTrade?.quantity ?? brokerPosition?.qty,
+      }),
     };
   }
 
@@ -162,6 +193,12 @@ export function enrichPosition(journalTrade, brokerPosition = null) {
       stopLoss: derivedStop,
       takeProfit: derivedTarget,
       riskPerUnit,
+      riskAmount: deriveRiskAmount({
+        managementStatus: 'derived',
+        journalRiskAmount: journalTrade?.riskAmount,
+        riskPerUnit,
+        quantity: journalTrade?.quantity ?? brokerPosition?.qty,
+      }),
     };
   }
 
@@ -179,6 +216,7 @@ function _unmanagedResult(origin) {
     stopLoss: null,
     takeProfit: null,
     riskPerUnit: null,
+    riskAmount: null,
   };
 }
 

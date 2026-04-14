@@ -3,7 +3,7 @@ import { getAccount, getOpenPositions } from "../../execution/alpacaTrading.js";
 import { config } from "../../config/env.js";
 import { loadDecisionLog } from "../../journal/decisionLogger.js";
 import {
-  getOpenTrades,
+  mergeBrokerPositionsWithJournal,
   getClosedTrades,
 } from "../../journal/tradeJournal.js";
 import { enrichPosition } from "../../journal/positionEnricher.js";
@@ -15,7 +15,6 @@ import {
   getClosedTradesForDate,
 } from "../../repositories/tradeJournalRepo.mongo.js";
 import { loadRiskState } from "../../risk/riskState.js";
-import { normalizeSymbol } from "../../utils/symbolNorm.js";
 import { logger } from "../../utils/logger.js";
 import { CYCLE_STAGES } from "../../autopilot/cycleStages.js";
 
@@ -112,7 +111,7 @@ function formatAssetClass(raw) {
   return raw;
 }
 
-function normalizeOpenTradeForApi(trade, livePosition, orphaned = false) {
+function normalizeOpenTradeForApi(trade, livePosition, orphaned = false, mergedPosition = null) {
   const quantity = trade?.quantity ?? (livePosition ? parseFloat(livePosition.qty) : null);
   const entryPrice = trade?.entryPrice ?? (livePosition ? parseFloat(livePosition.avg_entry_price) : null);
   const currentPrice =
@@ -137,12 +136,27 @@ function normalizeOpenTradeForApi(trade, livePosition, orphaned = false) {
       ? currentPrice * quantity
       : null;
 
-  // Enrich with management metadata. trade may be a raw OpenTrade doc or an
-  // already-enriched record from mergeBrokerPositionsWithJournal — check both.
-  const enriched = enrichPosition(trade ?? null, livePosition ?? null);
+  const enriched = mergedPosition
+    ? {
+        stopLoss: mergedPosition.stopLoss,
+        takeProfit: mergedPosition.takeProfit,
+        riskPerUnit: mergedPosition.riskPerUnit,
+        riskAmount: mergedPosition.riskAmount,
+        origin: mergedPosition.origin,
+        managementStatus: mergedPosition.managementStatus,
+        riskSource: mergedPosition.riskSource,
+        exitCoverage: mergedPosition.exitCoverage,
+      }
+    : enrichPosition(trade ?? null, livePosition ?? null);
   const stopLoss = trade?.stopLoss ?? enriched.stopLoss ?? null;
   const takeProfit = trade?.takeProfit ?? enriched.takeProfit ?? null;
   const riskPerUnit = trade?.riskPerUnit ?? enriched.riskPerUnit ?? null;
+  const derivedRiskAmount = (() => {
+    const perUnit = Number(riskPerUnit);
+    const qty = Math.abs(Number(quantity));
+    if (!Number.isFinite(perUnit) || perUnit <= 0 || !Number.isFinite(qty) || qty <= 0) return null;
+    return Math.round(perUnit * qty * 100) / 100;
+  })();
   const origin = trade?.origin ?? enriched.origin;
   const managementStatus = trade?.managementStatus ?? enriched.managementStatus;
   const riskSource = trade?.riskSource ?? enriched.riskSource;
@@ -160,7 +174,11 @@ function normalizeOpenTradeForApi(trade, livePosition, orphaned = false) {
     currentPrice,
     stopLoss,
     takeProfit,
-    riskAmount: trade?.plannedRiskAmount ?? trade?.riskAmount ?? null,
+    riskAmount:
+      trade?.plannedRiskAmount ??
+      trade?.riskAmount ??
+      enriched.riskAmount ??
+      (managementStatus === "derived" ? derivedRiskAmount : null),
     riskPerUnit,
     marketValue,
     unrealizedPnl,
@@ -199,45 +217,10 @@ function normalizeClosedTradeForApi(trade) {
   };
 }
 
-/**
- * Build the merged open-positions list from broker data + journal trades.
- * Prefers status=open trades when multiple journal entries share a symbol.
- */
-function buildOpenPositions(brokerPositions, openTrades) {
-  const tradesByNorm = {};
-  for (const t of openTrades) {
-    if (t.status === "canceled") continue;
-    const key = t.normalizedSymbol;
-    if (!tradesByNorm[key]) tradesByNorm[key] = [];
-    tradesByNorm[key].push(t);
-  }
-
-  return brokerPositions.map((p) => {
-    const normalized = normalizeSymbol(p.symbol);
-    const matchingTrades = tradesByNorm[normalized] ?? [];
-    let trade = null;
-    let orphaned = false;
-
-    if (matchingTrades.length === 1) {
-      trade = matchingTrades[0];
-    } else if (matchingTrades.length > 1) {
-      // Resolve ambiguity: prefer status=open over pending
-      const openOnly = matchingTrades.filter((t) => t.status === "open");
-      if (openOnly.length === 1) {
-        trade = openOnly[0];
-      } else {
-        orphaned = true;
-        logger.warn("Ambiguous journal match for broker position — marking orphaned", {
-          symbol: p.symbol,
-          matchCount: matchingTrades.length,
-        });
-      }
-    } else {
-      orphaned = true;
-    }
-
-    return normalizeOpenTradeForApi(trade, p, orphaned);
-  });
+function buildOpenPositions(mergedPositions) {
+  return (mergedPositions ?? []).map((position) =>
+    normalizeOpenTradeForApi(position.journal, position.broker, position.orphaned, position),
+  );
 }
 
 /**
@@ -402,13 +385,12 @@ router.get("/overview", async (req, res) => {
     const fallbackToLatest = shouldUseDecisionFallback(req.query.fallbackLatest ?? req.query.fallback);
 
     // Single batch of all DB reads
-    const [cycles, journal, decisionLog, riskState, openTrades, closedToday, tradeEvents] =
+    const [cycles, journal, decisionLog, riskState, closedToday, tradeEvents] =
       await Promise.all([
         getTodayCycles(),
         getTodayJournal(),
         getDecisionLogForToday({ fallbackToLatest }),
         loadRiskState(),
-        getOpenTrades(),
         getClosedTradesForDate(todayStr),
         getTradeEventsForDate(todayStr),
       ]);
@@ -526,10 +508,11 @@ router.get("/overview", async (req, res) => {
         riskAmount: d.riskAmount ?? null,
         riskReward: d.riskReward ?? null,
       }))
-      .reverse();
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
     // ── openPositions ──
-    const openPositions = buildOpenPositions(brokerPositions, openTrades);
+    const mergedPositions = await mergeBrokerPositionsWithJournal(brokerPositions);
+    const openPositions = buildOpenPositions(mergedPositions);
 
     // ── activity ──
     const activity = buildActivityEvents({
@@ -723,7 +706,7 @@ router.get("/decisions", async (req, res) => {
         riskAmount: d.riskAmount ?? null,
         riskReward: d.riskReward ?? null,
       }))
-      .reverse();
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
     // Apply filters
     if (filterDecision === "approved") items = items.filter((d) => d.decision === "Approved");
@@ -795,8 +778,9 @@ router.get("/signals", async (req, res) => {
 // GET /api/dashboard/positions/open
 router.get("/positions/open", async (req, res) => {
   try {
-    const [positions, openTrades] = await Promise.all([getOpenPositions(), getOpenTrades()]);
-    res.json(buildOpenPositions(positions, openTrades));
+    const positions = await getOpenPositions();
+    const mergedPositions = await mergeBrokerPositionsWithJournal(positions);
+    res.json(buildOpenPositions(mergedPositions));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

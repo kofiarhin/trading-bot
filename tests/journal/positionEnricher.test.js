@@ -122,6 +122,7 @@ describe("broker_sync with ATR available", () => {
     // riskPerUnit = 3; target = 100 + 2*3 = 106
     expect(result.takeProfit).toBe(106);
     expect(result.riskPerUnit).toBe(3);
+    expect(result.riskAmount).toBeNull();
   });
 });
 
@@ -133,6 +134,7 @@ describe("broker_sync with no ATR — fixed % fallback", () => {
       tradeId: "bs3",
       strategyName: "broker_sync",
       entryPrice: 100,
+      quantity: 4,
       stopLoss: null,
       takeProfit: null,
       metrics: {},
@@ -144,6 +146,7 @@ describe("broker_sync with no ATR — fixed % fallback", () => {
     // riskPerUnit = 2; target = 100 + 2*2 = 104
     expect(result.takeProfit).toBe(104);
     expect(result.riskPerUnit).toBe(2);
+    expect(result.riskAmount).toBe(8);
   });
 });
 

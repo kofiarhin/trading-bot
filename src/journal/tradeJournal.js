@@ -399,7 +399,7 @@ export async function mergeBrokerPositionsWithJournal(brokerPositions = []) {
       stopLoss: enriched.stopLoss,
       takeProfit: enriched.takeProfit,
       riskPerUnit: enriched.riskPerUnit,
-      riskAmount: matchingTrade?.riskAmount ?? null,
+      riskAmount: enriched.riskAmount ?? matchingTrade?.riskAmount ?? null,
       // Enrichment metadata
       origin: enriched.origin,
       managementStatus: enriched.managementStatus,
@@ -436,7 +436,7 @@ export async function mergeBrokerPositionsWithJournal(brokerPositions = []) {
         stopLoss: enriched.stopLoss,
         takeProfit: enriched.takeProfit,
         riskPerUnit: enriched.riskPerUnit,
-        riskAmount: trade.riskAmount,
+        riskAmount: enriched.riskAmount ?? trade.riskAmount ?? null,
         origin: enriched.origin,
         managementStatus: enriched.managementStatus,
         riskSource: enriched.riskSource,

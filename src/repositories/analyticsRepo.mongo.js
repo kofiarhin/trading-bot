@@ -100,6 +100,7 @@ export async function getRejectionStats(days = 7, topN = 10) {
   const byReason = {};
   const byGroup = {};
   const bySymbol = {};
+  const reasonGroups = {};
 
   for (const doc of docs) {
     const cls = doc.rejectionClass ?? 'unknown';
@@ -111,12 +112,19 @@ export async function getRejectionStats(days = 7, topN = 10) {
     byReason[reason] = (byReason[reason] ?? 0) + 1;
     byGroup[group] = (byGroup[group] ?? 0) + 1;
     bySymbol[symbol] = (bySymbol[symbol] ?? 0) + 1;
+    if (!reasonGroups[reason]) reasonGroups[reason] = {};
+    reasonGroups[reason][group] = (reasonGroups[reason][group] ?? 0) + 1;
   }
 
   const topReasons = Object.entries(byReason)
     .sort((a, b) => b[1] - a[1])
     .slice(0, topN)
-    .map(([reason, count]) => ({ reason, count, group: rejectionGroup(reason) }));
+    .map(([reason, count]) => {
+      const groups = reasonGroups[reason] ?? {};
+      const dominantGroup = Object.entries(groups)
+        .sort((a, b) => b[1] - a[1])[0]?.[0] ?? rejectionGroup(reason);
+      return { reason, count, group: dominantGroup };
+    });
 
   return {
     byClass,

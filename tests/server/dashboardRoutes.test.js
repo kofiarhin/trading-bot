@@ -66,7 +66,7 @@ async function buildApp({ decisions = [], activityEvents = [] } = {}) {
   }));
 
   jest.unstable_mockModule("../../src/journal/tradeJournal.js", () => ({
-    getOpenTrades: jest.fn(async () => []),
+    mergeBrokerPositionsWithJournal: jest.fn(async () => []),
     getClosedTrades: jest.fn(async () => []),
   }));
 
