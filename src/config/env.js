@@ -62,6 +62,11 @@ function loadEnv() {
       trailingAtrMultiplier,
       maxHoldBars,
     },
+    brokerSync: {
+      enableDerivedRisk: process.env.BROKER_SYNC_ENABLE_DERIVED_RISK !== "false",
+      stopPct: parseFloat(process.env.BROKER_SYNC_STOP_PCT ?? "0.02"),
+      targetRMultiple: parseFloat(process.env.BROKER_SYNC_TARGET_R_MULTIPLE ?? "2"),
+    },
   };
 }
 

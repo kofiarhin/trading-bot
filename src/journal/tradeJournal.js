@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { normalizeSymbol } from '../utils/symbolNorm.js';
 import { normalizeTradeForRead, normalizeTradeForWrite } from './normalizeTrade.js';
 import { resolveSession } from '../utils/time.js';
+import { enrichPosition } from './positionEnricher.js';
 import {
   getOpenTrades as repoGetOpenTrades,
   getOpenTradeById as repoGetOpenTradeById,
@@ -379,6 +380,7 @@ export async function mergeBrokerPositionsWithJournal(brokerPositions = []) {
 
   const mergedBrokerPositions = (brokerPositions ?? []).map((brokerPosition) => {
     const matchingTrade = openTrades.find((trade) => trade.symbol === brokerPosition.symbol);
+    const enriched = enrichPosition(matchingTrade ?? null, brokerPosition);
 
     return {
       symbol: brokerPosition.symbol,
@@ -392,9 +394,17 @@ export async function mergeBrokerPositionsWithJournal(brokerPositions = []) {
       openedAt: matchingTrade?.openedAt ?? null,
       pendingAt: matchingTrade?.pendingAt ?? null,
       status: matchingTrade?.status ?? 'open',
-      stopLoss: matchingTrade?.stopLoss ?? null,
-      takeProfit: matchingTrade?.takeProfit ?? null,
+      // Risk fields — prefer enriched derivation over raw journal value to
+      // guarantee stopLoss/takeProfit are either properly sourced or explicitly null.
+      stopLoss: enriched.stopLoss,
+      takeProfit: enriched.takeProfit,
+      riskPerUnit: enriched.riskPerUnit,
       riskAmount: matchingTrade?.riskAmount ?? null,
+      // Enrichment metadata
+      origin: enriched.origin,
+      managementStatus: enriched.managementStatus,
+      riskSource: enriched.riskSource,
+      exitCoverage: enriched.exitCoverage,
       metrics: matchingTrade?.metrics ?? null,
       close: matchingTrade?.metrics?.closePrice ?? matchingTrade?.metrics?.close ?? null,
       breakoutLevel: matchingTrade?.metrics?.breakoutLevel ?? null,
@@ -409,31 +419,39 @@ export async function mergeBrokerPositionsWithJournal(brokerPositions = []) {
 
   const pendingTrades = openTrades
     .filter((trade) => trade.status === 'pending' && !brokerPositions.find((p) => p.symbol === trade.symbol))
-    .map((trade) => ({
-      symbol: trade.symbol,
-      qty: trade.quantity,
-      side: trade.side,
-      avgEntryPrice: trade.entryPrice,
-      currentPrice: null,
-      marketValue: null,
-      unrealizedPnL: null,
-      strategyName: trade.strategyName,
-      openedAt: trade.openedAt,
-      pendingAt: trade.pendingAt,
-      status: trade.status,
-      stopLoss: trade.stopLoss,
-      takeProfit: trade.takeProfit,
-      riskAmount: trade.riskAmount,
-      metrics: trade.metrics,
-      close: trade.metrics?.closePrice ?? trade.metrics?.close ?? null,
-      breakoutLevel: trade.metrics?.breakoutLevel ?? null,
-      atr: trade.metrics?.atr ?? null,
-      volumeRatio: trade.metrics?.volumeRatio ?? null,
-      distanceToBreakoutPct: trade.metrics?.distanceToBreakoutPct ?? null,
-      orphaned: false,
-      broker: null,
-      journal: trade,
-    }));
+    .map((trade) => {
+      const enriched = enrichPosition(trade, null);
+      return {
+        symbol: trade.symbol,
+        qty: trade.quantity,
+        side: trade.side,
+        avgEntryPrice: trade.entryPrice,
+        currentPrice: null,
+        marketValue: null,
+        unrealizedPnL: null,
+        strategyName: trade.strategyName,
+        openedAt: trade.openedAt,
+        pendingAt: trade.pendingAt,
+        status: trade.status,
+        stopLoss: enriched.stopLoss,
+        takeProfit: enriched.takeProfit,
+        riskPerUnit: enriched.riskPerUnit,
+        riskAmount: trade.riskAmount,
+        origin: enriched.origin,
+        managementStatus: enriched.managementStatus,
+        riskSource: enriched.riskSource,
+        exitCoverage: enriched.exitCoverage,
+        metrics: trade.metrics,
+        close: trade.metrics?.closePrice ?? trade.metrics?.close ?? null,
+        breakoutLevel: trade.metrics?.breakoutLevel ?? null,
+        atr: trade.metrics?.atr ?? null,
+        volumeRatio: trade.metrics?.volumeRatio ?? null,
+        distanceToBreakoutPct: trade.metrics?.distanceToBreakoutPct ?? null,
+        orphaned: false,
+        broker: null,
+        journal: trade,
+      };
+    });
 
   return [...mergedBrokerPositions, ...pendingTrades];
 }

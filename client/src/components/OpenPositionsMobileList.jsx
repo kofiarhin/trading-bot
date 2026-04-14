@@ -27,6 +27,35 @@ function Stat({ label, value, valueClass = "text-slate-200" }) {
   );
 }
 
+function ManagementBadges({ origin, managementStatus, orphaned }) {
+  if (orphaned) {
+    return (
+      <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 font-medium">
+        Orphaned
+      </span>
+    );
+  }
+  if (origin !== "broker_sync") return null;
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-400 border border-sky-500/30 font-medium">
+        Broker Sync
+      </span>
+      {managementStatus === "derived" && (
+        <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-400 border border-violet-500/30 font-medium">
+          Derived
+        </span>
+      )}
+      {managementStatus === "unmanaged" && (
+        <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30 font-medium animate-pulse">
+          Unmanaged
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function OpenPositionsMobileList({ previewCount = 3 }) {
   const { data: positions = [], isLoading } = useOpenPositions();
   const [showAll, setShowAll] = useState(false);
@@ -57,13 +86,23 @@ export default function OpenPositionsMobileList({ previewCount = 3 }) {
         <div className="divide-y divide-slate-700/50">
           {visible.map((p, i) => {
             const pnlColor = p.unrealizedPnl > 0 ? "text-emerald-400" : p.unrealizedPnl < 0 ? "text-red-400" : "text-slate-200";
+            const isUnmanaged = p.managementStatus === "unmanaged";
+            const articleClass = isUnmanaged
+              ? "px-4 py-3 space-y-2.5 bg-red-900/10"
+              : "px-4 py-3 space-y-2.5";
+
             return (
-              <article key={i} className="px-4 py-3 space-y-2.5">
-                <div className="flex items-center gap-2">
+              <article key={i} className={articleClass}>
+                <div className="flex items-start gap-2 flex-wrap">
                   <p className="font-mono font-semibold text-white text-sm truncate">{p.symbol}</p>
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 uppercase">
                     {p.assetClass ?? "—"}
                   </span>
+                  <ManagementBadges
+                    origin={p.origin}
+                    managementStatus={p.managementStatus}
+                    orphaned={p.orphaned}
+                  />
                 </div>
 
                 <div className="grid grid-cols-4 gap-2">

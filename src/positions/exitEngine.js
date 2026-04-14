@@ -17,6 +17,7 @@
 
 import { getPositionMap } from './positionMonitor.js';
 import { getOpenTrades } from '../journal/tradeJournal.js';
+import { enrichPosition } from '../journal/positionEnricher.js';
 import { upsertOpenTrade, appendTradeEvent } from '../repositories/tradeJournalRepo.mongo.js';
 import { config } from '../config/env.js';
 import { logger } from '../utils/logger.js';
@@ -71,8 +72,24 @@ export async function evaluateExits(openTrades) {
     const currentPrice = toNumber(position.currentPrice, 0);
     if (!currentPrice) continue;
 
-    const stopLoss = trade.stopLoss ?? trade.stop ?? null;
-    const takeProfit = trade.takeProfit ?? trade.target ?? null;
+    // For broker-sync positions without journal risk, derive stop/target so exit
+    // conditions are never silently skipped on unmanaged exposure.
+    const isBrokerSync = (trade.strategyName ?? '') === 'broker_sync';
+    let effectiveStop = trade.stopLoss ?? trade.stop ?? null;
+    let effectiveTarget = trade.takeProfit ?? trade.target ?? null;
+    if (isBrokerSync && (!effectiveStop || !effectiveTarget)) {
+      const enriched = enrichPosition(trade, null);
+      if (enriched.managementStatus !== 'unmanaged') {
+        effectiveStop = effectiveStop ?? enriched.stopLoss;
+        effectiveTarget = effectiveTarget ?? enriched.takeProfit;
+        logger.debug('exitEngine: using derived risk for broker_sync trade', {
+          symbol: trade.symbol, managementStatus: enriched.managementStatus,
+          effectiveStop, effectiveTarget,
+        });
+      }
+    }
+    const stopLoss = effectiveStop;
+    const takeProfit = effectiveTarget;
     const entryPrice = toNumber(trade.entryPrice, 0);
     const atr = toNumber(trade.metrics?.atr, 0);
     const riskPerUnit = entryPrice && stopLoss ? entryPrice - toNumber(stopLoss, 0) : 0;

@@ -62,6 +62,7 @@ async function buildApp({ decisions = [], activityEvents = [] } = {}) {
   jest.unstable_mockModule("../../src/repositories/tradeJournalRepo.mongo.js", () => ({
     getTradeEventsForDate: jest.fn(async () => []),
     getClosedTradesForDate: jest.fn(async () => []),
+    appendTradeEvent: jest.fn(async () => undefined),
   }));
 
   jest.unstable_mockModule("../../src/journal/tradeJournal.js", () => ({
@@ -80,7 +81,8 @@ async function buildApp({ decisions = [], activityEvents = [] } = {}) {
 
   jest.unstable_mockModule("../../src/config/env.js", () => ({
     config: {
-      trading: { runMode: "paper", dryRun: false },
+      trading: { runMode: "paper", dryRun: false, trailingAtrMultiplier: 1.5 },
+      brokerSync: { enableDerivedRisk: false, stopPct: 0.02, targetRMultiple: 2 },
     },
   }));
 

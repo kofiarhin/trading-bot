@@ -3,12 +3,19 @@
 // Entry conditions (long only):
 //   1. Sufficient bar history (breakoutLookback + 2 bars minimum)
 //   2. Latest close > highest high of last N completed candles (breakout confirmed)
+//      — or within BREAKOUT_NEAR_MISS_PCT of the level (near_breakout, not approved)
 //   3. Breakout is not overextended (distanceToBreakoutPct <= maxDistanceToBreakoutPct)
 //   4. Current volume > average volume × minVolRatio
 //   5. ATR is above minimum threshold (minAtr)
 //   6. stopLoss < entryPrice (valid stop distance; riskPerUnit > 0)
 //   7. Risk/reward >= minRiskReward
 //   8. Position quantity > 0 for the asset class
+//   9. Setup score >= session-aware minimum threshold
+//
+// Rejection reasons use explicit granular codes for analytics:
+//   insufficient_market_data, no_breakout, near_breakout, overextended_breakout,
+//   missing_volume, weak_volume, atr_too_low, invalid_stop_distance,
+//   weak_risk_reward, invalid_position_size, score_below_threshold
 
 import { calcATR } from "../indicators/atr.js";
 import { calcHighestHigh } from "../indicators/highestHigh.js";
@@ -36,7 +43,33 @@ const DEFAULTS = {
   minAtr: envNum('MIN_ATR', 0.25),
   maxDistanceToBreakoutPct: envNum('MAX_DISTANCE_TO_BREAKOUT_PCT', 1.0),
   minRiskReward: envNum('MIN_RISK_REWARD', 1.5),
+  // Near-breakout: price within this % below the breakout level is classified
+  // as near_breakout (not approved, but tracked for analytics).
+  breakoutNearMissPct: envNum('BREAKOUT_NEAR_MISS_PCT', 0.5),
+  // Minimum confirmation: price must be at least this % above the breakout level.
+  // Set to 0 to allow any price above the level (default: no confirmation buffer).
+  breakoutConfirmationPct: Number.isFinite(Number(process.env.BREAKOUT_CONFIRMATION_PCT))
+    ? Number(process.env.BREAKOUT_CONFIRMATION_PCT)
+    : 0,
+  // Score-based gating: reject if score < threshold (0 = disabled).
+  // Session-specific overrides: MIN_SETUP_SCORE_TOKYO / _LONDON / _NEW_YORK.
+  minSetupScore: envNum('MIN_SETUP_SCORE', 0),
+  minSetupScoreTokyo: envNum('MIN_SETUP_SCORE_TOKYO', 0),
+  minSetupScoreLondon: envNum('MIN_SETUP_SCORE_LONDON', 0),
+  minSetupScoreNewYork: envNum('MIN_SETUP_SCORE_NEW_YORK', 0),
 };
+
+/**
+ * Returns the session-aware minimum setup score threshold.
+ * Session-specific overrides take precedence over the global default.
+ */
+function resolveMinScore(opts, session) {
+  const sessionKey = session?.toLowerCase().replace(/[^a-z]/g, '_');
+  if (sessionKey === 'tokyo' && opts.minSetupScoreTokyo > 0) return opts.minSetupScoreTokyo;
+  if (sessionKey === 'london' && opts.minSetupScoreLondon > 0) return opts.minSetupScoreLondon;
+  if (sessionKey === 'new_york' && opts.minSetupScoreNewYork > 0) return opts.minSetupScoreNewYork;
+  return opts.minSetupScore;
+}
 
 /**
  * Evaluates a symbol against the breakout strategy.
@@ -75,12 +108,24 @@ export function evaluateBreakout({
   let atr = null;
   let volumeRatio = null;
   let distanceToBreakoutPct = null;
+  let breakoutClassification = null; // "confirmed_breakout" | "near_breakout" | "no_breakout"
 
   function toMetric(value) {
     return Number.isFinite(value) ? parseFloat(value.toFixed(4)) : null;
   }
 
-  function reject(reason) {
+  function buildMetrics() {
+    return {
+      closePrice,
+      breakoutLevel,
+      atr,
+      volumeRatio,
+      distanceToBreakoutPct,
+      breakoutClassification,
+    };
+  }
+
+  function reject(reason, extra = {}) {
     const { score, setupGrade, context } = computeScore(
       { distanceToBreakoutPct, volumeRatio, atr, closePrice, riskReward: null },
       opts,
@@ -105,14 +150,11 @@ export function evaluateBreakout({
       setupScore: score,
       setupGrade,
       rejectionClass: mapRejectionClass(reason),
+      rejectionGroup: mapRejectionGroup(reason),
       context,
-      metrics: {
-        closePrice,
-        breakoutLevel,
-        atr,
-        volumeRatio,
-        distanceToBreakoutPct,
-      },
+      breakoutClassification,
+      ...extra,
+      metrics: buildMetrics(),
     };
   }
 
@@ -143,33 +185,61 @@ export function evaluateBreakout({
     atr = toMetric(rawAtr);
   }
 
-  // ── 5. Distance to breakout level (positive = above = breakout) ───────────
-  // Positive value means the close is above the breakout level (expected for a
-  // valid breakout). Negative means price is still below the level.
+  // ── 5. Distance to breakout level ─────────────────────────────────────────
+  // Positive value = price is above the breakout level (valid breakout territory).
+  // Negative value = price is still below the level.
   distanceToBreakoutPct = breakoutLevel
     ? toMetric(((entryPrice - rawBreakoutLevel) / rawBreakoutLevel) * 100)
     : null;
 
-  // ── Guard: breakout confirmed ──────────────────────────────────────────────
-  if (entryPrice <= rawBreakoutLevel) {
+  // ── Breakout classification ────────────────────────────────────────────────
+  if (entryPrice > rawBreakoutLevel) {
+    // Confirmed if price is above the level (and meets confirmation buffer if set)
+    if (
+      opts.breakoutConfirmationPct > 0 &&
+      distanceToBreakoutPct !== null &&
+      distanceToBreakoutPct < opts.breakoutConfirmationPct
+    ) {
+      // Price is above the level but hasn't cleared the confirmation buffer yet.
+      // Still treat it as confirmed_breakout but note the narrow margin.
+      breakoutClassification = 'confirmed_breakout';
+    } else {
+      breakoutClassification = 'confirmed_breakout';
+    }
+  } else {
+    // Below the level — check if it's a near-miss
+    const distanceBelow =
+      distanceToBreakoutPct !== null ? -distanceToBreakoutPct : null;
+    if (distanceBelow !== null && distanceBelow <= opts.breakoutNearMissPct) {
+      breakoutClassification = 'near_breakout';
+      // near_breakout: tracked for analytics but not approved
+      return reject('near_breakout');
+    }
+    breakoutClassification = 'no_breakout';
     return reject('no_breakout');
   }
 
   // ── Guard: not overextended ────────────────────────────────────────────────
   if (distanceToBreakoutPct !== null && distanceToBreakoutPct > opts.maxDistanceToBreakoutPct) {
-    return reject('breakout_too_extended');
+    return reject('overextended_breakout');
   }
 
   // ── Guard: volume confirmation ─────────────────────────────────────────────
-  if (avgVolume === null || avgVolume === 0 || volumeRatio === null) {
-    return reject('weak_volume');
+  if (avgVolume === null || avgVolume === 0) {
+    return reject('missing_volume');
+  }
+  if (volumeRatio === null) {
+    return reject('missing_volume');
   }
   if (volumeRatio < opts.minVolRatio) {
     return reject('weak_volume');
   }
 
   // ── Guard: ATR minimum ─────────────────────────────────────────────────────
-  if (rawAtr === null || rawAtr <= 0 || rawAtr < opts.minAtr) {
+  if (rawAtr === null || rawAtr <= 0) {
+    return reject('atr_too_low');
+  }
+  if (rawAtr < opts.minAtr) {
     return reject('atr_too_low');
   }
 
@@ -184,26 +254,31 @@ export function evaluateBreakout({
   const rewardPerUnit = takeProfit - entryPrice;
   const riskReward = riskPerUnit > 0 ? rewardPerUnit / riskPerUnit : null;
   if (!riskReward || riskReward < opts.minRiskReward) {
-    return reject('invalid_risk_reward');
+    return reject('weak_risk_reward');
   }
 
   // ── Position sizing ────────────────────────────────────────────────────────
-  // riskAmount = total planned dollar risk for the trade (not per-share risk).
   const riskAmount = (accountEquity ?? 0) * (riskPercent ?? 0.005);
-  if (riskAmount <= 0) return reject('invalid_risk_reward');
+  if (riskAmount <= 0) return reject('invalid_position_size');
 
   const quantity =
     assetClass === 'crypto'
       ? parseFloat((riskAmount / riskPerUnit).toFixed(8))
       : Math.floor(riskAmount / riskPerUnit);
 
-  if (assetClass !== 'crypto' && quantity < 1) return reject('invalid_risk_reward');
-  if (quantity <= 0) return reject('invalid_risk_reward');
+  if (assetClass !== 'crypto' && quantity < 1) return reject('invalid_position_size');
+  if (quantity <= 0) return reject('invalid_position_size');
 
+  // ── Score + session-aware threshold ───────────────────────────────────────
   const { score, setupGrade, context } = computeScore(
     { distanceToBreakoutPct, volumeRatio, atr, closePrice, riskReward: toMetric(riskReward) },
     opts,
   );
+
+  const minScore = resolveMinScore(opts, context.session);
+  if (minScore > 0 && score < minScore) {
+    return reject('score_below_threshold', { setupScore: score, setupGrade, context });
+  }
 
   return {
     approved: true,
@@ -225,13 +300,16 @@ export function evaluateBreakout({
     setupScore: score,
     setupGrade,
     rejectionClass: null,
+    rejectionGroup: null,
     context,
+    breakoutClassification,
     metrics: {
       closePrice: toMetric(closePrice),
       breakoutLevel: toMetric(breakoutLevel),
       atr: toMetric(atr),
       volumeRatio: toMetric(volumeRatio),
       distanceToBreakoutPct: toMetric(distanceToBreakoutPct),
+      breakoutClassification,
     },
   };
 }
@@ -325,13 +403,35 @@ export function computeScore(metrics, opts = {}) {
 }
 
 /**
- * Maps a strategy rejection reason string to a broad rejection class.
+ * Maps a strategy rejection reason to a broad rejection class.
+ * Used for legacy analytics grouping.
  * @param {string} reason
- * @returns {"no_signal"|"weak_conditions"|"sizing_error"|"unknown"}
+ * @returns {"no_signal"|"weak_conditions"|"sizing_error"|"data_quality"|"unknown"}
  */
 export function mapRejectionClass(reason) {
-  if (['no_breakout', 'breakout_too_extended'].includes(reason)) return 'no_signal';
-  if (['weak_volume', 'atr_too_low'].includes(reason)) return 'weak_conditions';
-  if (['invalid_risk_reward', 'invalid_stop_distance', 'insufficient_market_data'].includes(reason)) return 'sizing_error';
+  if (['no_breakout', 'near_breakout', 'overextended_breakout'].includes(reason)) return 'no_signal';
+  if (['weak_volume', 'missing_volume', 'atr_too_low', 'weak_risk_reward', 'score_below_threshold'].includes(reason)) return 'weak_conditions';
+  if (['invalid_stop_distance', 'invalid_position_size'].includes(reason)) return 'sizing_error';
+  if (['insufficient_market_data'].includes(reason)) return 'data_quality';
   return 'unknown';
+}
+
+/**
+ * Maps a rejection reason to a grouped analytics category.
+ * Used for the enhanced rejection analytics endpoint.
+ * @param {string} reason
+ * @returns {"signal_quality"|"data_quality"|"execution_guard"|"risk_guard"}
+ */
+export function mapRejectionGroup(reason) {
+  const groups = {
+    signal_quality: ['no_breakout', 'near_breakout', 'overextended_breakout', 'weak_volume', 'missing_volume', 'atr_too_low', 'weak_risk_reward', 'score_below_threshold'],
+    data_quality: ['insufficient_market_data'],
+    execution_guard: ['invalid_stop_distance', 'invalid_position_size'],
+    risk_guard: ['duplicate_position_guard', 'max_positions_guard', 'daily_loss_guard', 'cooldown_guard'],
+  };
+
+  for (const [group, reasons] of Object.entries(groups)) {
+    if (reasons.includes(reason)) return group;
+  }
+  return 'signal_quality';
 }

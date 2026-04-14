@@ -6,6 +6,7 @@ import {
   getOpenTrades,
   getClosedTrades,
 } from "../../journal/tradeJournal.js";
+import { enrichPosition } from "../../journal/positionEnricher.js";
 import { getCyclesForDate } from "../../repositories/cycleRepo.mongo.js";
 import { getCycleRuntime } from "../../repositories/cycleRuntimeRepo.mongo.js";
 import { londonDateString, resolveSession } from "../../utils/time.js";
@@ -136,6 +137,17 @@ function normalizeOpenTradeForApi(trade, livePosition, orphaned = false) {
       ? currentPrice * quantity
       : null;
 
+  // Enrich with management metadata. trade may be a raw OpenTrade doc or an
+  // already-enriched record from mergeBrokerPositionsWithJournal — check both.
+  const enriched = enrichPosition(trade ?? null, livePosition ?? null);
+  const stopLoss = trade?.stopLoss ?? enriched.stopLoss ?? null;
+  const takeProfit = trade?.takeProfit ?? enriched.takeProfit ?? null;
+  const riskPerUnit = trade?.riskPerUnit ?? enriched.riskPerUnit ?? null;
+  const origin = trade?.origin ?? enriched.origin;
+  const managementStatus = trade?.managementStatus ?? enriched.managementStatus;
+  const riskSource = trade?.riskSource ?? enriched.riskSource;
+  const exitCoverage = trade?.exitCoverage ?? enriched.exitCoverage;
+
   return {
     tradeId: trade?.tradeId ?? null,
     symbol: livePosition?.symbol ?? trade?.symbol ?? null,
@@ -146,16 +158,20 @@ function normalizeOpenTradeForApi(trade, livePosition, orphaned = false) {
     quantity,
     entryPrice,
     currentPrice,
-    stopLoss: trade?.stopLoss ?? null,
-    takeProfit: trade?.takeProfit ?? null,
+    stopLoss,
+    takeProfit,
     riskAmount: trade?.plannedRiskAmount ?? trade?.riskAmount ?? null,
-    riskPerUnit: trade?.riskPerUnit ?? null,
+    riskPerUnit,
     marketValue,
     unrealizedPnl,
     unrealizedPnlPct,
     openedAt: trade?.openedAt ?? null,
     status: trade?.status ?? (orphaned ? "orphaned" : "open"),
     orphaned,
+    origin,
+    managementStatus,
+    riskSource,
+    exitCoverage,
     metrics: trade?.metrics ?? {},
   };
 }
