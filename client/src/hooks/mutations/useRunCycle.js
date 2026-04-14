@@ -8,6 +8,7 @@ export function useRunCycle() {
     mutationFn: cycleService.manualRunCycle,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cycle', 'runtime'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard', 'cycles', 'latest'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard', 'activity'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard', 'summary'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard', 'decisions'] });

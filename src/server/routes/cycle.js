@@ -66,15 +66,23 @@ router.post('/manual-run', async (req, res) => {
   try {
     await recoverStaleRunningCycle();
 
-    // Fire and forget — return 202 immediately
-    runAutopilotCycle({}, 'manual').catch(() => {
-      // Background errors are logged by runAutopilotCycle itself
+    // Wait for startup confirmation before returning 202.
+    // onStarted is called by runAutopilotCycle right after startCycleRuntime
+    // succeeds, giving us the confirmed cycleId. The cycle continues running
+    // in the background after we return the response.
+    let resolveStart, rejectStart;
+    const startPromise = new Promise((res, rej) => {
+      resolveStart = res;
+      rejectStart = rej;
     });
 
-    const runtime = await getCycleRuntime({ recoverStale: false });
+    runAutopilotCycle({}, 'manual', { onStarted: resolveStart }).catch(rejectStart);
+
+    const cycleId = await startPromise;
+
     return res.status(202).json({
       ok: true,
-      cycleId: runtime?.cycleId,
+      cycleId,
       status: 'running',
       triggerSource: 'manual',
     });

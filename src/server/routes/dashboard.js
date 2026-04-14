@@ -285,17 +285,19 @@ function buildActivityEvents({ todayStr, cycles, journal, decisions, closedToday
   for (const c of cycles) {
     if (c.type === "cycle_start" || c.type === "cycle_started") {
       const sessionLabel = c.session ? ` [${c.session}]` : "";
+      const triggerLabel = c.triggerSource ? ` [${c.triggerSource}]` : "";
       const countLabel = c.symbolCount != null ? ` — ${c.symbolCount} symbols in scope` : "";
       events.push({
         type: "cycle_started",
-        label: `Cycle started${sessionLabel}${countLabel}`,
+        label: `Cycle started${sessionLabel}${triggerLabel}${countLabel}`,
         timestamp: c.recordedAt ?? c.timestamp,
       });
     } else if (c.type === "completed" || c.type === "cycle_complete") {
       const sessionLabel = c.session ? ` [${c.session}]` : "";
+      const triggerLabel = c.triggerSource ? ` [${c.triggerSource}]` : "";
       events.push({
         type: "cycle_complete",
-        label: `Cycle complete${sessionLabel} — scanned ${c.scanned ?? "?"}, approved ${c.approved ?? 0}, placed ${c.placed ?? 0}`,
+        label: `Cycle complete${sessionLabel}${triggerLabel} — scanned ${c.scanned ?? "?"}, approved ${c.approved ?? 0}, placed ${c.placed ?? 0}`,
         timestamp: c.recordedAt ?? c.timestamp,
       });
     } else if (c.type === "skipped_outside_overlap") {
@@ -482,6 +484,7 @@ router.get("/overview", async (req, res) => {
         errors: runtime?.errors ?? latest?.errors ?? null,
         reason: latest?.reason ?? null,
         timestamp: runtime?.heartbeatAt ?? latest?.timestamp ?? null,
+        triggerSource: runtime?.triggerSource ?? latest?.triggerSource ?? null,
       };
     }
 
@@ -656,6 +659,7 @@ router.get("/cycles/latest", async (req, res) => {
       errors: runtime?.errors ?? latest?.errors ?? null,
       reason: latest?.reason ?? null,
       timestamp: runtime?.heartbeatAt ?? latest?.timestamp ?? null,
+      triggerSource: runtime?.triggerSource ?? latest?.triggerSource ?? null,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

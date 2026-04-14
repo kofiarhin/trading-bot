@@ -239,7 +239,7 @@ async function handleExits(dryRun) {
   }
 }
 
-export async function runAutopilotCycle(options = {}, triggerSource = 'cron') {
+export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { onStarted } = {}) {
   const dryRun = isDryRunEnabled(options);
   const cycleId = randomUUID();
   const startedAt = nowIso();
@@ -286,6 +286,7 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron') {
       dryRun,
       triggerSource,
     });
+    onStarted?.(cycleId);
   } catch (error) {
     if (error instanceof CycleAlreadyRunningError || error?.code === 'CYCLE_ALREADY_RUNNING') {
       throw error;

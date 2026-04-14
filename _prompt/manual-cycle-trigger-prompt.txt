@@ -1,0 +1,89 @@
+Claude Code Prompt — Manual Cycle Trigger Full Fix
+
+Audit the current trading bot repo and implement the remaining fixes for the manual cycle trigger feature so it fully aligns with the existing spec and closes the current gaps.
+
+Context
+
+The repo already has most of the feature implemented:
+- shared cycle runner
+- separate cron and manual routes
+- runtime locking
+- dashboard button
+- runtime polling
+- triggerSource support in parts of the system
+
+The current implementation is close, but not fully correct. Your job is to finish and harden it without breaking the existing cron flow.
+
+What must be fixed
+
+1. Fix the manual route start handshake
+The current POST /api/cycle/manual-run route is fire-and-forget and returns 202 before it has reliably confirmed that the cycle actually started.
+
+Required outcome:
+- Return 202 only after startup is confirmed
+- Return a real cycleId
+- If already running, return 409 with code CYCLE_ALREADY_RUNNING
+- Do not allow overlapping execution
+
+2. Make trigger source survive into completed-cycle views
+Ensure latest completed cycle includes triggerSource.
+
+3. Add trigger source to activity feed
+Show:
+- Cycle started — manual / cron
+- Cycle complete — manual / cron
+
+4. Invalidate latest-cycle query after manual trigger
+Update frontend mutation to refresh latest cycle data.
+
+5. Make worker trigger source explicit
+Ensure scheduled runs pass triggerSource: 'cron'.
+
+6. Keep current behavior
+- cron must keep working
+- manual uses same runner
+- no bypass of risk rules
+- no queueing
+
+Implementation goals
+
+- minimal targeted refactors
+- preserve architecture
+- no duplicate logic
+
+Files to inspect
+
+Backend:
+- src/autopilot.js
+- src/worker15m.js
+- src/server/routes/cycle.js
+- src/server/routes/dashboard.js
+- src/repositories/cycleRuntimeRepo.mongo.js
+
+Frontend:
+- client/src/services/cycle.js
+- client/src/hooks/mutations/useRunCycle.js
+- client/src/components/RunCycleButton.jsx
+- client/src/components/LastCyclePanel.jsx
+
+Testing requirements
+
+Backend:
+- manual route success (202)
+- overlap rejection (409)
+- triggerSource propagation
+- latest cycle includes triggerSource
+
+Frontend:
+- mutation invalidates latest cycle
+- last cycle panel shows trigger source
+- button disabled during running
+
+Output format
+
+1. summary of fixes
+2. changed files list
+3. design notes
+4. test results
+
+Do the implementation directly. Do not just describe the plan.
