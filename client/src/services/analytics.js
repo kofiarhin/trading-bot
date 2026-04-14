@@ -15,4 +15,10 @@ export const analyticsService = {
 
   getRejections: (days = 7) =>
     api.get("/rejections", { params: { days } }).then((r) => r.data),
+
+  getConversionStats: (days = 7) =>
+    api.get("/analytics/conversion", { params: { days } }).then((r) => r.data),
+
+  getScoreDistribution: (days = 7) =>
+    api.get("/analytics/scores", { params: { days } }).then((r) => r.data),
 };

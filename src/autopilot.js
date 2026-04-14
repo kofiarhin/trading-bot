@@ -18,6 +18,8 @@ import { checkOpenTradesForExit } from './positions/positionMonitor.js';
 import { closeTrade } from './execution/orderManager.js';
 import { evaluateBreakout } from './strategies/breakoutStrategy.js';
 import { checkPortfolioRisk } from './risk/portfolioRisk.js';
+import { preFilter } from './preFilter.js';
+import { computeScore } from './scoring/scorer.js';
 import { CYCLE_STAGES } from './autopilot/cycleStages.js';
 import {
   startCycleRuntime,
@@ -94,22 +96,6 @@ async function fetchBarsBySymbol(symbols) {
   return results;
 }
 
-function evaluateSymbol(symbol, bars, account) {
-  const equity = toNumber(account?.equity, 100000);
-  const riskPercent = toNumber(process.env.RISK_PERCENT, 0.005);
-  const rawBars = toStrategyBars(bars);
-
-  const decision = evaluateBreakout({
-    symbol,
-    assetClass: inferAssetClass(symbol),
-    bars: rawBars,
-    accountEquity: equity,
-    riskPercent,
-  });
-
-  return { id: randomUUID(), ...decision };
-}
-
 async function getRiskState() {
   const state = await loadRiskState();
   return { dailyLossPct: state.dailyRealizedLoss ?? 0, halted: false, ...state };
@@ -150,7 +136,7 @@ async function evaluateExecutionGuards(decision, brokerPositions) {
   };
 }
 
-async function recordDecision(decision) {
+async function recordDecision(decision, extra = {}) {
   await saveDecision({
     timestamp: decision.timestamp ?? nowIso(),
     recordedAt: nowIso(),
@@ -175,8 +161,11 @@ async function recordDecision(decision) {
     blockers: decision.blockers ?? [],
     setupScore: decision.setupScore ?? null,
     setupGrade: decision.setupGrade ?? null,
+    scoreBreakdown: decision.scoreBreakdown ?? null,
     rejectionClass: decision.rejectionClass ?? null,
     context: decision.context ?? null,
+    rejectStage: decision.rejectStage ?? null,
+    ...extra,
   });
   await appendCycleEvent({
     type: 'decision_recorded',
@@ -206,7 +195,6 @@ async function handleExits(dryRun) {
 
   for (const exit of exitDecisions) {
     if (!exit.shouldExit) {
-      // Stop level updated (breakeven / trailing) — emit informational event
       await appendCycleEvent({
         type: 'trade_stop_updated',
         timestamp: nowIso(),
@@ -245,7 +233,18 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
   const startedAt = nowIso();
   const { session, allowCrypto, allowStocks } = resolveSession();
 
-  const counters = { symbolCount: 0, scanned: 0, approved: 0, rejected: 0, placed: 0, blocked: 0, errors: 0 };
+  const counters = {
+    symbolCount: 0,
+    scanned: 0,
+    approved: 0,
+    rejected: 0,
+    placed: 0,
+    blocked: 0,
+    errors: 0,
+    preFiltered: 0,
+    shortlisted: 0,
+    rankedOut: 0,
+  };
 
   const setRuntimeStage = async (stage, message, patch = {}) => {
     const runtimeStatus = patch.status ?? 'running';
@@ -262,6 +261,9 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
       rejected: counters.rejected,
       placed: counters.placed,
       errors: counters.errors,
+      preFiltered: counters.preFiltered,
+      shortlisted: counters.shortlisted,
+      rankedOut: counters.rankedOut,
       currentSymbol: patch.currentSymbol,
       ...patch,
     });
@@ -333,48 +335,187 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
     await setRuntimeStage(CYCLE_STAGES.MONITORING_POSITIONS, 'Checking open trades for exits');
     await handleExits(dryRun);
 
+    // ── Phase A: Fetch all bars ────────────────────────────────────────────────
     await setRuntimeStage(CYCLE_STAGES.FETCHING_MARKET_DATA, 'Fetching latest market data');
-    const barsBySymbol = await fetchBarsBySymbol(symbols);
+    const rawBarsBySymbol = await fetchBarsBySymbol(symbols);
+    // Normalise to strategy bar format once, keyed by symbol
+    const barsBySymbol = {};
+    for (const sym of symbols) {
+      barsBySymbol[sym] = toStrategyBars(rawBarsBySymbol[sym] ?? []);
+    }
 
-    await setRuntimeStage(CYCLE_STAGES.EVALUATING_SIGNALS, 'Evaluating strategy signals');
-    const decisions = symbols.map((symbol) => evaluateSymbol(symbol, barsBySymbol[symbol] ?? [], account));
+    // ── Phase B: Pre-filter all symbols ───────────────────────────────────────
+    await setRuntimeStage(CYCLE_STAGES.PRE_FILTERING, 'Pre-filtering symbols');
 
-    for (const decision of decisions) {
+    const equity = toNumber(account?.equity, 100000);
+    const riskPercent = toNumber(process.env.RISK_PERCENT, 0.005);
+
+    const preFilterResults = symbols.map((sym) =>
+      preFilter(sym, inferAssetClass(sym), barsBySymbol[sym]),
+    );
+    const viable = preFilterResults.filter((r) => r.passed);
+    const preFilteredOut = preFilterResults.filter((r) => !r.passed);
+
+    counters.preFiltered = preFilteredOut.length;
+
+    // Record decisions for pre-filtered-out symbols
+    for (const pfResult of preFilteredOut) {
       counters.scanned += 1;
-      await updateCycleRuntime({ cycleId, currentSymbol: decision.symbol, scanned: counters.scanned, heartbeatAt: nowIso() });
-      await recordDecision(decision);
+      counters.rejected += 1;
+      const decision = {
+        id: randomUUID(),
+        approved: false,
+        symbol: pfResult.symbol,
+        normalizedSymbol: pfResult.symbol,
+        assetClass: pfResult.assetClass,
+        strategyName: 'momentum_breakout_atr_v1',
+        timestamp: nowIso(),
+        timeframe: '15Min',
+        reason: pfResult.rejectReason,
+        rejectStage: 'pre_filter',
+        blockers: [pfResult.rejectReason],
+        metrics: null,
+        setupScore: null,
+        setupGrade: null,
+        rejectionClass: null,
+        context: null,
+      };
+      await recordDecision(decision, {
+        cycleId,
+        stage: 'pre_filter',
+        shortlisted: false,
+        rankedOut: false,
+        rejectStage: 'pre_filter',
+      });
+    }
+
+    // ── Phase C: Score viable symbols ─────────────────────────────────────────
+    await setRuntimeStage(CYCLE_STAGES.SCORING_CANDIDATES, `Scoring ${viable.length} viable symbols`);
+
+    const scored = viable.map((pfResult) => {
+      const scoreResult = computeScore(
+        {
+          distanceToBreakoutPct: pfResult.metrics.distanceToBreakoutPct,
+          volumeRatio: pfResult.metrics.volumeRatio,
+          atr: pfResult.metrics.atr,
+          closePrice: pfResult.metrics.closePrice,
+          riskReward: null,
+        },
+      );
+      return { ...pfResult, scoreResult };
+    });
+
+    // ── Phase D: Shortlist top N ───────────────────────────────────────────────
+    await setRuntimeStage(CYCLE_STAGES.SHORTLISTING, 'Shortlisting top candidates');
+
+    const maxCandidates = toNumber(process.env.MAX_CANDIDATES_PER_CYCLE, 3);
+    const sortedScored = [...scored].sort((a, b) => b.scoreResult.total - a.scoreResult.total);
+    const shortlist = sortedScored.slice(0, maxCandidates);
+    const rankedOutItems = sortedScored.slice(maxCandidates);
+
+    counters.shortlisted = shortlist.length;
+    counters.rankedOut = rankedOutItems.length;
+
+    // Record decisions for ranked-out symbols (scored but not shortlisted)
+    for (let i = 0; i < rankedOutItems.length; i++) {
+      const item = rankedOutItems[i];
+      counters.scanned += 1;
+      counters.rejected += 1;
+      const rank = shortlist.length + i + 1;
+      await recordDecision(
+        {
+          id: randomUUID(),
+          approved: false,
+          symbol: item.symbol,
+          normalizedSymbol: item.symbol,
+          assetClass: item.assetClass,
+          strategyName: 'momentum_breakout_atr_v1',
+          timestamp: nowIso(),
+          timeframe: '15Min',
+          reason: 'ranked_out',
+          rejectStage: 'ranked_out',
+          blockers: ['ranked_out'],
+          metrics: {
+            closePrice: item.metrics.closePrice,
+            breakoutLevel: item.metrics.highestHigh,
+            atr: item.metrics.atr,
+            volumeRatio: item.metrics.volumeRatio,
+            distanceToBreakoutPct: item.metrics.distanceToBreakoutPct,
+          },
+          setupScore: item.scoreResult.total,
+          setupGrade: item.scoreResult.grade,
+          scoreBreakdown: item.scoreResult.breakdown,
+          context: item.scoreResult.context,
+          rejectionClass: null,
+        },
+        {
+          cycleId,
+          stage: 'scored',
+          rank,
+          shortlisted: false,
+          rankedOut: true,
+          rejectStage: 'ranked_out',
+        },
+      );
+      await appendCycleEvent({
+        type: 'candidate_ranked_out',
+        timestamp: nowIso(),
+        cycleId,
+        symbol: item.symbol,
+        setupScore: item.scoreResult.total,
+        rank,
+      });
+    }
+
+    // ── Phase E: Strategy confirm on shortlist ────────────────────────────────
+    await setRuntimeStage(CYCLE_STAGES.EVALUATING_SIGNALS, 'Running strategy on shortlisted symbols');
+
+    const decisions = [];
+    for (let i = 0; i < shortlist.length; i++) {
+      const item = shortlist[i];
+      const rank = i + 1;
+
+      const decision = evaluateBreakout({
+        symbol: item.symbol,
+        assetClass: item.assetClass,
+        bars: barsBySymbol[item.symbol],
+        preFilterMetrics: item.metrics,
+        accountEquity: equity,
+        riskPercent,
+      });
+
+      const decisionWithId = { id: randomUUID(), ...decision };
+      counters.scanned += 1;
+
+      await recordDecision(decisionWithId, {
+        cycleId,
+        stage: decision.approved ? 'strategy' : 'strategy',
+        rank,
+        shortlisted: true,
+        rankedOut: false,
+        rejectStage: decision.approved ? null : (decision.rejectStage ?? 'strategy'),
+      });
 
       if (!decision.approved) {
         counters.rejected += 1;
-        const diagnosticReasons = ['no_breakout', 'weak_volume', 'atr_too_low', 'breakout_too_extended', 'invalid_risk_reward', 'invalid_stop_distance'];
-        if (diagnosticReasons.includes(decision.reason)) {
-          await appendCycleEvent({
-            type: 'symbol_rejected',
-            timestamp: nowIso(),
-            symbol: decision.symbol,
-            reason: decision.reason,
-            metrics: decision.metrics ?? null,
-          });
-        }
       }
+
+      decisions.push(decisionWithId);
     }
 
-    // ── Rank candidates ────────────────────────────────────────────────────────
-    const maxCandidates = toNumber(process.env.MAX_CANDIDATES_PER_CYCLE, 3);
+    // ── Rank confirmed candidates ──────────────────────────────────────────────
     const approvedDecisions = decisions.filter((d) => d.approved);
-
-    // Sort descending by setupScore (null scores treated as 0)
     approvedDecisions.sort((a, b) => (b.setupScore ?? 0) - (a.setupScore ?? 0));
-
     const candidatePool = approvedDecisions.slice(0, maxCandidates);
-    const rankedOutDecisions = approvedDecisions.slice(maxCandidates);
+    const furtherRankedOut = approvedDecisions.slice(maxCandidates);
 
-    await setRuntimeStage(CYCLE_STAGES.RANKING_CANDIDATES, `Ranked ${candidatePool.length} candidates (${rankedOutDecisions.length} ranked out)`);
+    await setRuntimeStage(
+      CYCLE_STAGES.RANKING_CANDIDATES,
+      `Ranked ${candidatePool.length} candidates (${furtherRankedOut.length} further ranked out)`,
+    );
 
-    // Emit ranked-out events
-    for (let i = 0; i < rankedOutDecisions.length; i++) {
-      const d = rankedOutDecisions[i];
-      // Mark as no longer eligible so placing orders loop skips them
+    for (let i = 0; i < furtherRankedOut.length; i++) {
+      const d = furtherRankedOut[i];
       d._rankedOut = true;
       await appendCycleEvent({
         type: 'candidate_ranked_out',
@@ -392,14 +533,18 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
         timestamp: nowIso(),
         cycleId,
         count: candidatePool.length,
-        candidates: candidatePool.map((d, i) => ({ rank: i + 1, symbol: d.symbol, setupScore: d.setupScore ?? null, setupGrade: d.setupGrade ?? null })),
+        candidates: candidatePool.map((d, i) => ({
+          rank: i + 1,
+          symbol: d.symbol,
+          setupScore: d.setupScore ?? null,
+          setupGrade: d.setupGrade ?? null,
+        })),
       });
     }
 
     await setRuntimeStage(CYCLE_STAGES.APPLYING_RISK_GUARDS, 'Applying risk guards');
 
     // ── Per-symbol execution guards ───────────────────────────────────────────
-    const placements = [];
     const perGuardPassed = [];
     for (const decision of decisions) {
       if (!decision.approved || decision._rankedOut) continue;
@@ -422,14 +567,13 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
     const brokerPositionsForPortfolio = await getPositions();
     const openTradesForPortfolio = await getOpenTrades();
     const riskStateForPortfolio = await getRiskState();
-    const { account: _acct } = { account };
     const portfolioResult = checkPortfolioRisk({
       candidates: perGuardPassed,
       openTrades: openTradesForPortfolio,
       brokerPositions: brokerPositionsForPortfolio,
       accountEquity: toNumber(account?.equity, 100000),
       riskState: riskStateForPortfolio,
-      maxCandidatesOverride: toNumber(process.env.MAX_CANDIDATES_PER_CYCLE, 3),
+      maxCandidatesOverride: maxCandidates,
     });
 
     for (const { candidate, reason } of portfolioResult.blocked) {
@@ -450,6 +594,8 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
 
     await setRuntimeStage(CYCLE_STAGES.PLACING_ORDERS, 'Placing approved orders');
 
+    // ── Place orders ──────────────────────────────────────────────────────────
+    const placements = [];
     for (const decision of decisions) {
       if (!decision.approved || decision._rankedOut || decision._portfolioBlocked || (decision.blockers?.length ?? 0) > 0) continue;
 
@@ -487,6 +633,9 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
         rejected: counters.rejected,
         placed: counters.placed,
         errors: counters.errors,
+        preFiltered: counters.preFiltered,
+        shortlisted: counters.shortlisted,
+        rankedOut: counters.rankedOut,
       });
     }
 
@@ -513,6 +662,9 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
       rejected: counters.rejected,
       placed: counters.placed,
       errors: counters.errors,
+      preFiltered: counters.preFiltered,
+      shortlisted: counters.shortlisted,
+      rankedOut: counters.rankedOut,
       startedAt,
       completedAt,
       triggerSource,
@@ -524,7 +676,9 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
     await completeCycleRuntime({ cycleId, message: 'Cycle complete', ...summary });
 
     const triggerLabel = triggerSource === 'manual' ? '[manual] ' : '';
-    console.log(`[autopilot] ${triggerLabel}cycle completed — scanned: ${summary.scanned}, approved: ${summary.approved}, placed: ${summary.placed}`);
+    console.log(
+      `[autopilot] ${triggerLabel}cycle completed — scanned: ${summary.scanned}, pre-filtered: ${summary.preFiltered}, shortlisted: ${summary.shortlisted}, approved: ${summary.approved}, placed: ${summary.placed}`,
+    );
 
     return {
       cycleId,

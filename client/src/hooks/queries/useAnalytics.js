@@ -36,3 +36,21 @@ export function useRejections(days = 7) {
     refetchInterval: 60_000,
   });
 }
+
+export function useConversionStats(days = 7) {
+  return useQuery({
+    queryKey: ["analytics", "conversion", days],
+    queryFn: () => analyticsService.getConversionStats(days),
+    staleTime: 10_000,
+    refetchInterval: 15_000,
+  });
+}
+
+export function useScoreDistribution(days = 7) {
+  return useQuery({
+    queryKey: ["analytics", "scores", days],
+    queryFn: () => analyticsService.getScoreDistribution(days),
+    staleTime: 10_000,
+    refetchInterval: 15_000,
+  });
+}

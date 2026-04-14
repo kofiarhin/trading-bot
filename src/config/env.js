@@ -1,6 +1,30 @@
 // Centralised environment config — validated at startup.
 // Import this module before anything else that needs env vars.
 
+export const CONFIG_VERSION = "v2";
+
+// Resolve legacy env-var aliases before validation.
+// If the canonical key is not set but a legacy alias is, copy the value across.
+// This means old .env files keep working without changes.
+const ALIAS_MAP = {
+  SYMBOLS: "AUTOPILOT_SYMBOLS",
+  WATCHLIST: "AUTOPILOT_SYMBOLS",
+  TICKERS: "AUTOPILOT_SYMBOLS",
+  RISK_PER_TRADE: "RISK_PERCENT",
+  MAX_OPEN_POSITIONS: "MAX_POSITIONS",
+  LOSS_LIMIT_PCT: "DAILY_LOSS_LIMIT_PCT",
+  SCORE_THRESHOLD: "MIN_SETUP_SCORE",
+};
+
+export const resolvedAliases = [];
+
+for (const [legacy, canonical] of Object.entries(ALIAS_MAP)) {
+  if (process.env[legacy] !== undefined && process.env[canonical] === undefined) {
+    process.env[canonical] = process.env[legacy];
+    resolvedAliases.push({ from: legacy, to: canonical });
+  }
+}
+
 const REQUIRED = [
   "ALPACA_API_KEY",
   "ALPACA_API_SECRET",

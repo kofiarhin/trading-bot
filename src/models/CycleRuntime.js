@@ -21,6 +21,10 @@ const cycleRuntimeSchema = new mongoose.Schema(
     rejected: { type: Number, default: 0 },
     placed: { type: Number, default: 0 },
     errors: { type: Number, default: 0 },
+    // v2 pipeline counters
+    preFiltered: { type: Number, default: 0 },
+    shortlisted: { type: Number, default: 0 },
+    rankedOut: { type: Number, default: 0 },
     currentSymbol: { type: String, default: null },
     progressPct: { type: Number, default: 0 },
     startedAt: { type: String, default: null },

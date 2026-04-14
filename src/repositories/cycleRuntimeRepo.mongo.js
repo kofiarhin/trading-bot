@@ -45,6 +45,9 @@ function normalizeRuntime(doc) {
     rejected: toInt(rest.rejected ?? rest.metrics?.rejected, 0),
     placed: toInt(rest.placed ?? rest.metrics?.placed, 0),
     errors: toInt(rest.errors ?? rest.metrics?.errors, 0),
+    preFiltered: toInt(rest.preFiltered, 0),
+    shortlisted: toInt(rest.shortlisted, 0),
+    rankedOut: toInt(rest.rankedOut, 0),
     currentSymbol: rest.currentSymbol ?? null,
     progressPct: toInt(rest.progressPct, 0),
     startedAt: rest.startedAt ?? null,
@@ -61,6 +64,9 @@ function normalizeRuntime(doc) {
       placed: toInt(rest.placed ?? rest.metrics?.placed, 0),
       errors: toInt(rest.errors ?? rest.metrics?.errors, 0),
       symbolCount: toInt(rest.symbolCount, 0),
+      preFiltered: toInt(rest.preFiltered, 0),
+      shortlisted: toInt(rest.shortlisted, 0),
+      rankedOut: toInt(rest.rankedOut, 0),
     },
   };
 }
@@ -149,6 +155,9 @@ export async function startCycleRuntime(initialPayload = {}) {
         rejected: toInt(initialPayload.rejected, 0),
         placed: toInt(initialPayload.placed, 0),
         errors: toInt(initialPayload.errors, 0),
+        preFiltered: toInt(initialPayload.preFiltered, 0),
+        shortlisted: toInt(initialPayload.shortlisted, 0),
+        rankedOut: toInt(initialPayload.rankedOut, 0),
         currentSymbol: initialPayload.currentSymbol ?? null,
         startedAt: initialPayload.startedAt ?? timestamp,
         endedAt: null,
@@ -196,6 +205,9 @@ export async function updateCycleRuntime(patch = {}) {
   if (patch.rejected != null) $set.rejected = toInt(patch.rejected, 0);
   if (patch.placed != null) $set.placed = toInt(patch.placed, 0);
   if (patch.errors != null) $set.errors = toInt(patch.errors, 0);
+  if (patch.preFiltered != null) $set.preFiltered = toInt(patch.preFiltered, 0);
+  if (patch.shortlisted != null) $set.shortlisted = toInt(patch.shortlisted, 0);
+  if (patch.rankedOut != null) $set.rankedOut = toInt(patch.rankedOut, 0);
   if (patch.currentSymbol !== undefined) $set.currentSymbol = patch.currentSymbol;
 
   const doc = await CycleRuntime.findOneAndUpdate(filter, { $set }, { new: true }).lean();
@@ -224,6 +236,9 @@ export async function completeCycleRuntime(summaryPatch = {}) {
         rejected: toInt(summaryPatch.rejected, 0),
         placed: toInt(summaryPatch.placed, 0),
         errors: toInt(summaryPatch.errors, 0),
+        preFiltered: toInt(summaryPatch.preFiltered, 0),
+        shortlisted: toInt(summaryPatch.shortlisted, 0),
+        rankedOut: toInt(summaryPatch.rankedOut, 0),
       },
     },
     { new: true },

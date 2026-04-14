@@ -9,7 +9,18 @@ import { etDateString } from '../utils/time.js';
 
 export async function saveDecision(record) {
   const date = etDateString();
-  const doc = await Decision.create({ ...record, date });
+  const doc = await Decision.create({
+    ...record,
+    date,
+    // v2 pipeline fields — persisted when present
+    scoreBreakdown: record.scoreBreakdown ?? undefined,
+    cycleId: record.cycleId ?? undefined,
+    stage: record.stage ?? undefined,
+    rank: record.rank ?? undefined,
+    shortlisted: record.shortlisted ?? false,
+    rankedOut: record.rankedOut ?? false,
+    rejectStage: record.rejectStage ?? undefined,
+  });
   return stripMongo(doc.toObject());
 }
 
@@ -54,6 +65,28 @@ export async function loadDecisionLog({ date = etDateString(), fallbackToLatest 
   }
 
   return { date, records: [], requestedDate: date, isFallback: false, exists: false, parseFailed: false };
+}
+
+// ─── Cycle queries (v2) ───────────────────────────────────────────────────────
+
+/**
+ * Returns all decisions for a given cycleId, sorted by rank asc then timestamp asc.
+ */
+export async function getDecisionsForCycle(cycleId) {
+  const docs = await Decision.find({ cycleId })
+    .sort({ rank: 1, timestamp: 1 })
+    .lean();
+  return docs.map(stripMongo);
+}
+
+/**
+ * Returns only shortlisted decisions for a given cycleId.
+ */
+export async function getShortlistForCycle(cycleId) {
+  const docs = await Decision.find({ cycleId, shortlisted: true })
+    .sort({ rank: 1, timestamp: 1 })
+    .lean();
+  return docs.map(stripMongo);
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
