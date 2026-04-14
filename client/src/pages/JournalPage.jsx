@@ -51,8 +51,8 @@ function JournalSummaryCards() {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {Array.from({ length: 6 }).map((_, i) => (
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+        {Array.from({ length: 7 }).map((_, i) => (
           <div key={i} className="rounded-xl bg-slate-800 border border-slate-700 px-5 py-4 h-20 animate-pulse" />
         ))}
       </div>
@@ -62,9 +62,19 @@ function JournalSummaryCards() {
   const totalPnlColor = s?.totalPnl > 0 ? "text-emerald-400" : s?.totalPnl < 0 ? "text-red-400" : "text-white";
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
       <SummaryCard label="Total Trades" value={s?.totalTrades ?? "—"} />
-      <SummaryCard label="Open" value={s?.openTrades ?? "—"} valueClass="text-sky-400" />
+      <SummaryCard
+        label="Journal Open"
+        value={s?.journalOpenTrades ?? "—"}
+        valueClass="text-sky-400"
+      />
+      <SummaryCard
+        label="Live Positions"
+        value={s?.liveOpenPositions ?? "—"}
+        valueClass="text-violet-400"
+        sub="broker-synced"
+      />
       <SummaryCard label="Closed" value={s?.closedTrades ?? "—"} />
       <SummaryCard
         label="Win Rate"

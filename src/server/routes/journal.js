@@ -1,6 +1,7 @@
 // Journal API — aggregate and filtered trade data for the Trade Journal UI.
 import { Router } from "express";
 import { getOpenTrades, getClosedTrades } from "../../journal/tradeJournal.js";
+import { getOpenPositions } from "../../execution/alpacaTrading.js";
 
 const router = Router();
 
@@ -34,7 +35,11 @@ router.get("/summary", async (req, res) => {
   try {
     const includeBrokerSync = req.query.includeBrokerSync === "true";
 
-    const [rawClosed, rawOpen] = await Promise.all([getClosedTrades(), getOpenTrades()]);
+    const [rawClosed, rawOpen, brokerPositions] = await Promise.all([
+      getClosedTrades(),
+      getOpenTrades(),
+      getOpenPositions().catch(() => []),
+    ]);
 
     const closed = includeBrokerSync
       ? rawClosed
@@ -44,6 +49,11 @@ router.get("/summary", async (req, res) => {
     const filteredOpen = includeBrokerSync
       ? activeOpen
       : activeOpen.filter(isStrategyPerformanceTrade);
+
+    // Breakdown for the journal UI: internal strategy trades vs broker-reconciled
+    const journalOpenTrades = activeOpen.filter(isStrategyPerformanceTrade).length;
+    const brokerSyncOpenTrades = activeOpen.filter((t) => !isStrategyPerformanceTrade(t)).length;
+    const liveOpenPositions = brokerPositions.length;
 
     const wins = closed.filter((t) => (t.pnl ?? 0) > 0);
     const losses = closed.filter((t) => (t.pnl ?? 0) < 0);
@@ -59,6 +69,9 @@ router.get("/summary", async (req, res) => {
       totalTrades: closed.length + filteredOpen.length,
       closedTrades: closed.length,
       openTrades: filteredOpen.length,
+      journalOpenTrades,
+      brokerSyncOpenTrades,
+      liveOpenPositions,
       wins: wins.length,
       losses: losses.length,
       winRate: closed.length ? Number(((wins.length / closed.length) * 100).toFixed(1)) : null,
