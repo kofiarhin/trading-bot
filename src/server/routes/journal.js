@@ -94,17 +94,19 @@ router.get("/summary", async (req, res) => {
 // Returns combined open + closed trades with optional filtering and pagination.
 //
 // Query params:
-//   status      — "open" | "closed" (omit for all)
-//   assetClass  — e.g. "crypto", "us_equity", "Stock", "Crypto"
-//   strategy    — e.g. "breakout"
-//   symbol      — substring match (case-insensitive)
-//   dateFrom    — ISO date string (inclusive)
-//   dateTo      — ISO date string (inclusive)
-//   page        — page number (default 1)
-//   limit       — page size (default 50, max 200)
+//   status            — "open" | "closed" (omit for all)
+//   assetClass        — e.g. "crypto", "us_equity", "Stock", "Crypto"
+//   strategy          — e.g. "breakout"
+//   symbol            — substring match (case-insensitive)
+//   dateFrom          — ISO date string (inclusive)
+//   dateTo            — ISO date string (inclusive)
+//   page              — page number (default 1)
+//   limit             — page size (default 50, max 200)
+//   includeBrokerSync — "true" to include broker_sync rows (default: excluded)
 router.get("/trades", async (req, res) => {
   try {
     const { status, assetClass, strategy, symbol, dateFrom, dateTo } = req.query;
+    const includeBrokerSync = req.query.includeBrokerSync === "true";
     const page = Math.max(1, parseInt(req.query.page ?? "1", 10));
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit ?? "50", 10)));
 
@@ -123,6 +125,14 @@ router.get("/trades", async (req, res) => {
       trades = closedTagged;
     } else {
       trades = [...openTagged, ...closedTagged];
+    }
+
+    // Exclude broker_sync rows from the default journal table view.
+    // These positions are already visible via the dashboard and the Live Positions
+    // summary card — showing them here too creates duplication and a misleading
+    // performance view. Pass includeBrokerSync=true to opt back in.
+    if (!includeBrokerSync) {
+      trades = trades.filter(isStrategyPerformanceTrade);
     }
 
     // Normalize assetClass for comparison

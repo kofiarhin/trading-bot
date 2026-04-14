@@ -74,10 +74,14 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-async function buildApp({ openTrades = [], closedTrades = [] } = {}) {
+async function buildApp({ openTrades = [], closedTrades = [], brokerPositions = [] } = {}) {
   jest.unstable_mockModule('../../src/journal/tradeJournal.js', () => ({
     getOpenTrades: jest.fn(async () => openTrades),
     getClosedTrades: jest.fn(async () => closedTrades),
+  }));
+
+  jest.unstable_mockModule('../../src/execution/alpacaTrading.js', () => ({
+    getOpenPositions: jest.fn(async () => brokerPositions),
   }));
 
   const { default: journalRoutes } = await import('../../src/server/routes/journal.js');
@@ -302,5 +306,61 @@ describe('GET /api/journal/trades', () => {
     expect(res.body.trades).toHaveLength(2);
     expect(res.body.total).toBe(5);
     expect(res.body.pages).toBe(3);
+  });
+
+  it('excludes broker_sync closed trades from default trade list', async () => {
+    const app = await buildApp({
+      openTrades: [OPEN_TRADE],
+      closedTrades: [CLOSED_TRADE, BROKER_SYNC_TRADE],
+    });
+    const res = await request(app).get('/api/journal/trades');
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(2); // OPEN_TRADE + CLOSED_TRADE only
+    const ids = res.body.trades.map((t) => t.tradeId);
+    expect(ids).not.toContain('broker-1');
+    expect(ids).toContain('open-1');
+    expect(ids).toContain('closed-1');
+  });
+
+  it('excludes broker_sync open trades from default trade list', async () => {
+    const app = await buildApp({
+      openTrades: [OPEN_TRADE, BROKER_SYNC_OPEN_TRADE],
+      closedTrades: [CLOSED_TRADE],
+    });
+    const res = await request(app).get('/api/journal/trades');
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(2); // OPEN_TRADE + CLOSED_TRADE only
+    const ids = res.body.trades.map((t) => t.tradeId);
+    expect(ids).not.toContain('broker-open-1');
+    expect(ids).toContain('open-1');
+    expect(ids).toContain('closed-1');
+  });
+
+  it('excludes broker_sync open trades from default status=open list', async () => {
+    const app = await buildApp({
+      openTrades: [OPEN_TRADE, BROKER_SYNC_OPEN_TRADE],
+      closedTrades: [],
+    });
+    const res = await request(app).get('/api/journal/trades?status=open');
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(1);
+    expect(res.body.trades[0].tradeId).toBe('open-1');
+  });
+
+  it('includes broker_sync trades when includeBrokerSync=true', async () => {
+    const app = await buildApp({
+      openTrades: [OPEN_TRADE, BROKER_SYNC_OPEN_TRADE],
+      closedTrades: [CLOSED_TRADE, BROKER_SYNC_TRADE],
+    });
+    const res = await request(app).get('/api/journal/trades?includeBrokerSync=true');
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(4);
+    const ids = res.body.trades.map((t) => t.tradeId);
+    expect(ids).toContain('broker-1');
+    expect(ids).toContain('broker-open-1');
   });
 });
