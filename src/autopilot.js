@@ -2,6 +2,7 @@ import 'dotenv/config';
 
 import { randomUUID } from 'node:crypto';
 
+import { config } from './config/env.js';
 import { connectMongo, disconnectMongo } from './db/connectMongo.js';
 import { placeOrder } from './execution/orderManager.js';
 import { getAccount, getBarsForSymbols, getOrders, getPositions, isDryRunEnabled } from './lib/alpaca.js';
@@ -105,8 +106,8 @@ async function evaluateExecutionGuards(decision, brokerPositions) {
   const blockers = [];
   const openTrades = await getOpenTrades();
   const riskState = await getRiskState();
-  const maxPositions = toNumber(process.env.MAX_POSITIONS, 3);
-  const dailyLossLimit = toNumber(process.env.DAILY_LOSS_LIMIT_PCT, 2);
+  const maxPositions = config.trading.maxOpenPositions;
+  const dailyLossLimit = config.trading.dailyLossLimitPct;
 
   const hasMatchingBrokerPosition = brokerPositions.some((position) => position.symbol === decision.symbol);
   const hasMatchingJournalTrade = openTrades.some(
@@ -348,7 +349,7 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
     await setRuntimeStage(CYCLE_STAGES.PRE_FILTERING, 'Pre-filtering symbols');
 
     const equity = toNumber(account?.equity, 100000);
-    const riskPercent = toNumber(process.env.RISK_PERCENT, 0.005);
+    const riskPercent = config.trading.riskPercent;
 
     const preFilterResults = symbols.map((sym) =>
       preFilter(sym, inferAssetClass(sym), barsBySymbol[sym]),

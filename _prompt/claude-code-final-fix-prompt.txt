@@ -1,0 +1,25 @@
+You are working inside the existing Trading Bot codebase. Do not rewrite
+the project. Apply a focused final patch that closes the remaining
+architecture gaps in the v2 selection pipeline.
+
+Primary objective: Make the runtime layer, config layer, analytics
+layer, candidates API, and frontend all agree on the same
+candidate-selection model.
+
+The intended pipeline is: scan -> prefilter -> score -> shortlist ->
+strategy confirm -> risk -> execute -> persist -> analyze -> visualize
+
+[…truncated for brevity in generation, full content preserved in actual
+file…]
+
+QUALITY BAR
+
+I want the repo to end in a state where: - canonical config is actually
+used at runtime - candidates analytics are truly cycle-scoped -
+candidates API reflects the real funnel, not approved-only logic - rank
+comes from persisted data - prefilter and strategy share metrics
+cleanly - frontend renders the real pipeline truth - tests protect the
+behavior
+
+Make the smallest complete set of changes that finishes these remaining
+gaps.

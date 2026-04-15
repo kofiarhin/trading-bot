@@ -6,6 +6,7 @@ import {
   getRejectionStats,
   getShortlistConversionStats,
   getScoreDistribution,
+  getCandidatesForCycle,
 } from "../../src/repositories/analyticsRepo.mongo.js";
 
 let mongod;
@@ -79,6 +80,93 @@ describe("getShortlistConversionStats", () => {
     expect(stats.preFilterPassed).toBe(4); // 7 - 3 pre-filtered
     expect(stats.placed).toBe(1);
     expect(stats.preFilterRate).toBeCloseTo(4 / 7, 2);
+  });
+});
+
+describe("getCandidatesForCycle", () => {
+  const CYCLE_A = "cycle-aaa-111";
+  const CYCLE_B = "cycle-bbb-222";
+
+  function makeFullDecision(overrides = {}) {
+    return {
+      timestamp: iso(0),
+      date: new Date().toISOString().slice(0, 10),
+      symbol: overrides.symbol ?? "TEST",
+      approved: false,
+      cycleId: CYCLE_A,
+      ...overrides,
+    };
+  }
+
+  it("returns all pipeline stages for the given cycleId", async () => {
+    await Decision.insertMany([
+      // pre_filter rejection
+      makeFullDecision({ symbol: "AAPL", rejectStage: "pre_filter", stage: "pre_filter", shortlisted: false, approved: false }),
+      // ranked_out
+      makeFullDecision({ symbol: "MSFT", rejectStage: "ranked_out", reason: "ranked_out", shortlisted: false, approved: false, setupScore: 60, rank: 2 }),
+      // strategy rejected (shortlisted but not approved)
+      makeFullDecision({ symbol: "TSLA", rejectStage: "strategy", stage: "strategy", shortlisted: true, approved: false, setupScore: 70, rank: 1 }),
+      // approved (shortlisted and approved)
+      makeFullDecision({ symbol: "NVDA", stage: "strategy", shortlisted: true, approved: true, setupScore: 85, rank: 1 }),
+      // different cycle — must NOT appear
+      makeFullDecision({ symbol: "AMD", cycleId: CYCLE_B, approved: true }),
+    ]);
+
+    const results = await getCandidatesForCycle(CYCLE_A);
+    const symbols = results.map((r) => r.symbol);
+
+    // All four CYCLE_A decisions returned, AMD excluded
+    expect(symbols).toContain("AAPL");
+    expect(symbols).toContain("MSFT");
+    expect(symbols).toContain("TSLA");
+    expect(symbols).toContain("NVDA");
+    expect(symbols).not.toContain("AMD");
+    expect(results).toHaveLength(4);
+  });
+
+  it("does not filter by approved — includes rejected decisions", async () => {
+    await Decision.insertMany([
+      makeFullDecision({ symbol: "AAPL", approved: false, rejectStage: "pre_filter" }),
+      makeFullDecision({ symbol: "MSFT", approved: true, shortlisted: true }),
+    ]);
+
+    const results = await getCandidatesForCycle(CYCLE_A);
+    expect(results).toHaveLength(2);
+    expect(results.some((r) => r.symbol === "AAPL" && r.approved === false)).toBe(true);
+    expect(results.some((r) => r.symbol === "MSFT" && r.approved === true)).toBe(true);
+  });
+
+  it("uses persisted rank for sort order", async () => {
+    await Decision.insertMany([
+      makeFullDecision({ symbol: "C", rank: 3, setupScore: 90 }),
+      makeFullDecision({ symbol: "A", rank: 1, setupScore: 50 }),
+      makeFullDecision({ symbol: "B", rank: 2, setupScore: 70 }),
+    ]);
+
+    const results = await getCandidatesForCycle(CYCLE_A);
+    expect(results[0].symbol).toBe("A");
+    expect(results[1].symbol).toBe("B");
+    expect(results[2].symbol).toBe("C");
+  });
+
+  it("falls back to the most recent cycle when no cycleId is given", async () => {
+    const older = new Date();
+    older.setUTCMinutes(older.getUTCMinutes() - 30);
+    const newer = new Date();
+
+    await Decision.insertMany([
+      makeFullDecision({ symbol: "OLD", cycleId: CYCLE_A, timestamp: older.toISOString() }),
+      makeFullDecision({ symbol: "NEW", cycleId: CYCLE_B, timestamp: newer.toISOString() }),
+    ]);
+
+    const results = await getCandidatesForCycle();
+    expect(results).toHaveLength(1);
+    expect(results[0].symbol).toBe("NEW");
+  });
+
+  it("returns empty array when no decisions exist", async () => {
+    const results = await getCandidatesForCycle(CYCLE_A);
+    expect(results).toEqual([]);
   });
 });
 

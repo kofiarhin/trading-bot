@@ -79,7 +79,12 @@ function loadEnv() {
       timeframe: process.env.DEFAULT_TIMEFRAME ?? "15Min",
       riskPercent: parseFloat(process.env.RISK_PERCENT ?? "0.005"),
       maxDailyLossPercent: parseFloat(process.env.MAX_DAILY_LOSS_PERCENT ?? "0.02"),
-      maxOpenPositions: parseInt(process.env.MAX_OPEN_POSITIONS ?? "5", 10),
+      // dailyLossLimitPct is the percentage form (e.g. 2 = 2%) used in the
+      // execution-guard comparison. DAILY_LOSS_LIMIT_PCT is the canonical name;
+      // legacy LOSS_LIMIT_PCT is mapped to it via ALIAS_MAP.
+      dailyLossLimitPct: parseFloat(process.env.DAILY_LOSS_LIMIT_PCT ?? "2"),
+      // MAX_POSITIONS is the canonical name; legacy MAX_OPEN_POSITIONS maps to it.
+      maxOpenPositions: parseInt(process.env.MAX_POSITIONS ?? process.env.MAX_OPEN_POSITIONS ?? "5", 10),
       enableStocks: process.env.ENABLE_STOCKS !== "false",
       enableCrypto: process.env.ENABLE_CRYPTO !== "false",
       runMode: process.env.RUN_MODE ?? "paper",

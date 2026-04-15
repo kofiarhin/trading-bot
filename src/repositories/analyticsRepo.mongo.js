@@ -285,28 +285,29 @@ export async function getScoreDistribution(days = 7) {
 // ─── Candidates ───────────────────────────────────────────────────────────────
 
 /**
- * Returns approved decisions for the given cycle (or latest cycle) sorted by setupScore desc.
- * @param {string} [cycleId] — omit to use the latest available.
+ * Returns ALL decisions for the given cycle (or the most recent cycle) across
+ * every pipeline stage — pre_filter, ranked_out, strategy, approved — so the
+ * caller can render the full funnel.
+ *
+ * Sorted by persisted rank (ascending, nulls last) then setupScore descending.
+ *
+ * @param {string} [cycleId] — omit to use the most recent cycle available.
  * @returns {Promise<object[]>}
  */
 export async function getCandidatesForCycle(cycleId) {
-  let query = { approved: true };
+  let resolvedCycleId = cycleId;
 
-  if (cycleId) {
-    // Decisions don't store cycleId directly — use the date from today
-    const today = etDateString();
-    query = { approved: true, date: today };
-  } else {
-    // Latest date that has approved decisions
-    const latest = await Decision.findOne({ approved: true })
+  if (!resolvedCycleId) {
+    // Find the most recent cycle that has any decisions recorded
+    const latest = await Decision.findOne({ cycleId: { $exists: true, $ne: null } })
       .sort({ timestamp: -1 })
       .lean();
     if (!latest) return [];
-    query = { approved: true, date: latest.date };
+    resolvedCycleId = latest.cycleId;
   }
 
-  const docs = await Decision.find(query)
-    .sort({ setupScore: -1, timestamp: -1 })
+  const docs = await Decision.find({ cycleId: resolvedCycleId })
+    .sort({ rank: 1, setupScore: -1, timestamp: -1 })
     .lean();
 
   return docs.map(stripMongo);
