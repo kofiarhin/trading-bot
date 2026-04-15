@@ -45,4 +45,18 @@ describe('/api/candidates route', () => {
     expect(res.body.rankedOut[0].rank).toBe(4);
     expect(getCandidatesForCycle).toHaveBeenCalledWith('cycle-1');
   });
+
+  it('falls back to route ordering rank only when persisted rank is missing', async () => {
+    getCandidatesForCycle.mockResolvedValue([
+      { symbol: 'AAPL', cycleId: 'cycle-2', rank: 7, shortlisted: true, approved: true, blockers: [] },
+      { symbol: 'MSFT', cycleId: 'cycle-2', shortlisted: true, approved: false, rejectStage: 'strategy' },
+    ]);
+    buildCycleFunnel.mockReturnValue({ scanned: 2, prefilterRejected: 0, scored: 2, shortlisted: 2, rankedOut: 0, strategyRejected: 1, riskBlocked: 0, approved: 1, placed: 1 });
+
+    const res = await request(makeApp()).get('/api/candidates').query({ cycleId: 'cycle-2' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.placed[0].rank).toBe(7);
+    expect(res.body.strategyRejected[0].rank).toBe(2);
+  });
 });

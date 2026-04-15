@@ -346,8 +346,13 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
     const equity = toNumber(account?.equity, 100000);
     const riskPercent = config.trading.riskPercent;
 
-    const preFilterResults = symbols.map((sym) =>
-      preFilter(sym, inferAssetClass(sym), barsBySymbol[sym]),
+  const preFilterResults = symbols.map((sym) =>
+      preFilter(sym, inferAssetClass(sym), barsBySymbol[sym], {
+        minBars: config.prefilter.minBars,
+        minVolRatio: config.prefilter.minVolRatio,
+        minRangeAtrMultiple: config.prefilter.minRangeAtrMultiple,
+        maxDistanceToBreakoutPct: config.prefilter.maxDistanceToBreakoutPct,
+      }),
     );
     const viable = preFilterResults.filter((r) => r.passed);
     const preFilteredOut = preFilterResults.filter((r) => !r.passed);
@@ -478,6 +483,10 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
         preFilterMetrics: item.metrics,
         accountEquity: equity,
         riskPercent,
+        options: {
+          breakoutConfirmationPct: config.strategy.breakoutConfirmationPct,
+          maxDistanceToBreakoutPct: config.prefilter.maxDistanceToBreakoutPct,
+        },
       });
 
       const decisionWithId = { id: randomUUID(), ...decision };
@@ -570,6 +579,12 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
       accountEquity: toNumber(account?.equity, 100000),
       riskState: riskStateForPortfolio,
       maxCandidatesOverride: maxCandidates,
+      riskConfig: {
+        maxTotalRiskPct: config.risk.maxTotalRiskPct,
+        maxCorrelatedPositions: config.risk.maxCorrelatedPositions,
+        drawdownThrottlePct: config.risk.drawdownThrottlePct,
+        dailyLossLimitPct: config.trading.dailyLossLimitPct,
+      },
     });
 
     for (const { candidate, reason } of portfolioResult.blocked) {

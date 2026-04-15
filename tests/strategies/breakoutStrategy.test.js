@@ -162,6 +162,18 @@ describe("evaluateBreakout — rejection paths", () => {
     expect(result.metrics.distanceToBreakoutPct).toBeGreaterThan(1.0);
   });
 
+  it("rejects with breakout_not_confirmed when confirmation buffer is not met", () => {
+    const bars = makeBars({ count: 30, breakout: true });
+    const result = evaluateBreakout({
+      ...BASE_PARAMS,
+      bars,
+      options: { breakoutConfirmationPct: 1.0 },
+    });
+    expect(result.approved).toBe(false);
+    expect(result.reason).toBe("breakout_not_confirmed");
+    expect(result.rejectStage).toBe("strategy");
+  });
+
   it("rejects with weak_volume when volume ratio is below minVolRatio", () => {
     const bars = makeBars({ count: 30, breakout: true, lowVolume: true });
     const result = evaluateBreakout({ ...BASE_PARAMS, bars });

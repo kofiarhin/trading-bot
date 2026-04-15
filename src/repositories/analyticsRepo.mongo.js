@@ -141,6 +141,7 @@ const REJECTION_GROUP_MAP = {
   no_breakout: 'signal_quality',
   near_breakout: 'signal_quality',
   overextended_breakout: 'signal_quality',
+  breakout_not_confirmed: 'signal_quality',
   weak_volume: 'signal_quality',
   missing_volume: 'signal_quality',
   atr_too_low: 'signal_quality',
@@ -393,4 +394,3 @@ export async function getCandidatesForCycle(cycleId) {
   const docs = await Decision.find({ cycleId: resolvedCycleId }).lean();
   return docs.map(stripMongo).sort(sortByPersistedRankThenScore);
 }
-

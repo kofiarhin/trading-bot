@@ -3,11 +3,11 @@ import { buildCycleFunnel, getCandidatesForCycle } from '../../repositories/anal
 
 const router = Router();
 
-function toCandidateRow(d) {
+function toCandidateRow(d, fallbackRank = null) {
   return {
     symbol: d.symbol ?? null,
     assetClass: d.assetClass ?? null,
-    rank: d.rank ?? null,
+    rank: d.rank ?? fallbackRank,
     score: d.setupScore ?? null,
     setupScore: d.setupScore ?? null,
     setupGrade: d.setupGrade ?? null,
@@ -27,12 +27,9 @@ function toCandidateRow(d) {
 
 function classifyBucket(d) {
   if (d.rankedOut || d.rejectStage === 'ranked_out' || d.reason === 'ranked_out') return 'rankedOut';
-  if (d.rejectStage === 'strategy') return 'strategyRejected';
-  if ((d.blockers ?? []).length > 0 && d.approved) return 'riskBlocked';
-  if (d.approved && d.shortlisted) {
-    return (d.blockers ?? []).length === 0 ? 'placed' : 'approved';
-  }
-  if (d.approved) return (d.blockers ?? []).length === 0 ? 'placed' : 'approved';
+  if (d.rejectStage === 'strategy' || (d.shortlisted && !d.approved)) return 'strategyRejected';
+  if (d.approved && (d.blockers ?? []).length > 0) return 'riskBlocked';
+  if (d.approved && (d.blockers ?? []).length === 0) return 'placed';
   return 'otherStageDecisions';
 }
 
@@ -44,7 +41,7 @@ router.get('/', async (req, res) => {
       : null;
 
     const decisions = await getCandidatesForCycle(cycleId);
-    const rows = decisions.map(toCandidateRow);
+    const rows = decisions.map((decision, index) => toCandidateRow(decision, index + 1));
     const resolvedCycleId = rows[0]?.cycleId ?? cycleId;
 
     const response = {

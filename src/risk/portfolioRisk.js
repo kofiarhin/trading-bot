@@ -40,6 +40,12 @@ function inferAssetClass(symbol) {
  *   accountEquity: number,
  *   riskState: object,
  *   maxCandidatesOverride?: number,
+ *   riskConfig?: {
+ *     maxTotalRiskPct?: number,
+ *     maxCorrelatedPositions?: number,
+ *     drawdownThrottlePct?: number,
+ *     dailyLossLimitPct?: number,
+ *   }
  * }} params
  * @returns {PortfolioRiskResult}
  */
@@ -50,11 +56,12 @@ export function checkPortfolioRisk({
   accountEquity,
   riskState,
   maxCandidatesOverride,
+  riskConfig = {},
 }) {
-  const maxTotalRiskPct = toNumber(process.env.MAX_TOTAL_RISK_PCT, 5) / 100;
-  const maxCorrelated = toNumber(process.env.MAX_CORRELATED_POSITIONS, 3);
-  const drawdownThrottlePct = toNumber(process.env.DRAWDOWN_THROTTLE_PCT, 1) / 100;
-  const dailyLossLimitPct = toNumber(process.env.DAILY_LOSS_LIMIT_PCT, 2) / 100;
+  const maxTotalRiskPct = toNumber(riskConfig.maxTotalRiskPct ?? process.env.MAX_TOTAL_RISK_PCT, 5) / 100;
+  const maxCorrelated = toNumber(riskConfig.maxCorrelatedPositions ?? process.env.MAX_CORRELATED_POSITIONS, 3);
+  const drawdownThrottlePct = toNumber(riskConfig.drawdownThrottlePct ?? process.env.DRAWDOWN_THROTTLE_PCT, 1) / 100;
+  const dailyLossLimitPct = toNumber(riskConfig.dailyLossLimitPct ?? process.env.MAX_DAILY_LOSS_PERCENT ?? process.env.DAILY_LOSS_LIMIT_PCT, 2) / 100;
 
   const equity = toNumber(accountEquity, 100000);
 

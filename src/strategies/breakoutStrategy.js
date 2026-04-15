@@ -37,7 +37,7 @@ const DEFAULTS = {
   targetMultiple: envNum('TARGET_MULTIPLE', 2),
   minVolRatio: envNum('MIN_VOL_RATIO', 1.2),
   minAtr: envNum('MIN_ATR', 0.25),
-  maxDistanceToBreakoutPct: envNum('MAX_DISTANCE_TO_BREAKOUT_PCT', 1.0),
+  maxDistanceToBreakoutPct: envNum('PREFILTER_MAX_DISTANCE_TO_BREAKOUT_PCT', 1.0),
   minRiskReward: envNum('MIN_RISK_REWARD', 1.5),
   breakoutNearMissPct: envNum('BREAKOUT_NEAR_MISS_PCT', 0.5),
   breakoutConfirmationPct: Number.isFinite(Number(process.env.BREAKOUT_CONFIRMATION_PCT))
@@ -150,6 +150,10 @@ export function evaluateBreakout({
   // ── Strategy-stage: breakout classification ────────────────────────────────
   let breakoutClassification;
   if (entryPrice > rawBreakoutLevelNum) {
+    const confirmationLevel = rawBreakoutLevelNum * (1 + opts.breakoutConfirmationPct / 100);
+    if (entryPrice < confirmationLevel) {
+      return buildReject('breakout_not_confirmed', closePrice, breakoutLevel, atr, volumeRatio, distanceToBreakoutPct, 'near_breakout', symbol, normalizedSym, assetClass, timestamp, timeframe, opts, 'strategy');
+    }
     breakoutClassification = 'confirmed_breakout';
   } else {
     const distanceBelow = distanceToBreakoutPct !== null ? -distanceToBreakoutPct : null;
@@ -311,7 +315,7 @@ function buildReject(
  * Used for legacy analytics grouping.
  */
 export function mapRejectionClass(reason) {
-  if (['no_breakout', 'near_breakout', 'overextended_breakout'].includes(reason)) return 'no_signal';
+  if (['no_breakout', 'near_breakout', 'overextended_breakout', 'breakout_not_confirmed'].includes(reason)) return 'no_signal';
   if (['weak_volume', 'missing_volume', 'atr_too_low', 'weak_risk_reward', 'score_below_threshold'].includes(reason)) return 'weak_conditions';
   if (['invalid_stop_distance', 'invalid_position_size'].includes(reason)) return 'sizing_error';
   if (['insufficient_market_data'].includes(reason)) return 'data_quality';
@@ -323,7 +327,7 @@ export function mapRejectionClass(reason) {
  */
 export function mapRejectionGroup(reason) {
   const groups = {
-    signal_quality: ['no_breakout', 'near_breakout', 'overextended_breakout', 'weak_volume', 'missing_volume', 'atr_too_low', 'weak_risk_reward', 'score_below_threshold'],
+    signal_quality: ['no_breakout', 'near_breakout', 'overextended_breakout', 'breakout_not_confirmed', 'weak_volume', 'missing_volume', 'atr_too_low', 'weak_risk_reward', 'score_below_threshold'],
     data_quality: ['insufficient_market_data'],
     execution_guard: ['invalid_stop_distance', 'invalid_position_size'],
     risk_guard: ['duplicate_position_guard', 'max_positions_guard', 'daily_loss_guard', 'cooldown_guard'],

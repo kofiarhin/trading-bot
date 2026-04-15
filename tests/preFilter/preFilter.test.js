@@ -125,9 +125,17 @@ describe("preFilter", () => {
     expect(result.rejectStage).toBe("pre_filter");
   });
 
+  it("rejects with weak_trend_environment when range/ATR regime is too compressed", () => {
+    const bars = makeBars({ count: 30, breakout: true, tinyRange: true });
+    const result = preFilter("AAPL", "stock", bars, { minAtr: 0.001, minRangeAtrMultiple: 80 });
+    expect(result.passed).toBe(false);
+    expect(result.rejectReason).toBe("weak_trend_environment");
+    expect(result.rejectStage).toBe("pre_filter");
+  });
+
   it("returns metrics as null when data check fails (no bars)", () => {
     const result = preFilter("BTC/USD", "crypto", null);
     expect(result.passed).toBe(false);
-    expect(result.metrics?.barsAvailable).toBe(10);
+    expect(result.metrics?.barsAvailable).toBe(0);
   });
 });

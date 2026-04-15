@@ -13,9 +13,11 @@ const DEFAULTS = {
   breakoutLookback: envNum('BREAKOUT_LOOKBACK', 20),
   volumeLookback: envNum('VOLUME_LOOKBACK', 20),
   atrPeriod: envNum('ATR_PERIOD', 14),
-  minVolRatio: envNum('MIN_VOL_RATIO', 1.2),
+  minVolRatio: envNum('PREFILTER_MIN_VOL_RATIO', 1.2),
   minAtr: envNum('MIN_ATR', 0.25),
-  maxDistanceToBreakoutPct: envNum('MAX_DISTANCE_TO_BREAKOUT_PCT', 1.0),
+  minRangeAtrMultiple: envNum('PREFILTER_MIN_RANGE_ATR_MULTIPLE', 1),
+  maxDistanceToBreakoutPct: envNum('PREFILTER_MAX_DISTANCE_TO_BREAKOUT_PCT', 1.0),
+  minBars: envNum('PREFILTER_MIN_BARS', 22),
 };
 
 export function preFilter(symbol, assetClass, bars, config = {}) {
@@ -38,6 +40,9 @@ export function preFilter(symbol, assetClass, bars, config = {}) {
   }
 
   const metrics = signal.metrics;
+  if (metrics.barsAvailable < opts.minBars) {
+    return reject('insufficient_market_data', metrics);
+  }
 
   if (metrics.atr == null || metrics.atr <= 0 || metrics.atr < opts.minAtr) {
     return reject('atr_too_low', metrics);
@@ -49,6 +54,10 @@ export function preFilter(symbol, assetClass, bars, config = {}) {
 
   if (metrics.volumeRatio < opts.minVolRatio) {
     return reject('weak_volume', metrics);
+  }
+
+  if (metrics.rangeAtrMultiple == null || metrics.rangeAtrMultiple < opts.minRangeAtrMultiple) {
+    return reject('weak_trend_environment', metrics);
   }
 
   if (metrics.closePrice <= metrics.breakoutLevel) {

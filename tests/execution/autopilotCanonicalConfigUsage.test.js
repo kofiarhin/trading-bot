@@ -14,5 +14,9 @@ describe('autopilot canonical config usage', () => {
     expect(source).toContain('config.trading.enableStocks');
     expect(source).toContain('config.trading.enableCrypto');
     expect(source).toContain('config.trading.maxCandidatesPerCycle');
+    expect(source).toContain('config.prefilter.minVolRatio');
+    expect(source).toContain('config.prefilter.maxDistanceToBreakoutPct');
+    expect(source).toContain('config.strategy.breakoutConfirmationPct');
+    expect(source).toContain('config.risk.maxTotalRiskPct');
   });
 });
