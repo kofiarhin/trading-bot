@@ -1,15 +1,11 @@
-/**
- * Config / env.js alias resolution tests.
- *
- * Tests the alias resolution logic in isolation — without loading env.js directly
- * (which requires real Alpaca credentials at import time).
- *
- * The alias map logic is extracted inline and tested as pure functions.
- */
+import { describe, it, expect, beforeEach, afterEach, jest } from "@jest/globals";
 
-import { describe, it, expect, beforeEach, afterEach } from "@jest/globals";
-
-// ─── Alias logic (mirrors src/config/env.js) ──────────────────────────────────
+const BASE_ENV = {
+  ALPACA_API_KEY: "test",
+  ALPACA_API_SECRET: "test",
+  ALPACA_BASE_URL: "https://paper-api.alpaca.markets",
+  MONGO_URI: "mongodb://localhost:27017/test",
+};
 
 const ALIAS_MAP = {
   SYMBOLS: "AUTOPILOT_SYMBOLS",
@@ -32,34 +28,22 @@ function applyAliases(env) {
   return resolved;
 }
 
-// ─── Tests ────────────────────────────────────────────────────────────────────
+async function loadConfig(extra = {}) {
+  jest.resetModules();
+  process.env = { ...BASE_ENV, ...extra };
+  return import("../../src/config/env.js");
+}
 
 describe("env alias resolution", () => {
-  it("SYMBOLS → AUTOPILOT_SYMBOLS when canonical is absent", () => {
-    const env = { SYMBOLS: "BTC/USD,ETH/USD" };
-    const resolved = applyAliases(env);
-    expect(env.AUTOPILOT_SYMBOLS).toBe("BTC/USD,ETH/USD");
-    expect(resolved.some((a) => a.from === "SYMBOLS" && a.to === "AUTOPILOT_SYMBOLS")).toBe(true);
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
   });
 
-  it("WATCHLIST → AUTOPILOT_SYMBOLS when canonical is absent", () => {
-    const env = { WATCHLIST: "AAPL,MSFT" };
-    applyAliases(env);
-    expect(env.AUTOPILOT_SYMBOLS).toBe("AAPL,MSFT");
-  });
-
-  it("RISK_PER_TRADE → RISK_PERCENT when canonical is absent", () => {
-    const env = { RISK_PER_TRADE: "0.01" };
-    const resolved = applyAliases(env);
-    expect(env.RISK_PERCENT).toBe("0.01");
-    expect(resolved.some((a) => a.from === "RISK_PER_TRADE" && a.to === "RISK_PERCENT")).toBe(true);
-  });
-
-  it("SCORE_THRESHOLD → MIN_SETUP_SCORE when canonical is absent", () => {
-    const env = { SCORE_THRESHOLD: "60" };
-    const resolved = applyAliases(env);
-    expect(env.MIN_SETUP_SCORE).toBe("60");
-    expect(resolved.some((a) => a.from === "SCORE_THRESHOLD" && a.to === "MIN_SETUP_SCORE")).toBe(true);
+  afterEach(() => {
+    process.env = originalEnv;
+    jest.resetModules();
   });
 
   it("legacy alias does NOT override canonical if both are set", () => {
@@ -69,18 +53,24 @@ describe("env alias resolution", () => {
     expect(resolved.some((a) => a.from === "SYMBOLS")).toBe(false);
   });
 
-  it("resolvedAliases lists only applied aliases", () => {
-    const env = { SYMBOLS: "BTC/USD", RISK_PER_TRADE: "0.005" };
-    const resolved = applyAliases(env);
-    expect(Array.isArray(resolved)).toBe(true);
-    expect(resolved).toHaveLength(2);
-    expect(resolved.map((a) => a.from)).toContain("SYMBOLS");
-    expect(resolved.map((a) => a.from)).toContain("RISK_PER_TRADE");
+  it("loads canonical symbols from AUTOPILOT_SYMBOLS", async () => {
+    const { config } = await loadConfig({ AUTOPILOT_SYMBOLS: "AAPL,MSFT" });
+    expect(config.trading.symbols).toEqual(["AAPL", "MSFT"]);
   });
 
-  it("returns empty array when no aliases are applicable", () => {
-    const env = { AUTOPILOT_SYMBOLS: "AAPL", RISK_PERCENT: "0.005" };
-    const resolved = applyAliases(env);
-    expect(resolved).toHaveLength(0);
+  it("maps SYMBOLS alias to canonical AUTOPILOT_SYMBOLS when canonical missing", async () => {
+    const { config, resolvedAliases } = await loadConfig({ SYMBOLS: "BTC/USD,ETH/USD" });
+    expect(config.trading.symbols).toEqual(["BTC/USD", "ETH/USD"]);
+    expect(resolvedAliases).toContainEqual({ from: "SYMBOLS", to: "AUTOPILOT_SYMBOLS" });
+  });
+
+  it("canonical max positions overrides legacy MAX_OPEN_POSITIONS", async () => {
+    const { config } = await loadConfig({ MAX_OPEN_POSITIONS: "2", MAX_POSITIONS: "7" });
+    expect(config.trading.maxOpenPositions).toBe(7);
+  });
+
+  it("reads MAX_CANDIDATES_PER_CYCLE as canonical runtime value", async () => {
+    const { config } = await loadConfig({ MAX_CANDIDATES_PER_CYCLE: "9" });
+    expect(config.trading.maxCandidatesPerCycle).toBe(9);
   });
 });

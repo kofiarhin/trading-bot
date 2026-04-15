@@ -12,12 +12,10 @@
 //   near_breakout, invalid_stop_distance, weak_risk_reward,
 //   invalid_position_size, score_below_threshold
 
-import { calcATR } from "../indicators/atr.js";
-import { calcHighestHigh } from "../indicators/highestHigh.js";
-import { calcAverageVolume } from "../indicators/averageVolume.js";
 import { normalizeSymbol } from "../utils/symbolNorm.js";
 import { resolveSession } from "../utils/time.js";
 import { computeScore } from "../scoring/scorer.js";
+import { buildSignalMetrics } from "./buildSignalMetrics.js";
 
 export { computeScore } from "../scoring/scorer.js";
 
@@ -109,34 +107,23 @@ export function evaluateBreakout({
 
   if (preFilterMetrics) {
     closePrice = preFilterMetrics.closePrice;
-    breakoutLevel = preFilterMetrics.highestHigh;
+    breakoutLevel = preFilterMetrics.highestHigh ?? preFilterMetrics.breakoutLevel;
     atr = preFilterMetrics.atr;
     volumeRatio = preFilterMetrics.volumeRatio;
     distanceToBreakoutPct = preFilterMetrics.distanceToBreakoutPct;
   } else {
-    // Fallback: compute from raw bars (same logic as pre-filter)
-    if (!Array.isArray(bars) || bars.length < opts.breakoutLookback + 2) {
-      return buildReject('insufficient_market_data', null, null, null, null, null, null, symbol, normalizedSym, assetClass, timestamp, timeframe, opts);
+    const signal = buildSignalMetrics(bars, opts);
+    if (!signal.ok) {
+      return buildReject(signal.reason, null, null, null, null, null, null, symbol, normalizedSym, assetClass, timestamp, timeframe, opts);
     }
-    const latestBar = bars[bars.length - 1];
-    closePrice = latestBar.c;
-    const currentVolume = latestBar.v;
-    const rawBreakoutLevel = calcHighestHigh(bars, opts.breakoutLookback);
-    if (rawBreakoutLevel === null) {
-      return buildReject('insufficient_market_data', null, null, null, null, null, null, symbol, normalizedSym, assetClass, timestamp, timeframe, opts);
-    }
-    breakoutLevel = toMetric(rawBreakoutLevel);
-    const avgVolume = calcAverageVolume(bars, opts.volumeLookback);
-    volumeRatio = (avgVolume && avgVolume > 0) ? toMetric(currentVolume / avgVolume) : null;
-    const rawAtr = calcATR(bars, opts.atrPeriod);
-    atr = (rawAtr !== null && rawAtr > 0) ? toMetric(rawAtr) : null;
-    distanceToBreakoutPct = breakoutLevel
-      ? toMetric(((closePrice - rawBreakoutLevel) / rawBreakoutLevel) * 100)
-      : null;
 
-    // Pre-filter checks in original strategy order (only in the fallback path)
-    // Order: breakout classification → overextension → volume → ATR
-    if (closePrice <= rawBreakoutLevel) {
+    closePrice = signal.metrics.closePrice;
+    breakoutLevel = signal.metrics.breakoutLevel;
+    atr = signal.metrics.atr;
+    volumeRatio = signal.metrics.volumeRatio;
+    distanceToBreakoutPct = signal.metrics.distanceToBreakoutPct;
+
+    if (closePrice <= breakoutLevel) {
       const distanceBelow = distanceToBreakoutPct !== null ? -distanceToBreakoutPct : null;
       const bc = (distanceBelow !== null && distanceBelow <= opts.breakoutNearMissPct)
         ? 'near_breakout'
@@ -146,13 +133,13 @@ export function evaluateBreakout({
     if (distanceToBreakoutPct !== null && distanceToBreakoutPct > opts.maxDistanceToBreakoutPct) {
       return buildReject('overextended_breakout', closePrice, breakoutLevel, atr, volumeRatio, distanceToBreakoutPct, 'confirmed_breakout', symbol, normalizedSym, assetClass, timestamp, timeframe, opts);
     }
-    if (!avgVolume || avgVolume === 0 || volumeRatio === null) {
+    if (volumeRatio == null) {
       return buildReject('missing_volume', closePrice, breakoutLevel, atr, volumeRatio, distanceToBreakoutPct, 'confirmed_breakout', symbol, normalizedSym, assetClass, timestamp, timeframe, opts);
     }
     if (volumeRatio < opts.minVolRatio) {
       return buildReject('weak_volume', closePrice, breakoutLevel, atr, volumeRatio, distanceToBreakoutPct, 'confirmed_breakout', symbol, normalizedSym, assetClass, timestamp, timeframe, opts);
     }
-    if (rawAtr === null || rawAtr < opts.minAtr) {
+    if (atr === null || atr < opts.minAtr) {
       return buildReject('atr_too_low', closePrice, breakoutLevel, atr, volumeRatio, distanceToBreakoutPct, 'confirmed_breakout', symbol, normalizedSym, assetClass, timestamp, timeframe, opts);
     }
   }

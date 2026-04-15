@@ -1,46 +1,78 @@
 import { Router } from 'express';
-import { getCandidatesForCycle } from '../../repositories/analyticsRepo.mongo.js';
+import { buildCycleFunnel, getCandidatesForCycle } from '../../repositories/analyticsRepo.mongo.js';
 
 const router = Router();
+
+function toCandidateRow(d) {
+  return {
+    symbol: d.symbol ?? null,
+    assetClass: d.assetClass ?? null,
+    rank: d.rank ?? null,
+    score: d.setupScore ?? null,
+    setupScore: d.setupScore ?? null,
+    setupGrade: d.setupGrade ?? null,
+    shortlisted: d.shortlisted ?? false,
+    rankedOut: d.rankedOut ?? false,
+    stage: d.stage ?? null,
+    rejectStage: d.rejectStage ?? null,
+    approved: d.approved ?? false,
+    reason: d.reason ?? null,
+    scoreBreakdown: d.scoreBreakdown ?? null,
+    metrics: d.metrics ?? null,
+    cycleId: d.cycleId ?? null,
+    timestamp: d.timestamp ?? null,
+    recordedAt: d.recordedAt ?? null,
+  };
+}
+
+function classifyBucket(d) {
+  if (d.rankedOut || d.rejectStage === 'ranked_out' || d.reason === 'ranked_out') return 'rankedOut';
+  if (d.rejectStage === 'strategy') return 'strategyRejected';
+  if ((d.blockers ?? []).length > 0 && d.approved) return 'riskBlocked';
+  if (d.approved && d.shortlisted) {
+    return (d.blockers ?? []).length === 0 ? 'placed' : 'approved';
+  }
+  if (d.approved) return (d.blockers ?? []).length === 0 ? 'placed' : 'approved';
+  return 'otherStageDecisions';
+}
 
 // GET /api/candidates?cycleId=<id>
 router.get('/', async (req, res) => {
   try {
-    const { cycleId } = req.query;
-    const decisions = await getCandidatesForCycle(cycleId ?? null);
+    const cycleId = typeof req.query.cycleId === 'string' && req.query.cycleId.trim()
+      ? req.query.cycleId.trim()
+      : null;
 
-    const candidates = decisions.map((d, i) => ({
-      // Use the persisted rank from the pipeline; fall back to array position
-      rank: d.rank ?? (i + 1),
-      symbol: d.symbol,
-      timestamp: d.timestamp ?? null,
-      assetClass: d.assetClass ?? null,
-      // Pipeline stage tracking
-      stage: d.stage ?? null,
-      rejectStage: d.rejectStage ?? null,
-      reason: d.reason ?? null,
-      shortlisted: d.shortlisted ?? false,
-      approved: d.approved ?? false,
-      // Score
-      setupScore: d.setupScore ?? null,
-      setupGrade: d.setupGrade ?? null,
-      scoreBreakdown: d.scoreBreakdown ?? null,
-      context: d.context ?? null,
-      // Trade levels
-      entryPrice: d.entryPrice ?? null,
-      stopLoss: d.stopLoss ?? null,
-      takeProfit: d.takeProfit ?? null,
-      riskReward: d.riskReward ?? null,
-      riskAmount: d.riskAmount ?? null,
-      // Market metrics
-      closePrice: d.closePrice ?? null,
-      breakoutLevel: d.breakoutLevel ?? null,
-      atr: d.atr ?? null,
-      volumeRatio: d.volumeRatio ?? null,
-      distanceToBreakoutPct: d.distanceToBreakoutPct ?? null,
-    }));
+    const decisions = await getCandidatesForCycle(cycleId);
+    const rows = decisions.map(toCandidateRow);
+    const resolvedCycleId = rows[0]?.cycleId ?? cycleId;
 
-    res.json(candidates);
+    const response = {
+      cycleId: resolvedCycleId ?? null,
+      totals: buildCycleFunnel(decisions),
+      shortlisted: [],
+      rankedOut: [],
+      strategyRejected: [],
+      riskBlocked: [],
+      approved: [],
+      placed: [],
+      otherStageDecisions: [],
+    };
+
+    for (let i = 0; i < rows.length; i += 1) {
+      const bucket = classifyBucket(decisions[i]);
+      if (bucket === 'approved') {
+        response.approved.push(rows[i]);
+      } else {
+        response[bucket].push(rows[i]);
+      }
+
+      if (rows[i].shortlisted) {
+        response.shortlisted.push(rows[i]);
+      }
+    }
+
+    res.json(response);
   } catch (err) {
     console.error('[/api/candidates]', err.message);
     res.status(500).json({ error: 'Failed to fetch candidates' });

@@ -51,19 +51,14 @@ function toStrategyBars(bars) {
 }
 
 function getConfiguredSymbols() {
-  const rawSymbols =
-    process.env.AUTOPILOT_SYMBOLS ??
-    process.env.SYMBOLS ??
-    process.env.WATCHLIST ??
-    process.env.TICKERS;
-
-  if (rawSymbols) {
-    return [...new Set(rawSymbols.split(',').map((symbol) => symbol.trim()).filter(Boolean))];
+  const configuredSymbols = config.trading.symbols ?? [];
+  if (configuredSymbols.length > 0) {
+    return configuredSymbols;
   }
 
   const universeEntries = getUniverse({
-    enableStocks: process.env.ENABLE_STOCKS !== 'false',
-    enableCrypto: process.env.ENABLE_CRYPTO !== 'false',
+    enableStocks: config.trading.enableStocks,
+    enableCrypto: config.trading.enableCrypto,
   });
   return universeEntries.map((e) => e.symbol);
 }
@@ -409,7 +404,7 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
     // ── Phase D: Shortlist top N ───────────────────────────────────────────────
     await setRuntimeStage(CYCLE_STAGES.SHORTLISTING, 'Shortlisting top candidates');
 
-    const maxCandidates = toNumber(process.env.MAX_CANDIDATES_PER_CYCLE, 3);
+    const maxCandidates = config.trading.maxCandidatesPerCycle;
     const sortedScored = [...scored].sort((a, b) => b.scoreResult.total - a.scoreResult.total);
     const shortlist = sortedScored.slice(0, maxCandidates);
     const rankedOutItems = sortedScored.slice(maxCandidates);

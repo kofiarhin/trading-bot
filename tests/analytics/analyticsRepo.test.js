@@ -7,6 +7,7 @@ import {
   getShortlistConversionStats,
   getScoreDistribution,
   getCandidatesForCycle,
+  buildCycleFunnel,
 } from "../../src/repositories/analyticsRepo.mongo.js";
 
 let mongod;
@@ -164,6 +165,20 @@ describe("getCandidatesForCycle", () => {
     expect(results[0].symbol).toBe("NEW");
   });
 
+  it("does not fall back to latest/date when explicit cycleId is provided", async () => {
+    const older = new Date();
+    older.setUTCMinutes(older.getUTCMinutes() - 60);
+    const newer = new Date();
+
+    await Decision.insertMany([
+      makeFullDecision({ symbol: "TARGET", cycleId: CYCLE_A, timestamp: older.toISOString() }),
+      makeFullDecision({ symbol: "LATEST", cycleId: CYCLE_B, timestamp: newer.toISOString() }),
+    ]);
+
+    const results = await getCandidatesForCycle(CYCLE_A);
+    expect(results.map((r) => r.symbol)).toEqual(["TARGET"]);
+  });
+
   it("returns empty array when no decisions exist", async () => {
     const results = await getCandidatesForCycle(CYCLE_A);
     expect(results).toEqual([]);
@@ -195,5 +210,30 @@ describe("getScoreDistribution", () => {
     expect(dist.mean).toBe(0);
     expect(dist.median).toBe(0);
     expect(dist.buckets.every((b) => b.count === 0)).toBe(true);
+  });
+});
+
+
+describe("buildCycleFunnel", () => {
+  it("builds truthful stage totals for one cycle", () => {
+    const totals = buildCycleFunnel([
+      { symbol: 'A', stage: 'pre_filter', rejectStage: 'pre_filter', approved: false, shortlisted: false },
+      { symbol: 'B', stage: 'scored', rankedOut: true, approved: false, shortlisted: false },
+      { symbol: 'C', stage: 'strategy', rejectStage: 'strategy', approved: false, shortlisted: true },
+      { symbol: 'D', stage: 'strategy', approved: true, shortlisted: true, blockers: ['max_positions_guard'] },
+      { symbol: 'E', stage: 'strategy', approved: true, shortlisted: true, blockers: [] },
+    ]);
+
+    expect(totals).toEqual({
+      scanned: 5,
+      prefilterRejected: 1,
+      scored: 4,
+      shortlisted: 3,
+      rankedOut: 1,
+      strategyRejected: 1,
+      riskBlocked: 1,
+      approved: 2,
+      placed: 1,
+    });
   });
 });

@@ -19,6 +19,91 @@ function stripMongo(doc) {
   return rest;
 }
 
+
+function classifyDecisionStage(doc) {
+  if (!doc) return 'other';
+  const stage = doc.stage ?? null;
+  const rejectStage = doc.rejectStage ?? null;
+  const reason = doc.reason ?? null;
+  const blockers = doc.blockers ?? [];
+
+  if (rejectStage === 'pre_filter' || stage === 'pre_filter') return 'prefilterRejected';
+  if (doc.rankedOut || rejectStage === 'ranked_out' || reason === 'ranked_out') return 'rankedOut';
+  if (doc.shortlisted) {
+    if (doc.approved) {
+      if (blockers.length === 0) return 'placed';
+      return 'riskBlocked';
+    }
+    return 'strategyRejected';
+  }
+  if (doc.approved) {
+    if (blockers.length === 0) return 'placed';
+    return 'riskBlocked';
+  }
+  return 'other';
+}
+
+function sortByPersistedRankThenScore(a, b) {
+  const aRank = Number.isFinite(a.rank) ? a.rank : Number.POSITIVE_INFINITY;
+  const bRank = Number.isFinite(b.rank) ? b.rank : Number.POSITIVE_INFINITY;
+  if (aRank !== bRank) return aRank - bRank;
+
+  const aScore = Number.isFinite(a.setupScore) ? a.setupScore : Number.NEGATIVE_INFINITY;
+  const bScore = Number.isFinite(b.setupScore) ? b.setupScore : Number.NEGATIVE_INFINITY;
+  if (aScore !== bScore) return bScore - aScore;
+
+  return String(b.timestamp ?? '').localeCompare(String(a.timestamp ?? ''));
+}
+
+export function buildCycleFunnel(decisions) {
+  const totals = {
+    scanned: decisions.length,
+    prefilterRejected: 0,
+    scored: 0,
+    shortlisted: 0,
+    rankedOut: 0,
+    strategyRejected: 0,
+    riskBlocked: 0,
+    approved: 0,
+    placed: 0,
+  };
+
+  for (const decision of decisions) {
+    const cls = classifyDecisionStage(decision);
+    if (cls === 'prefilterRejected') {
+      totals.prefilterRejected += 1;
+      continue;
+    }
+
+    totals.scored += 1;
+
+    if (cls === 'rankedOut') {
+      totals.rankedOut += 1;
+      continue;
+    }
+
+    if (decision.shortlisted) totals.shortlisted += 1;
+
+    if (cls === 'strategyRejected') {
+      totals.strategyRejected += 1;
+      continue;
+    }
+
+    if (decision.approved) totals.approved += 1;
+
+    if (cls === 'riskBlocked') {
+      totals.riskBlocked += 1;
+      continue;
+    }
+
+    if (cls === 'placed') {
+      totals.placed += 1;
+    }
+  }
+
+  return totals;
+}
+
 // ─── Closed Trades ────────────────────────────────────────────────────────────
 
 /**
@@ -298,7 +383,6 @@ export async function getCandidatesForCycle(cycleId) {
   let resolvedCycleId = cycleId;
 
   if (!resolvedCycleId) {
-    // Find the most recent cycle that has any decisions recorded
     const latest = await Decision.findOne({ cycleId: { $exists: true, $ne: null } })
       .sort({ timestamp: -1 })
       .lean();
@@ -306,9 +390,7 @@ export async function getCandidatesForCycle(cycleId) {
     resolvedCycleId = latest.cycleId;
   }
 
-  const docs = await Decision.find({ cycleId: resolvedCycleId })
-    .sort({ rank: 1, setupScore: -1, timestamp: -1 })
-    .lean();
-
-  return docs.map(stripMongo);
+  const docs = await Decision.find({ cycleId: resolvedCycleId }).lean();
+  return docs.map(stripMongo).sort(sortByPersistedRankThenScore);
 }
+

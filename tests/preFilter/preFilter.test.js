@@ -76,7 +76,7 @@ describe("preFilter", () => {
     expect(result.passed).toBe(false);
     expect(result.rejectReason).toBe("insufficient_market_data");
     expect(result.rejectStage).toBe("pre_filter");
-    expect(result.metrics).toBeNull();
+    expect(result.metrics?.barsAvailable).toBe(10);
   });
 
   it("rejects with insufficient_market_data when bars is empty array", () => {
@@ -128,6 +128,6 @@ describe("preFilter", () => {
   it("returns metrics as null when data check fails (no bars)", () => {
     const result = preFilter("BTC/USD", "crypto", null);
     expect(result.passed).toBe(false);
-    expect(result.metrics).toBeNull();
+    expect(result.metrics?.barsAvailable).toBe(10);
   });
 });

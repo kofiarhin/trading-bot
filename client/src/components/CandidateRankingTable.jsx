@@ -1,4 +1,5 @@
 import { useCandidates } from "../hooks/queries/useAnalytics.js";
+import StageBadge from "./StageBadge.jsx";
 
 const GRADE_STYLES = {
   A: "bg-emerald-900 text-emerald-300 border border-emerald-700",
@@ -15,8 +16,19 @@ function GradeBadge({ grade }) {
   );
 }
 
+function rankRows(payload) {
+  return [
+    ...payload.shortlisted,
+    ...payload.rankedOut,
+    ...payload.strategyRejected,
+    ...payload.riskBlocked,
+    ...payload.otherStageDecisions,
+  ];
+}
+
 export default function CandidateRankingTable({ cycleId }) {
   const { data, isLoading } = useCandidates(cycleId);
+  const rows = data ? rankRows(data) : [];
 
   return (
     <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
@@ -27,7 +39,7 @@ export default function CandidateRankingTable({ cycleId }) {
             <div key={i} className="h-8 bg-slate-700 rounded animate-pulse" />
           ))}
         </div>
-      ) : !data || data.length === 0 ? (
+      ) : !rows || rows.length === 0 ? (
         <p className="text-sm text-slate-500">No candidates this cycle.</p>
       ) : (
         <div className="overflow-x-auto">
@@ -36,30 +48,28 @@ export default function CandidateRankingTable({ cycleId }) {
               <tr className="text-xs text-slate-400 border-b border-slate-700">
                 <th className="text-left py-1.5 pr-3">#</th>
                 <th className="text-left py-1.5 pr-3">Symbol</th>
+                <th className="text-left py-1.5 pr-3">Stage</th>
                 <th className="text-left py-1.5 pr-3">Grade</th>
                 <th className="text-right py-1.5 pr-3">Score</th>
                 <th className="text-right py-1.5 pr-3">R:R</th>
-                <th className="text-left py-1.5 pr-3">Session</th>
                 <th className="text-right py-1.5">Entry</th>
               </tr>
             </thead>
             <tbody>
-              {data.map((c) => (
-                <tr key={c.symbol} className="border-b border-slate-700/50 last:border-0">
-                  <td className="py-1.5 pr-3 text-slate-500">{c.rank}</td>
+              {rows.map((c, idx) => (
+                <tr key={`${c.symbol}-${c.timestamp ?? idx}`} className="border-b border-slate-700/50 last:border-0">
+                  <td className="py-1.5 pr-3 text-slate-500">{c.rank ?? "—"}</td>
                   <td className="py-1.5 pr-3 font-mono text-white">{c.symbol}</td>
+                  <td className="py-1.5 pr-3"><StageBadge stage={c.rejectStage ?? c.stage ?? "strategy"} /></td>
                   <td className="py-1.5 pr-3">
                     <GradeBadge grade={c.setupGrade} />
                   </td>
-                  <td className="py-1.5 pr-3 text-right text-slate-300">{c.setupScore ?? "—"}</td>
+                  <td className="py-1.5 pr-3 text-right text-slate-300">{c.score ?? c.setupScore ?? "—"}</td>
                   <td className="py-1.5 pr-3 text-right text-slate-300">
-                    {c.riskReward != null ? `${c.riskReward.toFixed(2)}×` : "—"}
-                  </td>
-                  <td className="py-1.5 pr-3 text-slate-400 text-xs">
-                    {c.context?.session?.replace(/_/g, " ") ?? "—"}
+                    {c.metrics?.riskReward != null ? `${Number(c.metrics.riskReward).toFixed(2)}×` : "—"}
                   </td>
                   <td className="py-1.5 text-right text-slate-300">
-                    {c.entryPrice != null ? `$${c.entryPrice.toFixed(2)}` : "—"}
+                    {c.metrics?.closePrice != null ? `$${Number(c.metrics.closePrice).toFixed(2)}` : "—"}
                   </td>
                 </tr>
               ))}

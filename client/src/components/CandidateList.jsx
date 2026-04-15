@@ -15,18 +15,8 @@ function fmt(n, decimals = 2) {
 
 function resolveStage(candidate) {
   if (candidate.rejectStage === "pre_filter" || candidate.stage === "pre_filter") return "pre_filter";
-  if (candidate.rejectStage === "ranked_out" || candidate.reason === "ranked_out") return "ranked_out";
-  if (candidate.shortlisted && candidate.approved) return "approved";
-  if (candidate.shortlisted) return "strategy";
-  return candidate.stage ?? "pre_filter";
-}
-
-function groupCandidates(candidates) {
-  const shortlisted = candidates.filter((c) => c.shortlisted && c.approved);
-  const strategyRejected = candidates.filter((c) => c.shortlisted && !c.approved && c.rejectStage !== "ranked_out");
-  const rankedOut = candidates.filter((c) => c.rejectStage === "ranked_out" || c.reason === "ranked_out");
-  const preFiltered = candidates.filter((c) => c.rejectStage === "pre_filter" || c.stage === "pre_filter");
-  return { shortlisted, strategyRejected, rankedOut, preFiltered };
+  if (candidate.rejectStage === "ranked_out" || candidate.rankedOut || candidate.reason === "ranked_out") return "ranked_out";
+  return candidate.stage ?? candidate.rejectStage ?? "strategy";
 }
 
 function CandidateRow({ candidate }) {
@@ -35,31 +25,29 @@ function CandidateRow({ candidate }) {
 
   return (
     <>
-      <tr
-        className="hover:bg-gray-50 cursor-pointer"
-        onClick={() => setExpanded((v) => !v)}
-      >
-        <td className="px-3 py-2 text-sm font-medium text-gray-900">{candidate.symbol}</td>
+      <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => setExpanded((v) => !v)}>
         <td className="px-3 py-2 text-sm text-gray-500 text-right">{candidate.rank ?? "—"}</td>
+        <td className="px-3 py-2 text-sm font-medium text-gray-900">{candidate.symbol}</td>
         <td className="px-3 py-2 text-sm text-right">
-          {candidate.setupScore != null ? (
+          {candidate.setupScore != null || candidate.score != null ? (
             <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${GRADE_COLORS[candidate.setupGrade] ?? "bg-gray-100 text-gray-600"}`}>
-              {candidate.setupScore} {candidate.setupGrade && <span>({candidate.setupGrade})</span>}
+              {candidate.score ?? candidate.setupScore} {candidate.setupGrade && <span>({candidate.setupGrade})</span>}
             </span>
           ) : "—"}
         </td>
+        <td className="px-3 py-2 text-xs text-gray-500">
+          {candidate.shortlisted ? <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-700">shortlisted</span> : "—"}
+          {candidate.rankedOut ? <span className="ml-1 px-2 py-0.5 rounded bg-amber-100 text-amber-700">ranked out</span> : null}
+        </td>
         <td className="px-3 py-2"><StageBadge stage={stage} /></td>
         <td className="px-3 py-2 text-xs text-gray-500">{candidate.reason ?? "—"}</td>
-        <td className="px-3 py-2 text-xs text-gray-700 text-right">{fmt(candidate.entryPrice)}</td>
-        <td className="px-3 py-2 text-xs text-gray-700 text-right">{fmt(candidate.stopLoss)}</td>
-        <td className="px-3 py-2 text-xs text-gray-700 text-right">{fmt(candidate.takeProfit)}</td>
       </tr>
       {expanded && candidate.scoreBreakdown && (
         <tr>
-          <td colSpan={8} className="px-3 py-2 bg-gray-50">
+          <td colSpan={6} className="px-3 py-2 bg-gray-50">
             <div className="max-w-xs">
               <ScoreBreakdown
-                total={candidate.setupScore}
+                total={candidate.score ?? candidate.setupScore}
                 grade={candidate.setupGrade}
                 breakdown={candidate.scoreBreakdown}
               />
@@ -88,14 +76,12 @@ function Section({ title, candidates, defaultOpen = true }) {
         <table className="w-full text-left text-sm border border-gray-100 rounded overflow-hidden">
           <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
             <tr>
-              <th className="px-3 py-2">Symbol</th>
               <th className="px-3 py-2 text-right">Rank</th>
+              <th className="px-3 py-2">Symbol</th>
               <th className="px-3 py-2 text-right">Score</th>
+              <th className="px-3 py-2">State</th>
               <th className="px-3 py-2">Stage</th>
               <th className="px-3 py-2">Reason</th>
-              <th className="px-3 py-2 text-right">Entry</th>
-              <th className="px-3 py-2 text-right">Stop</th>
-              <th className="px-3 py-2 text-right">Target</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -109,19 +95,23 @@ function Section({ title, candidates, defaultOpen = true }) {
   );
 }
 
-export default function CandidateList({ candidates = [] }) {
-  const { shortlisted, strategyRejected, rankedOut, preFiltered } = groupCandidates(candidates);
+export default function CandidateList({ data = null, candidates = [] }) {
+  const payload = data ?? { shortlisted: candidates, rankedOut: [], strategyRejected: [], riskBlocked: [], approved: [], placed: [], otherStageDecisions: [] };
+  const allCount = payload.shortlisted.length + payload.rankedOut.length + payload.strategyRejected.length + payload.riskBlocked.length + payload.approved.length + payload.placed.length + payload.otherStageDecisions.length;
 
-  if (!candidates.length) {
+  if (!allCount) {
     return <p className="text-sm text-gray-400 italic">No candidates this cycle.</p>;
   }
 
   return (
     <div>
-      <Section title="Shortlisted & Approved" candidates={shortlisted} defaultOpen={true} />
-      <Section title="Strategy Rejected" candidates={strategyRejected} defaultOpen={true} />
-      <Section title="Ranked Out" candidates={rankedOut} defaultOpen={false} />
-      <Section title="Pre-filtered" candidates={preFiltered} defaultOpen={false} />
+      <Section title="Shortlisted" candidates={payload.shortlisted} defaultOpen={true} />
+      <Section title="Ranked Out" candidates={payload.rankedOut} defaultOpen={false} />
+      <Section title="Strategy Rejected" candidates={payload.strategyRejected} defaultOpen={true} />
+      <Section title="Risk Blocked" candidates={payload.riskBlocked} defaultOpen={true} />
+      <Section title="Approved" candidates={payload.approved} defaultOpen={false} />
+      <Section title="Placed" candidates={payload.placed} defaultOpen={false} />
+      <Section title="Other" candidates={payload.otherStageDecisions} defaultOpen={false} />
     </div>
   );
 }
