@@ -109,8 +109,16 @@ describe("preFilter", () => {
     expect(result.rejectStage).toBe("pre_filter");
   });
 
-  it("rejects with no_breakout when close is below highest high", () => {
+  it("allows near-breakout setup quality through to strategy", () => {
     const bars = makeBars({ count: 30 }); // no breakout flag
+    const result = preFilter("AAPL", "stock", bars);
+    expect(result.passed).toBe(true);
+    expect(result.rejectReason).toBeNull();
+  });
+
+  it("rejects with no_breakout when setup is clearly far from breakout", () => {
+    const bars = makeBars({ count: 30 });
+    bars[bars.length - 2] = { ...bars[bars.length - 2], h: 180 };
     const result = preFilter("AAPL", "stock", bars);
     expect(result.passed).toBe(false);
     expect(result.rejectReason).toBe("no_breakout");

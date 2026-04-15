@@ -89,26 +89,66 @@ describe("env alias resolution", () => {
 
   it("loads canonical prefilter/strategy/risk config fields", async () => {
     const { config } = await loadConfig({
+      BREAKOUT_LOOKBACK: "30",
+      VOLUME_LOOKBACK: "40",
+      ATR_PERIOD: "21",
+      ATR_MULTIPLIER: "2",
+      TARGET_MULTIPLE: "3",
+      MIN_VOL_RATIO: "1.6",
+      MIN_ATR: "0.4",
+      MIN_RISK_REWARD: "1.8",
+      BREAKOUT_NEAR_MISS_PCT: "0.7",
+      BREAKOUT_CONFIRMATION_PCT: "0.2",
+      MIN_SETUP_SCORE: "55",
+      MIN_SETUP_SCORE_TOKYO: "45",
+      MIN_SETUP_SCORE_LONDON: "50",
+      MIN_SETUP_SCORE_NEW_YORK: "60",
       PREFILTER_MIN_BARS: "30",
       PREFILTER_MIN_VOL_RATIO: "1.4",
       PREFILTER_MIN_RANGE_ATR_MULTIPLE: "1.8",
       PREFILTER_MAX_DISTANCE_TO_BREAKOUT_PCT: "0.9",
-      BREAKOUT_CONFIRMATION_PCT: "0.2",
+      MAX_OPEN_POSITIONS: "7",
+      MAX_DAILY_LOSS_PERCENT: "3",
       MAX_TOTAL_RISK_PCT: "4",
       MAX_CORRELATED_POSITIONS: "2",
       DRAWDOWN_THROTTLE_PCT: "0.8",
+      MAX_HOLD_BARS: "64",
+      TRAILING_ATR_MULTIPLIER: "1.9",
     });
     expect(config.prefilter).toEqual({
       minBars: 30,
       minVolRatio: 1.4,
       minRangeAtrMultiple: 1.8,
       maxDistanceToBreakoutPct: 0.9,
+      breakoutLookback: 30,
+      volumeLookback: 40,
+      atrPeriod: 21,
+      breakoutNearMissPct: 0.7,
     });
-    expect(config.strategy.breakoutConfirmationPct).toBe(0.2);
+    expect(config.strategy).toEqual({
+      breakoutLookback: 30,
+      volumeLookback: 40,
+      atrPeriod: 21,
+      atrMultiplier: 2,
+      targetMultiple: 3,
+      minVolRatio: 1.6,
+      minAtr: 0.4,
+      minRiskReward: 1.8,
+      breakoutConfirmationPct: 0.2,
+      breakoutNearMissPct: 0.7,
+      minSetupScore: 55,
+      minSetupScoreTokyo: 45,
+      minSetupScoreLondon: 50,
+      minSetupScoreNewYork: 60,
+    });
     expect(config.risk).toEqual({
+      maxOpenPositions: 7,
+      maxDailyLossPercent: 3,
       maxTotalRiskPct: 4,
       maxCorrelatedPositions: 2,
       drawdownThrottlePct: 0.8,
+      maxHoldBars: 64,
+      trailingAtrMultiplier: 1.9,
     });
   });
 });

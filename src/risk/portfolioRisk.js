@@ -8,6 +8,8 @@
  *   3. Drawdown throttle — reduce candidate slots when daily loss exceeds throttle threshold
  */
 
+import { config as runtimeConfig } from '../config/env.js';
+
 function toNumber(value, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
@@ -58,10 +60,10 @@ export function checkPortfolioRisk({
   maxCandidatesOverride,
   riskConfig = {},
 }) {
-  const maxTotalRiskPct = toNumber(riskConfig.maxTotalRiskPct ?? process.env.MAX_TOTAL_RISK_PCT, 5) / 100;
-  const maxCorrelated = toNumber(riskConfig.maxCorrelatedPositions ?? process.env.MAX_CORRELATED_POSITIONS, 3);
-  const drawdownThrottlePct = toNumber(riskConfig.drawdownThrottlePct ?? process.env.DRAWDOWN_THROTTLE_PCT, 1) / 100;
-  const dailyLossLimitPct = toNumber(riskConfig.dailyLossLimitPct ?? process.env.MAX_DAILY_LOSS_PERCENT ?? process.env.DAILY_LOSS_LIMIT_PCT, 2) / 100;
+  const maxTotalRiskPct = toNumber(riskConfig.maxTotalRiskPct ?? runtimeConfig.risk.maxTotalRiskPct, 5) / 100;
+  const maxCorrelated = toNumber(riskConfig.maxCorrelatedPositions ?? runtimeConfig.risk.maxCorrelatedPositions, 3);
+  const drawdownThrottlePct = toNumber(riskConfig.drawdownThrottlePct ?? runtimeConfig.risk.drawdownThrottlePct, 1) / 100;
+  const dailyLossLimitPct = toNumber(riskConfig.dailyLossLimitPct ?? runtimeConfig.risk.maxDailyLossPercent, 2) / 100;
 
   const equity = toNumber(accountEquity, 100000);
 

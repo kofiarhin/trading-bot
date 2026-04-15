@@ -16,37 +16,30 @@ import { normalizeSymbol } from "../utils/symbolNorm.js";
 import { resolveSession } from "../utils/time.js";
 import { computeScore } from "../scoring/scorer.js";
 import { buildSignalMetrics } from "./buildSignalMetrics.js";
+import { config as runtimeConfig } from "../config/env.js";
 
 export { computeScore } from "../scoring/scorer.js";
 
 export const STRATEGY_NAME = "momentum_breakout_atr_v1";
 
-// Read numeric env vars, falling back to a default if invalid or missing.
-function envNum(name, fallback) {
-  const v = Number(process.env[name]);
-  return Number.isFinite(v) && v > 0 ? v : fallback;
-}
-
-// Defaults are env-configurable at process start.
+// Defaults are sourced from canonical config/env.js.
 // Pass `options` to evaluateBreakout() to override per-call.
 const DEFAULTS = {
-  breakoutLookback: envNum('BREAKOUT_LOOKBACK', 20),
-  volumeLookback: envNum('VOLUME_LOOKBACK', 20),
-  atrPeriod: envNum('ATR_PERIOD', 14),
-  atrMultiplier: envNum('ATR_MULTIPLIER', 1.5),
-  targetMultiple: envNum('TARGET_MULTIPLE', 2),
-  minVolRatio: envNum('MIN_VOL_RATIO', 1.2),
-  minAtr: envNum('MIN_ATR', 0.25),
-  maxDistanceToBreakoutPct: envNum('PREFILTER_MAX_DISTANCE_TO_BREAKOUT_PCT', 1.0),
-  minRiskReward: envNum('MIN_RISK_REWARD', 1.5),
-  breakoutNearMissPct: envNum('BREAKOUT_NEAR_MISS_PCT', 0.5),
-  breakoutConfirmationPct: Number.isFinite(Number(process.env.BREAKOUT_CONFIRMATION_PCT))
-    ? Number(process.env.BREAKOUT_CONFIRMATION_PCT)
-    : 0,
-  minSetupScore: envNum('MIN_SETUP_SCORE', 0),
-  minSetupScoreTokyo: envNum('MIN_SETUP_SCORE_TOKYO', 0),
-  minSetupScoreLondon: envNum('MIN_SETUP_SCORE_LONDON', 0),
-  minSetupScoreNewYork: envNum('MIN_SETUP_SCORE_NEW_YORK', 0),
+  breakoutLookback: runtimeConfig.strategy.breakoutLookback,
+  volumeLookback: runtimeConfig.strategy.volumeLookback,
+  atrPeriod: runtimeConfig.strategy.atrPeriod,
+  atrMultiplier: runtimeConfig.strategy.atrMultiplier,
+  targetMultiple: runtimeConfig.strategy.targetMultiple,
+  minVolRatio: runtimeConfig.strategy.minVolRatio,
+  minAtr: runtimeConfig.strategy.minAtr,
+  maxDistanceToBreakoutPct: runtimeConfig.prefilter.maxDistanceToBreakoutPct,
+  minRiskReward: runtimeConfig.strategy.minRiskReward,
+  breakoutNearMissPct: runtimeConfig.strategy.breakoutNearMissPct,
+  breakoutConfirmationPct: runtimeConfig.strategy.breakoutConfirmationPct,
+  minSetupScore: runtimeConfig.strategy.minSetupScore,
+  minSetupScoreTokyo: runtimeConfig.strategy.minSetupScoreTokyo,
+  minSetupScoreLondon: runtimeConfig.strategy.minSetupScoreLondon,
+  minSetupScoreNewYork: runtimeConfig.strategy.minSetupScoreNewYork,
 };
 
 function resolveMinScore(opts, session) {

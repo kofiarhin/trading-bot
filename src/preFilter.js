@@ -2,26 +2,23 @@
  * Pre-filter engine — fast, cheap rejection of symbols before the full strategy runs.
  */
 
+import { config as runtimeConfig } from './config/env.js';
 import { buildSignalMetrics } from './strategies/buildSignalMetrics.js';
 
-function envNum(name, fallback) {
-  const v = Number(process.env[name]);
-  return Number.isFinite(v) && v > 0 ? v : fallback;
-}
-
 const DEFAULTS = {
-  breakoutLookback: envNum('BREAKOUT_LOOKBACK', 20),
-  volumeLookback: envNum('VOLUME_LOOKBACK', 20),
-  atrPeriod: envNum('ATR_PERIOD', 14),
-  minVolRatio: envNum('PREFILTER_MIN_VOL_RATIO', 1.2),
-  minAtr: envNum('MIN_ATR', 0.25),
-  minRangeAtrMultiple: envNum('PREFILTER_MIN_RANGE_ATR_MULTIPLE', 1),
-  maxDistanceToBreakoutPct: envNum('PREFILTER_MAX_DISTANCE_TO_BREAKOUT_PCT', 1.0),
-  minBars: envNum('PREFILTER_MIN_BARS', 22),
+  breakoutLookback: runtimeConfig.prefilter.breakoutLookback,
+  volumeLookback: runtimeConfig.prefilter.volumeLookback,
+  atrPeriod: runtimeConfig.prefilter.atrPeriod,
+  minVolRatio: runtimeConfig.prefilter.minVolRatio,
+  minAtr: runtimeConfig.strategy.minAtr,
+  minRangeAtrMultiple: runtimeConfig.prefilter.minRangeAtrMultiple,
+  maxDistanceToBreakoutPct: runtimeConfig.prefilter.maxDistanceToBreakoutPct,
+  breakoutNearMissPct: runtimeConfig.prefilter.breakoutNearMissPct,
+  minBars: runtimeConfig.prefilter.minBars,
 };
 
-export function preFilter(symbol, assetClass, bars, config = {}) {
-  const opts = { ...DEFAULTS, ...config };
+export function preFilter(symbol, assetClass, bars, options = {}) {
+  const opts = { ...DEFAULTS, ...options };
 
   function reject(reason, metrics = null) {
     return {
@@ -60,12 +57,17 @@ export function preFilter(symbol, assetClass, bars, config = {}) {
     return reject('weak_trend_environment', metrics);
   }
 
-  if (metrics.closePrice <= metrics.breakoutLevel) {
-    return reject('no_breakout', metrics);
+  const distance = metrics.distanceToBreakoutPct;
+  if (distance == null) {
+    return reject('insufficient_market_data', metrics);
   }
 
-  if (metrics.distanceToBreakoutPct != null && metrics.distanceToBreakoutPct > opts.maxDistanceToBreakoutPct) {
+  if (distance > opts.maxDistanceToBreakoutPct) {
     return reject('overextended_breakout', metrics);
+  }
+
+  if (distance < 0 && Math.abs(distance) > opts.breakoutNearMissPct) {
+    return reject('no_breakout', metrics);
   }
 
   return {

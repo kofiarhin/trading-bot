@@ -352,6 +352,10 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
         minVolRatio: config.prefilter.minVolRatio,
         minRangeAtrMultiple: config.prefilter.minRangeAtrMultiple,
         maxDistanceToBreakoutPct: config.prefilter.maxDistanceToBreakoutPct,
+        breakoutLookback: config.prefilter.breakoutLookback,
+        volumeLookback: config.prefilter.volumeLookback,
+        atrPeriod: config.prefilter.atrPeriod,
+        breakoutNearMissPct: config.prefilter.breakoutNearMissPct,
       }),
     );
     const viable = preFilterResults.filter((r) => r.passed);
@@ -484,7 +488,20 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
         accountEquity: equity,
         riskPercent,
         options: {
+          breakoutLookback: config.strategy.breakoutLookback,
+          volumeLookback: config.strategy.volumeLookback,
+          atrPeriod: config.strategy.atrPeriod,
+          atrMultiplier: config.strategy.atrMultiplier,
+          targetMultiple: config.strategy.targetMultiple,
+          minVolRatio: config.strategy.minVolRatio,
+          minAtr: config.strategy.minAtr,
+          minRiskReward: config.strategy.minRiskReward,
           breakoutConfirmationPct: config.strategy.breakoutConfirmationPct,
+          breakoutNearMissPct: config.strategy.breakoutNearMissPct,
+          minSetupScore: config.strategy.minSetupScore,
+          minSetupScoreTokyo: config.strategy.minSetupScoreTokyo,
+          minSetupScoreLondon: config.strategy.minSetupScoreLondon,
+          minSetupScoreNewYork: config.strategy.minSetupScoreNewYork,
           maxDistanceToBreakoutPct: config.prefilter.maxDistanceToBreakoutPct,
         },
       });
