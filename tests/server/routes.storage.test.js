@@ -132,8 +132,12 @@ describe('dashboard route canonical shape', () => {
           metrics: { atr: 1.2 },
         },
       ]),
+      mergeBrokerPositionsWithJournal: jest.fn(async () => []),
       getClosedTrades: jest.fn(async () => []),
       getTradeEvents: jest.fn(async () => []),
+    }));
+    jest.unstable_mockModule('../../src/repositories/cycleRuntimeRepo.mongo.js', () => ({
+      getCycleRuntime: jest.fn(async () => ({ status: 'idle', stage: null, progressPct: 0, metrics: {} })),
     }));
     jest.unstable_mockModule('../../src/repositories/cycleRepo.mongo.js', () => ({
       getCyclesForDate: jest.fn(async () => [
@@ -156,6 +160,7 @@ describe('dashboard route canonical shape', () => {
         },
       ]),
       getClosedTradesForDate: jest.fn(async () => []),
+      appendTradeEvent: jest.fn(async () => undefined),
     }));
     jest.unstable_mockModule('../../src/risk/riskState.js', () => ({
       loadRiskState: jest.fn(async () => ({ dailyRealizedLoss: 0 })),

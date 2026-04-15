@@ -1,0 +1,444 @@
+You are working inside the existing Trading Bot codebase. Do not rewrite the project. Apply a focused end-to-end fix that completes the v2 selection pipeline and closes the remaining architecture gaps.
+
+Your job is to make the runtime layer, persistence layer, analytics layer, API layer, and UI layer all agree on the same candidate-selection model.
+
+==================================================
+PRIMARY GOAL
+==================================================
+
+Finish the trading bot so this pipeline is fully real and fully queryable end to end:
+
+scan -> prefilter -> score -> shortlist -> strategy confirm -> risk -> execute -> persist -> analyze -> visualize
+
+The current codebase already has:
+- a prefilter module
+- a scoring module
+- autopilot shortlist flow
+- Decision schema fields like cycleId / rank / shortlisted / rankedOut
+- some analytics work
+- some tests
+
+Do not start from scratch. Fix the remaining inconsistencies and complete the missing links.
+
+==================================================
+IMPORTANT CONSTRAINTS
+==================================================
+
+- Keep package.json at project root.
+- Keep backend flat under server/ or current repo convention; do not introduce a new architecture.
+- Use .env / .env.example only for env configuration.
+- Never hard-code secrets.
+- Keep changes production-leaning and copy/paste safe.
+- Handle async failures explicitly.
+- Preserve current behavior unless the spec below intentionally changes it.
+- Add or update tests for every changed behavior.
+- Backend tests use Jest only.
+- Frontend tests use Vitest only.
+- If the repo already has naming/style patterns, follow them unless a change is required by this prompt.
+
+==================================================
+WHAT IS ALREADY TRUE
+==================================================
+
+Assume these are already present and should be preserved:
+- preFilter exists
+- scorer exists
+- autopilot has shortlist logic
+- Decision has cycleId / rank / shortlisted / rankedOut-ish fields
+- dashboard/history pages already exist
+- some analytics routes already exist
+- some tests already exist
+
+Your task is to finish the incomplete parts and unify the architecture.
+
+==================================================
+PROBLEMS TO FIX
+==================================================
+
+1. CONFIG NORMALIZATION IS STILL INCONSISTENT
+There are mismatches like:
+- MAX_OPEN_POSITIONS vs MAX_POSITIONS
+- MAX_DAILY_LOSS_PERCENT vs DAILY_LOSS_LIMIT_PCT
+
+I want one canonical config layer. Runtime code should not read scattered raw process.env values for these settings.
+
+2. CANDIDATE ANALYTICS ARE NOT TRULY CYCLE-SCOPED
+Any function like getCandidatesForCycle(cycleId) must query exact cycleId, not fallback to current date when cycleId is provided.
+It must support shortlisted and rankedOut candidates, not just approved ones.
+
+3. CANDIDATES API IS STILL OLD-MODEL
+The API currently behaves too much like “approved decisions only”.
+It must reflect the new pipeline:
+- prefiltered
+- scored
+- shortlisted
+- rankedOut
+- strategy rejected
+- risk blocked
+- approved
+- placed
+
+4. PREFILTER AND STRATEGY STILL OVERLAP TOO MUCH
+Long term I want a cleaner separation:
+- prefilter = viable environment / setup proximity / market quality gate
+- strategy = final entry confirmation and trade construction
+
+Do not do a huge rewrite, but reduce overlap sensibly.
+
+5. METRICS ARE NOT SHARED CLEANLY
+Create a shared signal-metrics builder so prefilter and strategy do not each recompute the same raw metrics independently.
+
+6. DASHBOARD / ANALYTICS / UI ARE NOT FULLY ALIGNED
+The frontend and API should clearly surface:
+- stage
+- shortlisted
+- rankedOut
+- rank
+- score
+- scoreBreakdown
+- cycleId
+- rejection stage
+- conversion funnel
+
+7. TEST COVERAGE MUST MATCH THE NEW BEHAVIOR
+Add or update tests for config alias resolution, cycle-scoped candidates, shortlist/rankedOut behavior, stage analytics, and pipeline integration.
+
+==================================================
+IMPLEMENTATION REQUIREMENTS
+==================================================
+
+PHASE 1 — CONFIG NORMALIZATION
+
+Create or finish a canonical config module, for example:
+- src/config/env.js
+or the repo’s existing config location
+
+Canonical env names must be:
+
+MAX_OPEN_POSITIONS
+MAX_DAILY_LOSS_PERCENT
+MAX_CANDIDATES_PER_CYCLE
+PREFILTER_MIN_BARS
+PREFILTER_MIN_VOL_RATIO
+PREFILTER_MIN_RANGE_ATR_MULTIPLE
+PREFILTER_MAX_DISTANCE_TO_BREAKOUT_PCT
+BREAKOUT_CONFIRMATION_PCT
+MAX_TOTAL_RISK_PCT
+MAX_CORRELATED_POSITIONS
+DRAWDOWN_THROTTLE_PCT
+MAX_HOLD_BARS
+TRAILING_ATR_MULTIPLIER
+
+Support legacy aliases temporarily, but only inside config normalization.
+Examples:
+- MAX_POSITIONS -> MAX_OPEN_POSITIONS
+- DAILY_LOSS_LIMIT_PCT -> MAX_DAILY_LOSS_PERCENT
+
+Then update all runtime code to consume canonical config values from the config module rather than direct scattered env reads.
+
+Update:
+- .env.example
+- config tests
+- any README env docs if present
+
+Acceptance:
+- canonical names win if both canonical and legacy are set
+- legacy aliases still work
+- runtime code no longer depends on ambiguous env names
+
+--------------------------------------------------
+PHASE 2 — SHARED SIGNAL METRICS
+--------------------------------------------------
+
+Create a shared metrics builder, for example:
+- src/strategies/buildSignalMetrics.js
+or repo-consistent equivalent
+
+This helper should compute once and return reusable signal metrics such as:
+- closePrice
+- breakoutLevel
+- atr
+- volumeRatio
+- barsAvailable
+- distanceToBreakoutPct
+- rangeAtrMultiple
+- averageVolume
+- session
+- any current labels used by the scorer
+
+Then refactor:
+- preFilter
+- breakout strategy / evaluateBreakout
+to consume these shared metrics rather than recomputing them separately.
+
+Acceptance:
+- no duplicated indicator computation logic across prefilter and strategy unless unavoidable
+- tests cover metric builder outputs for representative inputs
+
+--------------------------------------------------
+PHASE 3 — CLEANER PREFILTER / STRATEGY SEPARATION
+--------------------------------------------------
+
+Refine the current behavior so:
+
+Prefilter is responsible for:
+- insufficient data
+- weak or missing volume environment
+- ATR too low environment
+- no trend / no breakout proximity environment
+- too far from breakout
+- obvious overextended environment if still appropriate as an early kill
+
+Strategy is responsible for:
+- final breakout confirmation
+- confirmation buffer
+- final entry validity
+- stop loss / target construction
+- risk reward validation
+- sizing
+
+Important:
+Do not make prefilter so strict that it fully replaces strategy.
+It should reject bad environments early and pass viable candidates downstream.
+
+Preserve current trading behavior as much as practical while improving the architectural separation.
+
+Acceptance:
+- viable near-breakout candidates can pass prefilter and still be accepted or rejected later by strategy
+- analytics can distinguish prefilter rejection vs strategy rejection
+
+--------------------------------------------------
+PHASE 4 — DECISION + PIPELINE PERSISTENCE
+--------------------------------------------------
+
+Ensure the Decision model and persistence layer clearly support the selection pipeline.
+
+Decision records should reliably persist fields such as:
+- cycleId
+- stage
+- rejectStage
+- approved
+- rank
+- shortlisted
+- rankedOut
+- score
+- scoreBreakdown
+- setupGrade if present
+- symbol
+- assetClass
+- reason
+- metrics
+- createdAt / timestamp
+
+If similar fields already exist, normalize usage rather than duplicating fields.
+
+Every decision created during a cycle must include the correct cycleId.
+
+Acceptance:
+- querying a cycle can reconstruct the full candidate funnel
+- rank is persisted, not recomputed ad hoc in the route
+- shortlisted / rankedOut are explicit and reliable
+
+--------------------------------------------------
+PHASE 5 — FIX CYCLE-SCOPED CANDIDATE ANALYTICS
+--------------------------------------------------
+
+Update analytics / repository code so any function like getCandidatesForCycle(cycleId):
+- queries exact cycleId when provided
+- never falls back to date when exact cycleId is available
+- returns both shortlisted and rankedOut candidates
+- can include strategy-rejected shortlisted candidates if they are part of the cycle funnel
+- sorts by persisted rank / score consistently
+
+Also expose conversion metrics such as:
+- scanned
+- prefilterRejected
+- scored
+- shortlisted
+- rankedOut
+- strategyRejected
+- riskBlocked
+- approved
+- placed
+
+Acceptance:
+- one cycleId returns one truthful funnel
+- the candidate list is not “approved only”
+- shortlist / rankedOut states are visible in analytics responses
+
+--------------------------------------------------
+PHASE 6 — FIX CANDIDATES API
+--------------------------------------------------
+
+Update the candidates API route(s) so they match the new model.
+
+Add or update an endpoint like:
+GET /api/candidates?cycleId=...
+
+Suggested response shape:
+{
+  cycleId,
+  totals: {
+    scanned,
+    prefilterRejected,
+    scored,
+    shortlisted,
+    rankedOut,
+    strategyRejected,
+    riskBlocked,
+    approved,
+    placed
+  },
+  shortlisted: [...],
+  rankedOut: [...],
+  otherStageDecisions: [...]
+}
+
+Each candidate row should include:
+- symbol
+- assetClass
+- rank
+- score
+- setupGrade
+- shortlisted
+- rankedOut
+- stage
+- rejectStage
+- reason
+- scoreBreakdown
+- metrics
+- cycleId
+
+Do not rebuild rank in the route if it is already persisted.
+
+Acceptance:
+- API is cycle-accurate
+- API reflects the new selection pipeline, not the old “approved-only candidates” model
+
+--------------------------------------------------
+PHASE 7 — DASHBOARD / HISTORY / FRONTEND ALIGNMENT
+--------------------------------------------------
+
+Update the frontend so the pipeline is visible and interpretable.
+
+Areas to update may include existing files like:
+- candidate list / ranking components
+- recent decisions table
+- activity feed
+- rejection breakdown
+- history page
+- analytics service hooks
+
+Required UI behaviors:
+1. Candidate list shows:
+   - rank
+   - symbol
+   - score
+   - grade
+   - shortlisted badge
+   - ranked-out badge
+   - stage badge
+   - optional expandable score breakdown
+
+2. Recent decisions / history show:
+   - stage
+   - reject stage
+   - rank if present
+   - score
+   - cycleId filter if applicable
+   - shortlist / rankedOut state
+   - reason
+   - key metrics like close / breakout / ATR / volumeRatio / distanceToBreakoutPct where already supported
+
+3. Activity feed shows pipeline progress for each cycle:
+   - cycle started
+   - prefilter rejected count
+   - shortlist formed
+   - ranked-out count
+   - strategy approved / rejected
+   - risk blocked
+   - orders placed
+   - cycle completed
+
+4. Add a conversion funnel visualization if there is already a place for analytics UI:
+   - scanned -> prefiltered -> scored -> shortlisted -> approved -> placed
+
+5. Rejection breakdown should distinguish stages:
+   - prefilter
+   - strategy
+   - risk
+
+Acceptance:
+- UI reflects the same truth as the API
+- shortlist / rankedOut / stage metadata are visible without ambiguity
+
+--------------------------------------------------
+PHASE 8 — DASHBOARD BACKEND CLEANUP
+--------------------------------------------------
+
+Where practical, make dashboard/server routes rely on repository-layer reads consistently instead of mixed legacy helpers.
+
+Focus on predictable reads from:
+- decision repository
+- analytics repository
+- cycle repository
+- journal/trade repository
+
+Do not do a giant rewrite. Just reduce inconsistent data access patterns in areas touched by this fix.
+
+Acceptance:
+- routes serving dashboard/history/candidate analytics use the authoritative repository layer for the updated pipeline data
+
+--------------------------------------------------
+PHASE 9 — TESTS
+--------------------------------------------------
+
+Add or update backend Jest tests for:
+- config alias resolution
+- canonical env precedence over legacy aliases
+- shared signal metrics builder
+- prefilter behavior
+- scorer behavior if affected
+- cycle-scoped candidate queries
+- candidates API response shape
+- shortlist / rankedOut persistence
+- pipeline integration / autopilot flow
+- analytics funnel counts by cycle
+- stage breakdowns
+
+Add or update frontend Vitest tests for:
+- stage badges
+- candidate list rendering shortlisted / rankedOut
+- score breakdown rendering if component exists
+- funnel / analytics UI behavior
+- history filters or decision table behavior if touched
+
+Tests must be deterministic and pass.
+
+==================================================
+DELIVERABLE FORMAT
+==================================================
+
+Do the implementation directly in the repo.
+
+At the end, provide:
+1. A concise summary of what changed
+2. A changed-files list grouped by backend / frontend / tests / docs
+3. Any env variable changes
+4. Any migration notes if schema changes require data backfill
+5. Test results
+
+==================================================
+QUALITY BAR
+==================================================
+
+I want this to end in a state where:
+- the runtime pipeline is real
+- the persistence model is real
+- the analytics are cycle-accurate
+- the API is truthful
+- the UI surfaces the real funnel
+- config is no longer ambiguous
+- tests protect the behavior
+
+Make the smallest coherent set of changes that fully completes this architecture.

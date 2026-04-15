@@ -14,7 +14,8 @@ async function buildApp({
 } = {}) {
   const getCycleRuntime = jest.fn(async () => runtime);
   const recoverStaleRunningCycle = jest.fn(async () => null);
-  const runAutopilotCycle = jest.fn(async () => {
+  const runAutopilotCycle = jest.fn(async (_symbols, _trigger, { onStarted } = {}) => {
+    if (onStarted) onStarted(runtime.cycleId ?? 'test-cycle-1');
     if (runError) throw runError;
     return { cycleId: runtime.cycleId ?? 'test-cycle-1', status: 'completed', triggerSource: 'manual', summary: {} };
   });
@@ -61,7 +62,7 @@ describe('POST /api/cycle/manual-run', () => {
     // fire-and-forget: runAutopilotCycle is called but we don't await it
     // give microtasks a tick to settle
     await new Promise((r) => setImmediate(r));
-    expect(runAutopilotCycle).toHaveBeenCalledWith({}, 'manual');
+    expect(runAutopilotCycle).toHaveBeenCalledWith({}, 'manual', expect.objectContaining({ onStarted: expect.any(Function) }));
   });
 
   it('returns 409 when cycle is already running (lock error from runAutopilotCycle)', async () => {
@@ -135,6 +136,6 @@ describe('POST /api/cycle/manual-run', () => {
     await request(app).post('/api/cycle/manual-run');
     await new Promise((r) => setImmediate(r));
 
-    expect(runAutopilotCycle).toHaveBeenCalledWith({}, 'manual');
+    expect(runAutopilotCycle).toHaveBeenCalledWith({}, 'manual', expect.objectContaining({ onStarted: expect.any(Function) }));
   });
 });
