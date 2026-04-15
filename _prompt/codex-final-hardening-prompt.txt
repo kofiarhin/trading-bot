@@ -1,0 +1,286 @@
+You are working inside the existing Trading Bot codebase. Do not rewrite the project. Apply one final small patch set to close the last remaining gaps and move the repo to a true 100% complete state.
+
+Primary objective:
+Finish the final config-hardening pass and clean up the remaining prefilter/strategy boundary overlap.
+
+The repo is already very close. Do not touch the working funnel analytics, structured candidates API, or frontend contract unless needed for these final fixes.
+
+==================================================
+CURRENT TRUE STATE
+==================================================
+
+Assume all of this is already working and should be preserved:
+- autopilot shortlist flow exists
+- Decision pipeline fields exist and persist correctly
+- analyticsRepo.mongo.js builds a real cycle-scoped funnel
+- /api/candidates returns a structured funnel object
+- frontend consumes the structured funnel response
+- buildSignalMetrics.js now exists
+- preFilter and breakoutStrategy already use shared metrics to some extent
+- tests already exist across config, analytics, scoring, and pipeline flows
+
+Do not start over.
+Do not rewrite working runtime, API, or UI layers.
+This is a final hardening patch only.
+
+==================================================
+FINAL REMAINING GAPS TO FIX
+==================================================
+
+1. preFilter.js still reads raw env directly
+2. breakoutStrategy.js still reads raw env directly
+3. portfolioRisk.js still has raw env fallback
+4. canonical config is still not the sole source of truth for strategy/prefilter/risk settings
+5. prefilter is still a bit too much like an early strategy gate
+
+==================================================
+GOAL END STATE
+==================================================
+
+After this patch:
+
+- canonical config is the only source of truth for strategy, prefilter, and risk settings
+- raw process.env reads are removed from:
+  - src/preFilter.js
+  - src/strategies/breakoutStrategy.js
+  - src/risk/portfolioRisk.js
+- env aliasing remains handled only inside config/env.js
+- preFilter consumes config + shared metrics, not raw env
+- breakoutStrategy consumes config + shared metrics, not raw env
+- portfolioRisk consumes config, not raw env
+- prefilter becomes a cleaner environment/setup-quality gate
+- strategy remains the final entry-confirmation/trade-construction gate
+- tests prove the final behavior
+
+==================================================
+PHASE 1 — FINISH CANONICAL CONFIG FOR PREFILTER / STRATEGY / RISK
+==================================================
+
+Extend or clean up src/config/env.js so it exposes canonical config sections for at least:
+
+config.prefilter:
+- minBars
+- minVolRatio
+- minRangeAtrMultiple
+- maxDistanceToBreakoutPct
+- breakoutLookback
+- volumeLookback
+- atrPeriod
+- breakoutNearMissPct if applicable to prefilter logic
+
+config.strategy:
+- breakoutLookback
+- volumeLookback
+- atrPeriod
+- atrMultiplier
+- targetMultiple
+- minVolRatio
+- minAtr
+- minRiskReward
+- breakoutConfirmationPct
+- breakoutNearMissPct
+- minSetupScore
+- minSetupScoreTokyo
+- minSetupScoreLondon
+- minSetupScoreNewYork
+
+config.risk:
+- maxOpenPositions
+- maxDailyLossPercent
+- maxTotalRiskPct
+- maxCorrelatedPositions
+- drawdownThrottlePct
+- maxHoldBars
+- trailingAtrMultiplier
+
+If some values belong in a different existing config shape, follow the repo convention, but keep one canonical config source.
+
+Important:
+- legacy aliases remain supported only in config/env.js
+- canonical names must win over aliases
+- no new direct env reads outside config normalization
+
+Acceptance:
+- prefilter/strategy/risk modules can import canonical config instead of raw env
+- config tests cover any new fields or alias behavior
+
+==================================================
+PHASE 2 — REMOVE RAW ENV READS FROM PREFILTER
+==================================================
+
+Update src/preFilter.js so it no longer reads raw env or helper wrappers that effectively read raw env inline.
+
+Current direct/env-derived settings such as:
+- BREAKOUT_LOOKBACK
+- VOLUME_LOOKBACK
+- ATR_PERIOD
+- PREFILTER_MIN_VOL_RATIO
+- PREFILTER_MIN_RANGE_ATR_MULTIPLE
+- PREFILTER_MAX_DISTANCE_TO_BREAKOUT_PCT
+- PREFILTER_MIN_BARS
+
+must now come from canonical config.
+
+Also keep using buildSignalMetrics.js so prefilter does not duplicate raw indicator computation.
+
+Acceptance:
+- no direct process.env usage remains in preFilter.js
+- no local envNum/envBool/envString wrappers remain there unless they read from config object, not env
+- tests still pass
+
+==================================================
+PHASE 3 — REMOVE RAW ENV READS FROM BREAKOUT STRATEGY
+==================================================
+
+Update src/strategies/breakoutStrategy.js so defaults and thresholds come from canonical config, not raw env.
+
+Current env-driven settings such as:
+- BREAKOUT_LOOKBACK
+- VOLUME_LOOKBACK
+- ATR_PERIOD
+- ATR_MULTIPLIER
+- TARGET_MULTIPLE
+- MIN_VOL_RATIO
+- MIN_ATR
+- PREFILTER_MAX_DISTANCE_TO_BREAKOUT_PCT
+- MIN_RISK_REWARD
+- BREAKOUT_NEAR_MISS_PCT
+- BREAKOUT_CONFIRMATION_PCT
+- MIN_SETUP_SCORE
+- MIN_SETUP_SCORE_TOKYO
+- MIN_SETUP_SCORE_LONDON
+- MIN_SETUP_SCORE_NEW_YORK
+
+must now come from config.strategy and related canonical config.
+
+Keep using the shared metrics builder as the main source of computed signal values.
+
+Acceptance:
+- no direct process.env usage remains in breakoutStrategy.js
+- strategy config comes from config
+- existing behavior remains materially stable unless the boundary cleanup requires a small correction
+
+==================================================
+PHASE 4 — REMOVE RAW ENV FALLBACK FROM PORTFOLIO RISK
+==================================================
+
+Update src/risk/portfolioRisk.js so daily loss / open position / related limits use canonical config instead of direct env fallback.
+
+Examples of any remaining fallback patterns like:
+- process.env.MAX_DAILY_LOSS_PERCENT
+- process.env.DAILY_LOSS_LIMIT_PCT
+must be removed from runtime logic.
+
+Acceptance:
+- no direct raw env fallback remains in portfolioRisk.js for canonical settings
+- runtime risk checks consume config as the source of truth
+
+==================================================
+PHASE 5 — CLEAN UP PREFILTER / STRATEGY BOUNDARY
+==================================================
+
+Refine responsibilities without changing the system behavior too aggressively.
+
+Current issue:
+prefilter still behaves a bit too much like an early strategy gate.
+
+Desired direction:
+Prefilter should primarily reject bad environments / poor setup quality early:
+- insufficient data
+- weak or missing volume environment
+- ATR too low environment
+- too far from breakout
+- weak trend / no viable setup environment
+- clearly overextended environment if appropriate
+
+Strategy should remain the final gate for:
+- breakout confirmation buffer
+- final breakout confirmation
+- stop / target construction
+- risk reward validation
+- sizing
+
+Important constraints:
+- do not massively widen the funnel
+- do not break current paper trading behavior
+- preserve analytics stage distinction
+- a candidate should be able to pass prefilter and still be rejected by strategy
+- remove the most obvious overlap, not by rewriting everything, but by making the boundaries cleaner
+
+Suggested approach:
+- if prefilter currently requires an already-confirmed breakout, relax that slightly toward “viable near-breakout or valid breakout environment”
+- keep hard-kill checks in prefilter for obviously bad conditions
+- keep final confirmation inside strategy
+
+Acceptance:
+- prefilter is more of a setup-quality gate than a duplicate entry gate
+- strategy remains the decisive final entry gate
+- tests are updated to reflect the refined stage boundary
+
+==================================================
+PHASE 6 — TESTS
+==================================================
+
+Add or update backend Jest tests for:
+- canonical config values used by prefilter
+- canonical config values used by breakout strategy
+- canonical config values used by portfolio risk
+- no alias-precedence regressions in config/env.js
+- prefilter behavior after boundary cleanup
+- strategy behavior after boundary cleanup
+- shared metrics integration still works after config refactor
+
+Tests must be deterministic and pass.
+
+==================================================
+IMPLEMENTATION PRIORITY
+==================================================
+
+Work in this order:
+1. src/config/env.js
+2. src/preFilter.js
+3. src/strategies/breakoutStrategy.js
+4. src/risk/portfolioRisk.js
+5. tests
+
+Do not touch unrelated working files unless required for import paths or type/shape consistency.
+
+==================================================
+CODE QUALITY RULES
+==================================================
+
+- Do not rewrite the app
+- Do not introduce a new architecture
+- Keep package.json at root
+- Use existing repo conventions
+- Never hard-code secrets
+- Keep changes minimal and production-leaning
+- Preserve working behavior wherever possible
+- Keep copy/paste-safe ASCII code where possible
+
+==================================================
+DELIVERABLE FORMAT
+==================================================
+
+Make the code changes directly in the repo.
+
+At the end, provide:
+1. concise summary of what changed
+2. changed files grouped by backend / tests / docs
+3. any env variable changes
+4. any behavior notes from the prefilter/strategy boundary cleanup
+5. test results
+
+==================================================
+FINAL QUALITY BAR
+==================================================
+
+The repo is only fully done when:
+- preFilter.js has no raw env reads
+- breakoutStrategy.js has no raw env reads
+- portfolioRisk.js has no raw env reads for canonical settings
+- config/env.js is the sole source of truth
+- prefilter and strategy boundaries are cleaner
+- tests prove the final behavior
+
+Make the smallest complete patch set required to reach that state.

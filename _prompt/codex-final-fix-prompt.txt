@@ -1,0 +1,312 @@
+You are working inside the existing Trading Bot codebase. Do not rewrite the project. Apply a focused final patch that closes the remaining architecture gaps in the v2 selection pipeline.
+
+Primary objective:
+Make the runtime layer, config layer, analytics layer, candidates API, and frontend all agree on the same candidate-selection model.
+
+The intended pipeline is:
+
+scan -> prefilter -> score -> shortlist -> strategy confirm -> risk -> execute -> persist -> analyze -> visualize
+
+The codebase already has meaningful progress:
+- config/env.js exists
+- preFilter exists
+- scoring/scorer exists
+- autopilot shortlist flow exists
+- Decision schema has cycleId / stage / rank / shortlisted / rankedOut / rejectStage
+- decision repo persists these fields
+- frontend has StageBadge / ScoreBreakdown / CandidateList / ConversionFunnel components
+- tests already exist for config, prefilter, scoring, analytics, and pipeline
+
+Do not rebuild from scratch. Finish the remaining broken parts only.
+
+==================================================
+REMAINING PROBLEMS TO FIX
+==================================================
+
+1. AUTOPILOT STILL BYPASSES CANONICAL CONFIG
+
+autopilot.js is still reading raw env values directly in symbol/universe configuration paths, including patterns like:
+- process.env.AUTOPILOT_SYMBOLS
+- process.env.SYMBOLS
+- process.env.WATCHLIST
+- process.env.TICKERS
+- process.env.ENABLE_STOCKS
+- process.env.ENABLE_CRYPTO
+
+This defeats config normalization.
+
+Fix:
+- make runtime code consume canonical values from config/env.js only
+- keep alias support inside config normalization only
+- remove ambiguous direct env reads from autopilot and related runtime modules where touched
+
+Canonical config should remain authoritative for:
+- MAX_OPEN_POSITIONS
+- MAX_DAILY_LOSS_PERCENT
+- MAX_CANDIDATES_PER_CYCLE
+- symbol universe toggles / watchlist settings
+- ENABLE_STOCKS
+- ENABLE_CRYPTO
+- any other env-driven runtime controls used in autopilot
+
+Acceptance:
+- autopilot no longer depends on raw legacy env names
+- canonical values override aliases
+- tests verify alias resolution and runtime config use
+
+--------------------------------------------------
+2. CANDIDATE ANALYTICS MUST STAY TRULY CYCLE-SCOPED
+--------------------------------------------------
+
+Ensure analytics / repository code for getCandidatesForCycle(cycleId):
+- queries exact cycleId when cycleId is supplied
+- does not fall back to date when exact cycleId is available
+- returns all relevant decision rows for the cycle, not approved-only rows
+- includes shortlisted and rankedOut states
+- supports shortlisted candidates later rejected by strategy
+- sorts by persisted rank first, then score if needed
+
+Also expose truthful funnel totals for the cycle:
+- scanned
+- prefilterRejected
+- scored
+- shortlisted
+- rankedOut
+- strategyRejected
+- riskBlocked
+- approved
+- placed
+
+Acceptance:
+- querying one cycleId reconstructs one truthful funnel
+- no date fallback when cycleId exists
+- candidates are not limited to approved=true rows
+
+--------------------------------------------------
+3. CANDIDATES API STILL NEEDS THE FINAL FUNNEL CONTRACT
+--------------------------------------------------
+
+Update server/routes/candidates.js so it returns a structured funnel response instead of a flat array.
+
+Desired endpoint behavior:
+GET /api/candidates?cycleId=...
+
+Suggested response shape:
+{
+  cycleId,
+  totals: {
+    scanned,
+    prefilterRejected,
+    scored,
+    shortlisted,
+    rankedOut,
+    strategyRejected,
+    riskBlocked,
+    approved,
+    placed
+  },
+  shortlisted: [...],
+  rankedOut: [...],
+  strategyRejected: [...],
+  riskBlocked: [...],
+  approved: [...],
+  placed: [...],
+  otherStageDecisions: [...]
+}
+
+Each returned row should include, where available:
+- symbol
+- assetClass
+- rank
+- score
+- setupGrade
+- shortlisted
+- rankedOut
+- stage
+- rejectStage
+- approved
+- reason
+- scoreBreakdown
+- metrics
+- cycleId
+- timestamps
+
+Important:
+- do not rebuild rank as i + 1 if rank is already persisted
+- the route should use the repository layer as source of truth
+- preserve backward compatibility only if easy, but prioritize truthful data
+
+Acceptance:
+- API matches the new pipeline
+- API is cycle-accurate
+- API exposes shortlist/rankedOut/stage data clearly
+
+--------------------------------------------------
+4. ADD A SHARED SIGNAL METRICS BUILDER
+--------------------------------------------------
+
+There is still duplicated logic between preFilter and breakoutStrategy.
+
+Create a shared metrics builder, for example:
+- src/strategies/buildSignalMetrics.js
+or repo-consistent equivalent
+
+It should compute reusable values such as:
+- closePrice
+- breakoutLevel
+- atr
+- volumeRatio
+- barsAvailable
+- distanceToBreakoutPct
+- rangeAtrMultiple
+- averageVolume
+- any labels needed by scorer / strategy
+
+Then refactor:
+- preFilter
+- breakout strategy / evaluateBreakout
+to consume these shared metrics
+
+Goal:
+compute raw signal metrics once, then reuse them.
+
+Acceptance:
+- duplicated indicator computation is reduced or removed
+- prefilter and strategy consume a common metrics shape
+- tests verify shared metrics outputs and affected behavior
+
+--------------------------------------------------
+5. CLEAN UP PREFILTER / STRATEGY SEPARATION
+--------------------------------------------------
+
+Improve the stage responsibilities without a giant rewrite.
+
+Prefilter should handle early environment and setup-quality rejection:
+- insufficient market data
+- weak / missing volume environment
+- ATR too low environment
+- too far from breakout
+- weak trend / no viable setup environment
+- clearly overextended environment if appropriate as an early kill
+
+Strategy should handle final entry confirmation and trade construction:
+- confirmation buffer
+- final breakout confirmation
+- stop loss / target
+- risk-reward validation
+- sizing
+
+Important:
+- preserve current behavior as much as practical
+- do not widen the funnel so much that trading behavior changes wildly
+- remove obvious overlap where both stages do the same thing
+
+Acceptance:
+- viable candidates can pass prefilter and still be finally rejected by strategy
+- analytics can distinguish prefilter rejection vs strategy rejection
+- stage boundaries are cleaner than before
+
+--------------------------------------------------
+6. FRONTEND / BACKEND CONTRACT MUST MATCH
+--------------------------------------------------
+
+Update the frontend so it consumes the corrected candidates API and renders the real funnel.
+
+Target UI behaviors:
+1. Candidate list shows:
+   - rank
+   - symbol
+   - score
+   - setup grade
+   - shortlisted badge
+   - ranked-out badge
+   - stage badge
+   - optional score breakdown
+
+2. History / recent decisions surfaces:
+   - stage
+   - rejectStage
+   - rank where present
+   - score
+   - reason
+   - shortlist / rankedOut state
+   - key metrics when already available
+
+3. Conversion funnel uses truthful cycle totals from backend
+
+4. Rejection breakdown can distinguish stage where applicable
+
+Do not do unnecessary visual redesign. Keep the current UI style and patch the data contract.
+
+Acceptance:
+- frontend renders truthful pipeline state from backend
+- shortlist/rankedOut/stage metadata are visible and consistent
+
+--------------------------------------------------
+7. TESTS MUST PROVE THE FIX
+--------------------------------------------------
+
+Add or update backend Jest tests for:
+- config alias resolution
+- autopilot uses canonical config
+- shared signal metrics builder
+- getCandidatesForCycle(cycleId) exact-cycle behavior
+- no date fallback when cycleId exists
+- shortlisted / rankedOut / strategyRejected grouping
+- candidates API response shape
+- persisted rank survives through API
+- stage totals / funnel counts by cycle
+
+Add or update frontend Vitest tests for:
+- candidate list renders shortlisted/rankedOut/stage correctly
+- conversion funnel renders backend totals
+- any updated service/hook logic for candidates API
+- history/recent decisions rendering if touched
+
+Tests must pass.
+
+==================================================
+IMPLEMENTATION GUIDANCE
+==================================================
+
+Work in the smallest coherent patch set.
+
+Priority order:
+1. config/env.js + autopilot runtime config usage
+2. analyticsRepo.mongo.js cycle-scoped candidates logic
+3. candidates route response contract
+4. shared metrics builder and prefilter/strategy refactor
+5. frontend service/hooks/components alignment
+6. tests
+
+Prefer repository-layer reads as the authoritative source for dashboard/history/candidate analytics where touched.
+
+Do not introduce a brand-new architecture. Finish the current one.
+
+==================================================
+DELIVERABLE FORMAT
+==================================================
+
+Make the code changes directly in the repo.
+
+At the end, provide:
+1. concise summary of what changed
+2. changed files grouped by backend / frontend / tests / docs
+3. env variable changes
+4. migration or data backfill notes if any schema assumptions changed
+5. test results
+
+==================================================
+QUALITY BAR
+==================================================
+
+I want the repo to end in a state where:
+- canonical config is actually used at runtime
+- candidates analytics are truly cycle-scoped
+- candidates API reflects the real funnel, not approved-only logic
+- rank comes from persisted data
+- prefilter and strategy share metrics cleanly
+- frontend renders the real pipeline truth
+- tests protect the behavior
+
+Make the smallest complete set of changes that finishes these remaining gaps.
