@@ -1,0 +1,11 @@
+[Unit]
+Description=Trading bot dry-run cycle (Docker)
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/ubuntu/projects/trading-bot
+ExecStart=/usr/bin/docker compose run --rm --no-deps trading-bot
+TimeoutStartSec=12min
