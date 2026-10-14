@@ -69,7 +69,7 @@ function canonicalFromEnv() {
     MAX_DAILY_LOSS_PERCENT: parsePositiveNumber(process.env.MAX_DAILY_LOSS_PERCENT, 2),
     MAX_CANDIDATES_PER_CYCLE: parsePositiveInt(process.env.MAX_CANDIDATES_PER_CYCLE, 3),
     ENABLE_STOCKS: parseBoolean(process.env.ENABLE_STOCKS, true),
-    ENABLE_CRYPTO: parseBoolean(process.env.ENABLE_CRYPTO, true),
+    ENABLE_CRYPTO: parseBoolean(process.env.ENABLE_CRYPTO, false),
     AUTOPILOT_SYMBOLS: parseCsvSymbols(process.env.AUTOPILOT_SYMBOLS),
 
     BREAKOUT_LOOKBACK: parsePositiveInt(process.env.BREAKOUT_LOOKBACK, 20),
