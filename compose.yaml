@@ -1,0 +1,24 @@
+services:
+  trading-bot:
+    build: .
+    image: trading-bot:local
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      ALPACA_BASE_URL: https://paper-api.alpaca.markets
+      RUN_MODE: paper
+      ENABLE_CRYPTO: "false"
+      ALLOW_MANUAL_TRIGGER: "false"
+    command: ["npm", "run", "autopilot:dry"]
+    network_mode: bridge
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 100
+    mem_limit: 384m
