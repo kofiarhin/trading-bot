@@ -152,3 +152,36 @@ describe("env alias resolution", () => {
     });
   });
 });
+
+describe("MongoDB environment selection", () => {
+  it("uses development URI outside production", async () => {
+    const { config } = await loadConfig({
+      NODE_ENV: "development",
+      MONGO_URI_DEV: "mongodb://localhost:27017/development-db",
+      MONGO_URI_PROD: "mongodb://localhost:27017/production-db",
+    });
+    expect(config.mongo.uri).toBe("mongodb://localhost:27017/development-db");
+  });
+
+  it("uses production URI in production", async () => {
+    const { config } = await loadConfig({
+      NODE_ENV: "production",
+      MONGO_URI_DEV: "mongodb://localhost:27017/development-db",
+      MONGO_URI_PROD: "mongodb://localhost:27017/production-db",
+    });
+    expect(config.mongo.uri).toBe("mongodb://localhost:27017/production-db");
+  });
+
+  it("supports legacy MONGO_URI when environment-specific URI is absent", async () => {
+    const { config } = await loadConfig({ NODE_ENV: "production" });
+    expect(config.mongo.uri).toBe(BASE_ENV.MONGO_URI);
+  });
+
+  it("rejects production startup when only a development URI is provided", async () => {
+    await expect(loadConfig({
+      NODE_ENV: "production",
+      MONGO_URI: undefined,
+      MONGO_URI_DEV: "mongodb://localhost:27017/development-db",
+    })).rejects.toThrow("MONGO_URI_PROD");
+  });
+});
