@@ -40,6 +40,8 @@ services:
       <<: *bot-env
       PORT: "5000"
       CLIENT_URL: http://localhost:8080
+      # The dashboard has no auth; never allow unauthenticated cycle triggers.
+      ALLOW_MANUAL_TRIGGER: "false"
     init: true
     mem_limit: 384m
     logging: *logging
