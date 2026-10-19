@@ -19,6 +19,9 @@ import {
 } from "../journal/tradeJournal.js";
 import { normalizeSymbol } from "../utils/symbolNorm.js";
 import { normalizeTradeForWrite } from "../journal/normalizeTrade.js";
+import { BOT_ORDER_PREFIX, cancelBotStop } from "./protectiveStops.js";
+
+const PROTECTED_STATUSES = new Set(["active", "partial", "unfilled"]);
 
 function pickFirstDefined(...values) {
   for (const value of values) {
@@ -216,11 +219,14 @@ export async function placeOrder({ decision, dryRun = false }) {
 
   let response;
   try {
+    // Entry is a market order; the broker-side protective stop is placed by
+    // the broker sync once the fill shows up as a position (see autopilot).
     response = await submitOrder({
       symbol: fields.normalizedSymbol,
       qty: fields.quantity,
       side: fields.side,
       assetClass: fields.assetClass,
+      clientOrderId: `${BOT_ORDER_PREFIX}entry-${tradeId}`,
     });
   } catch (err) {
     logger.error("Order failed", { symbol: fields.symbol, tradeId, error: err.message });
@@ -320,6 +326,35 @@ export async function closeTrade({ tradeId, symbol, exitPrice: currentPrice, rea
   if (dryRun || isDryRunEnabled({})) {
     logger.info("[DRY RUN] Would close trade", { symbol: normalizedSym, reason, currentPrice });
     return { closed: false, dryRun: true, exitReason: reason };
+  }
+
+  // Protection checks before any broker call: never sell a position protected
+  // by someone else's stop, and remove the bot's own stop first so its
+  // reserved quantity is released.
+  let tradeBeforeClose = null;
+  try {
+    tradeBeforeClose = await getOpenTradeById(tradeId);
+  } catch (err) {
+    logger.warn("closeTrade: could not read trade before close", { tradeId, error: err.message });
+  }
+  const protection = tradeBeforeClose?.protection;
+
+  if (protection?.owner === "external" && PROTECTED_STATUSES.has(protection.status)) {
+    logger.warn("Close skipped — position protected by an external stop order", { symbol: normalizedSym, reason });
+    return { closed: false, error: "externally_protected", exitReason: reason };
+  }
+
+  if (protection?.owner === "bot" && protection.orderId && PROTECTED_STATUSES.has(protection.status)) {
+    try {
+      const cancel = await cancelBotStop({ orderId: protection.orderId });
+      if (!cancel.canceled) {
+        logger.error("Close skipped — protective stop cancel not confirmed", { symbol: normalizedSym, reason: cancel.reason });
+        return { closed: false, error: "protective_stop_cancel_unconfirmed", exitReason: reason };
+      }
+    } catch (err) {
+      logger.error("Close skipped — protective stop cancel failed", { symbol: normalizedSym, error: err.message });
+      return { closed: false, error: err.message, exitReason: reason };
+    }
   }
 
   logger.info("Closing position", { symbol: normalizedSym, reason, currentPrice });

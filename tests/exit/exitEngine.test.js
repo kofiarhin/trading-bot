@@ -18,6 +18,13 @@ jest.unstable_mockModule("../../src/execution/alpacaTrading.js", () => ({
   submitOrder: jest.fn(),
 }));
 
+jest.unstable_mockModule("../../src/execution/alpacaOrders.js", () => ({
+  getOrder: jest.fn(),
+  getOrderByClientId: jest.fn(),
+  cancelOrderById: jest.fn(),
+  getOrderHistory: jest.fn(),
+}));
+
 jest.unstable_mockModule("../../src/journal/tradeJournal.js", () => ({
   getOpenTrades: jest.fn(),
   getOpenTradeById: jest.fn(),
@@ -36,6 +43,7 @@ jest.unstable_mockModule("../../src/journal/tradeJournal.js", () => ({
 const { getOpenPositions, closePosition } = await import("../../src/execution/alpacaTrading.js");
 const { getOpenTradeById, removeOpenTrade, addClosedTrade } = await import("../../src/journal/tradeJournal.js");
 const { upsertOpenTrade: mockUpsertOpenTrade, appendTradeEvent: mockAppendTradeEvent } = await import("../../src/repositories/tradeJournalRepo.mongo.js");
+const { getOrder, cancelOrderById } = await import("../../src/execution/alpacaOrders.js");
 const { checkOpenTradesForExit } = await import("../../src/positions/positionMonitor.js");
 const { closeTrade } = await import("../../src/execution/orderManager.js");
 
@@ -345,5 +353,87 @@ describe("orderManager.closeTrade", () => {
         pnl: expect.any(Number),
       }),
     );
+  });
+});
+
+describe("orderManager.closeTrade — broker-side protection", () => {
+  const botProtection = { status: "active", owner: "bot", orderId: "stop-1", clientOrderId: "tb-stop-trade-123" };
+  const botStopOrder = {
+    id: "stop-1", client_order_id: "tb-stop-trade-123", symbol: "AAPL", side: "sell",
+    type: "stop", qty: "10", status: "new", stop_price: "190",
+  };
+
+  beforeEach(() => {
+    delete process.env.DRY_RUN;
+    closePosition.mockReset();
+    getOpenTradeById.mockReset();
+    removeOpenTrade.mockReset();
+    addClosedTrade.mockReset();
+    getOrder.mockReset();
+    cancelOrderById.mockReset();
+  });
+
+  it("cancels the bot's own stop, confirms it, then closes", async () => {
+    getOpenTradeById.mockResolvedValue(makeTrade({ protection: botProtection }));
+    getOrder.mockResolvedValueOnce(botStopOrder).mockResolvedValueOnce({ ...botStopOrder, status: "canceled" });
+    closePosition.mockResolvedValue({ id: "order-1", status: "filled", filled_avg_price: "221" });
+
+    const result = await closeTrade({ tradeId: "trade-123", symbol: "AAPL", exitPrice: 221, reason: "take_profit" });
+
+    expect(cancelOrderById).toHaveBeenCalledWith("stop-1");
+    expect(closePosition).toHaveBeenCalledTimes(1);
+    expect(cancelOrderById.mock.invocationCallOrder[0]).toBeLessThan(closePosition.mock.invocationCallOrder[0]);
+    expect(result.closed).toBe(true);
+  });
+
+  it("does not close when the stop cancel is not confirmed", async () => {
+    getOpenTradeById.mockResolvedValue(makeTrade({ protection: botProtection }));
+    getOrder.mockResolvedValueOnce(botStopOrder).mockResolvedValueOnce({ ...botStopOrder, status: "new" });
+
+    const result = await closeTrade({ tradeId: "trade-123", symbol: "AAPL", exitPrice: 221, reason: "take_profit" });
+
+    expect(result).toMatchObject({ closed: false, error: "protective_stop_cancel_unconfirmed" });
+    expect(closePosition).not.toHaveBeenCalled();
+  });
+
+  it("does not close (or cancel) a position protected by an external stop", async () => {
+    getOpenTradeById.mockResolvedValue(makeTrade({ protection: { status: "active", owner: "external", orderId: "ext-1" } }));
+
+    const result = await closeTrade({ tradeId: "trade-123", symbol: "AAPL", exitPrice: 221, reason: "time_exit" });
+
+    expect(result).toMatchObject({ closed: false, error: "externally_protected" });
+    expect(getOrder).not.toHaveBeenCalled();
+    expect(cancelOrderById).not.toHaveBeenCalled();
+    expect(closePosition).not.toHaveBeenCalled();
+  });
+
+  it("refuses when a tracked 'bot' order turns out not to be bot-owned at the broker", async () => {
+    getOpenTradeById.mockResolvedValue(makeTrade({ protection: botProtection }));
+    getOrder.mockResolvedValueOnce({ ...botStopOrder, client_order_id: "kofi-manual" });
+
+    const result = await closeTrade({ tradeId: "trade-123", symbol: "AAPL", exitPrice: 221, reason: "take_profit" });
+
+    expect(result.closed).toBe(false);
+    expect(result.error).toMatch(/not bot-owned/);
+    expect(cancelOrderById).not.toHaveBeenCalled();
+    expect(closePosition).not.toHaveBeenCalled();
+  });
+});
+
+describe("positionMonitor.checkOpenTradesForExit — protection", () => {
+  it("skips exits when an external stop protects the position", async () => {
+    getOpenPositions.mockResolvedValue([
+      { symbol: "AAPL", qty: "10", qty_available: "0", avg_entry_price: "200", current_price: "150", unrealized_pl: "0", market_value: "1500" },
+    ]);
+    const exits = await checkOpenTradesForExit([makeTrade({ protection: { status: "active", owner: "external" } })]);
+    expect(exits).toEqual([]);
+  });
+
+  it("still evaluates exits for a bot-protected position (quantity reserved by its own stop)", async () => {
+    getOpenPositions.mockResolvedValue([
+      { symbol: "AAPL", qty: "10", qty_available: "0", avg_entry_price: "200", current_price: "225", unrealized_pl: "0", market_value: "2250" },
+    ]);
+    const exits = await checkOpenTradesForExit([makeTrade({ protection: { status: "active", owner: "bot", orderId: "stop-1" } })]);
+    expect(exits[0]).toMatchObject({ shouldExit: true, reason: "take_profit" });
   });
 });

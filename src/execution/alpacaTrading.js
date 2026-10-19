@@ -65,23 +65,48 @@ export async function getPosition(symbol) {
 }
 
 /**
- * Submits a market order to Alpaca paper trading.
+ * Submits an order to Alpaca paper trading. Defaults to a market order.
+ *
+ * Crypto supports market, limit and stop_limit only (no stop/bracket/OCO).
+ * Stocks additionally support plain stop orders.
+ *
  * @param {{
  *   symbol: string,
- *   qty: number,
+ *   qty: number|string,
  *   side: "buy"|"sell",
  *   assetClass?: "stock"|"crypto",
+ *   type?: "market"|"stop"|"stop_limit",
+ *   stopPrice?: number,
+ *   limitPrice?: number,
+ *   timeInForce?: "day"|"gtc"|"ioc",
+ *   clientOrderId?: string,
  * }} params
  * @returns {Promise<object>}
  */
-export async function submitOrder({ symbol, qty, side, assetClass = "stock" }) {
+export async function submitOrder({
+  symbol,
+  qty,
+  side,
+  assetClass = "stock",
+  type = "market",
+  stopPrice,
+  limitPrice,
+  timeInForce,
+  clientOrderId,
+}) {
   const body = {
     symbol,
     qty: String(qty),
     side,
-    type: "market",
-    time_in_force: assetClass === "crypto" ? "gtc" : "day",
+    type,
+    time_in_force: timeInForce ?? (assetClass === "crypto" ? "gtc" : "day"),
   };
+  if (stopPrice != null) body.stop_price = String(stopPrice);
+  if (limitPrice != null) body.limit_price = String(limitPrice);
+  if (clientOrderId) body.client_order_id = clientOrderId;
+  if (assetClass === "crypto" && type === "stop") {
+    throw new Error("plain stop orders are not supported for crypto; use stop_limit");
+  }
   return tradingFetch("/v2/orders", { method: "POST", body: JSON.stringify(body) });
 }
 

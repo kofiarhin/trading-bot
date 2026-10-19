@@ -8,6 +8,10 @@
  *   "trailing_stop"  — trailing stop hit after breakeven trigger
  *   "time_exit"      — trade held longer than maxHoldBars
  *
+ * Positions protected by an external broker-side stop (one the bot did not
+ * place) are never exited by the bot. Positions whose quantity is reserved by
+ * an order the bot does not own are skipped — selling them would fail.
+ *
  * Returns an array of exit decisions. Each item has:
  *   { tradeId, symbol, shouldExit, reason, currentPrice, updatedTrade }
  *
@@ -26,6 +30,20 @@ import { normalizeSymbol } from '../utils/symbolNorm.js';
 function toNumber(value, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
+}
+
+const PROTECTED_STATUSES = new Set(['active', 'partial', 'unfilled']);
+const QTY_TOLERANCE = 0.999;
+
+function isExternallyProtected(trade) {
+  return trade.protection?.owner === 'external' && PROTECTED_STATUSES.has(trade.protection?.status);
+}
+
+function isReservedByForeignOrder(trade, position) {
+  if (trade.protection?.owner === 'bot') return false; // the bot cancels its own stop before exiting
+  const qty = Math.abs(toNumber(position.qty, 0));
+  const available = Math.abs(toNumber(position.qtyAvailable ?? position.qty, 0));
+  return qty > 0 && available < qty * QTY_TOLERANCE;
 }
 
 function isValid(value) {
@@ -71,6 +89,24 @@ export async function evaluateExits(openTrades) {
 
     const currentPrice = toNumber(position.currentPrice, 0);
     if (!currentPrice) continue;
+
+    if (isExternallyProtected(trade)) {
+      logger.debug('exitEngine: externally protected position — no bot exits', { symbol: key });
+      continue;
+    }
+    if (isReservedByForeignOrder(trade, position)) {
+      logger.warn('exitEngine: position quantity reserved by another order — exits skipped', { symbol: key });
+      try {
+        await appendTradeEvent({
+          type: 'exit_skipped_reserved',
+          tradeId: trade.tradeId,
+          symbol: trade.symbol,
+          timestamp: new Date().toISOString(),
+          payload: { qty: position.qty, qtyAvailable: position.qtyAvailable },
+        });
+      } catch { /* best effort */ }
+      continue;
+    }
 
     // For broker-sync positions without journal risk, derive stop/target so exit
     // conditions are never silently skipped on unmanaged exposure.

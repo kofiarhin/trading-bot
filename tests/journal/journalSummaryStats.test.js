@@ -108,6 +108,8 @@ describe('Canonical riskAmount — total planned dollar risk', () => {
       bars,
       accountEquity: 10_000,
       riskPercent: 0.005,
+      // Lift the position-value cap so this checks the uncapped risk semantics.
+      options: { maxPositionNotionalPct: 100 },
     });
 
     expect(decision.approved).toBe(true);

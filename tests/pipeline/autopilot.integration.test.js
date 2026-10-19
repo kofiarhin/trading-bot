@@ -81,6 +81,7 @@ describe("runAutopilotCycle (mocked Alpaca)", () => {
     jest.unstable_mockModule("../../src/journal/tradeJournal.js", () => ({
       getOpenTrades: jest.fn().mockResolvedValue([]),
       syncTradesWithBroker: jest.fn().mockResolvedValue(undefined),
+      addOpenTrade: jest.fn().mockResolvedValue(undefined),
       getClosedTrades: jest.fn().mockResolvedValue([]),
     }));
 

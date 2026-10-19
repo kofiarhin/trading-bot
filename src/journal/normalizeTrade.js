@@ -22,6 +22,8 @@ const CANONICAL_TRADE_FIELDS = [
   'rMultiple',
   'durationMinutes',
   'session',
+  'protection',
+  'entryPriceSource',
 ];
 
 const READ_ALIASES = {
@@ -48,6 +50,8 @@ const READ_ALIASES = {
   rMultiple: ['rMultiple'],
   durationMinutes: ['durationMinutes'],
   session: ['session'],
+  protection: ['protection'],
+  entryPriceSource: ['entryPriceSource'],
 };
 
 const TRADE_MARKERS = new Set([
@@ -182,6 +186,8 @@ export function normalizeTradeRecord(trade = {}) {
     rMultiple: pickFirst(trade, READ_ALIASES.rMultiple),
     durationMinutes: pickFirst(trade, READ_ALIASES.durationMinutes),
     session: pickFirst(trade, READ_ALIASES.session),
+    protection: pickFirst(trade, READ_ALIASES.protection),
+    entryPriceSource: pickFirst(trade, READ_ALIASES.entryPriceSource),
   };
 
   return omitUndefined(canonicalTrade);

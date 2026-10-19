@@ -239,6 +239,85 @@ describe('syncTradesWithBroker', () => {
   });
 });
 
+// ─── protective stops and symbol formats ─────────────────────────────────────
+
+describe('syncTradesWithBroker – protective stops', () => {
+  const cryptoDecision = {
+    ...baseDecision,
+    symbol: 'SOL/USD',
+    normalizedSymbol: 'SOLUSD',
+    assetClass: 'crypto',
+    entryPrice: 100,
+    stopLoss: 95,
+    takeProfit: 110,
+    quantity: 2,
+  };
+
+  it('does not mistake a protective stop order for the pending entry order', async () => {
+    const trade = await createPendingTrade({ decision: cryptoDecision });
+
+    await syncTradesWithBroker({
+      brokerPositions: [],
+      brokerOrders: [
+        { id: 'stop-x', symbol: 'SOL/USD', side: 'sell', type: 'stop_limit', status: 'canceled', client_order_id: 'manual' },
+      ],
+    });
+
+    const open = await getOpenTrades();
+    expect(open.find((t) => t.tradeId === trade.tradeId)?.status).toBe('pending');
+  });
+
+  it('matches a SOLUSD position to a SOL/USD trade without creating a duplicate', async () => {
+    const trade = await createPendingTrade({ decision: cryptoDecision });
+
+    await syncTradesWithBroker({
+      brokerPositions: [{ symbol: 'SOLUSD', asset_class: 'crypto', qty: 2, qty_available: '2', avg_entry_price: 100, current_price: 101 }],
+      brokerOrders: [],
+    });
+
+    const open = await getOpenTrades();
+    expect(open).toHaveLength(1);
+    expect(open[0].tradeId).toBe(trade.tradeId);
+    expect(open[0].status).toBe('open');
+    expect(open[0].protection.status).toBe('missing');
+  });
+
+  it('closes a trade as stop_hit at the stop fill price when its tracked stop fills', async () => {
+    const trade = await createPendingTrade({ decision: cryptoDecision });
+    const position = { symbol: 'SOLUSD', asset_class: 'crypto', qty: 2, qty_available: '0', avg_entry_price: 100, current_price: 101 };
+    const stop = {
+      id: 'stop-1', client_order_id: `tb-stop-${trade.tradeId}`, symbol: 'SOL/USD', side: 'sell',
+      type: 'stop_limit', qty: '2', filled_qty: '0', stop_price: '95', limit_price: '93.1', status: 'new',
+    };
+
+    await syncTradesWithBroker({ brokerPositions: [position], brokerOrders: [stop] });
+    expect((await getOpenTrades())[0].protection).toMatchObject({ status: 'active', owner: 'bot', orderId: 'stop-1' });
+
+    await syncTradesWithBroker({
+      brokerPositions: [],
+      brokerOrders: [{ ...stop, status: 'filled', filled_qty: '2', filled_avg_price: '94.5', filled_at: '2026-10-20T00:00:00Z' }],
+    });
+
+    expect(await getOpenTrades()).toHaveLength(0);
+    const closed = (await getClosedTrades()).find((t) => t.tradeId === trade.tradeId);
+    expect(closed.exitReason).toBe('stop_hit');
+    expect(closed.exitPrice).toBe(94.5);
+  });
+
+  it('adopts a position with a negative broker average as unverified, never as a negative entry', async () => {
+    await syncTradesWithBroker({
+      brokerPositions: [{ symbol: 'SOLUSD', asset_class: 'crypto', qty: 5, avg_entry_price: -2.38, current_price: 105 }],
+      brokerOrders: [],
+    });
+
+    const [adopted] = await getOpenTrades();
+    expect(adopted.strategyName).toBe('broker_sync');
+    expect(adopted.assetClass).toBe('crypto');
+    expect(adopted.entryPrice ?? null).toBeNull();
+    expect(adopted.entryPriceSource).toBe('unverified');
+  });
+});
+
 // ─── broker_sync reconciliation ───────────────────────────────────────────────
 
 describe('syncTradesWithBroker – broker_sync reconciliation', () => {

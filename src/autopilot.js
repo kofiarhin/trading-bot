@@ -11,7 +11,10 @@ import { getUniverse } from './market/universe.js';
 import { nowIso } from './lib/storage.js';
 import { resolveSession } from './utils/time.js';
 import { filterEligible } from './market/marketHours.js';
-import { getOpenTrades, syncTradesWithBroker } from './journal/tradeJournal.js';
+import { addOpenTrade, getOpenTrades, syncTradesWithBroker } from './journal/tradeJournal.js';
+import { ensureProtectiveStop, evaluateProtectionGate } from './execution/protectiveStops.js';
+import { getOrderHistory } from './execution/alpacaOrders.js';
+import { normalizeSymbol } from './utils/symbolNorm.js';
 import { saveDecision } from './repositories/decisionRepo.mongo.js';
 import { appendCycleEvent } from './repositories/cycleRepo.mongo.js';
 import { loadRiskState } from './risk/riskState.js';
@@ -37,6 +40,71 @@ function toNumber(value, fallback = 0) {
 
 function inferAssetClass(symbol) {
   return typeof symbol === 'string' && symbol.includes('/') ? 'crypto' : 'stock';
+}
+
+function symbolKey(symbol) {
+  return normalizeSymbol(String(symbol ?? ''));
+}
+
+const PROTECTED_STATUSES = new Set(['active', 'partial', 'unfilled']);
+
+// Alpaca positions use "SOLUSD"; order queries need "SOL/USD" for crypto.
+function toOrderSymbol(position) {
+  const symbol = String(position?.symbol ?? '');
+  if (symbol.includes('/') || position?.asset_class !== 'crypto') return symbol;
+  const match = symbol.match(/^(.+?)(USDT|USDC|USD|BTC)$/);
+  return match ? `${match[1]}/${match[2]}` : symbol;
+}
+
+// Read-only fill lookup used when a broker entry price cannot be trusted.
+async function fillHistoryForSymbol(position) {
+  return getOrderHistory(toOrderSymbol(position), 100);
+}
+
+// Recent orders (all statuses) plus every open order, de-duplicated. Open
+// orders are fetched separately so an older protective stop is never missed
+// — missing one could otherwise lead to a duplicate stop.
+async function fetchBrokerOrders() {
+  const [recent, open] = await Promise.all([
+    getOrders({ status: 'all', limit: 200, nested: true, direction: 'desc' }),
+    getOrders({ status: 'open', limit: 500, nested: true }),
+  ]);
+  const byId = new Map();
+  for (const order of [...(recent ?? []), ...(open ?? [])]) {
+    if (order?.id) byId.set(order.id, order);
+  }
+  return [...byId.values()];
+}
+
+/**
+ * Places missing broker-side stops for bot-managed open trades. Adopted
+ * (broker_sync) positions are never touched — the protection gate flags them.
+ */
+async function maintainProtection({ brokerPositions, brokerOrders, dryRun, cycleId }) {
+  const bufferPct = (config.risk.cryptoStopLimitBufferPct ?? 2) / 100;
+  const openTrades = await getOpenTrades();
+
+  for (const trade of openTrades) {
+    if (trade.status !== 'open' || trade.strategyName === 'broker_sync') continue;
+    if (PROTECTED_STATUSES.has(trade.protection?.status)) continue;
+    const brokerPosition = (brokerPositions ?? []).find(
+      (p) => symbolKey(p.symbol) === symbolKey(trade.normalizedSymbol ?? trade.symbol),
+    );
+    if (!brokerPosition) continue;
+
+    const result = await ensureProtectiveStop({ trade, brokerPosition, orders: brokerOrders, bufferPct, dryRun });
+    if (result.protection) {
+      await addOpenTrade({ ...trade, protection: result.protection });
+    }
+    await appendCycleEvent({
+      type: `protection_${result.action}`,
+      timestamp: nowIso(),
+      cycleId,
+      symbol: trade.symbol,
+      tradeId: trade.tradeId,
+      error: result.error ?? null,
+    });
+  }
 }
 
 function toStrategyBars(bars) {
@@ -104,9 +172,11 @@ async function evaluateExecutionGuards(decision, brokerPositions) {
   const maxPositions = config.trading.maxOpenPositions;
   const dailyLossLimit = config.trading.dailyLossLimitPct;
 
-  const hasMatchingBrokerPosition = brokerPositions.some((position) => position.symbol === decision.symbol);
+  const decisionKey = symbolKey(decision.symbol);
+  const hasMatchingBrokerPosition = brokerPositions.some((position) => symbolKey(position.symbol) === decisionKey);
   const hasMatchingJournalTrade = openTrades.some(
-    (trade) => trade.symbol === decision.symbol && ['pending', 'open'].includes(trade.status),
+    (trade) =>
+      symbolKey(trade.normalizedSymbol ?? trade.symbol) === decisionKey && ['pending', 'open'].includes(trade.status),
   );
 
   if (hasMatchingBrokerPosition || hasMatchingJournalTrade) {
@@ -114,8 +184,10 @@ async function evaluateExecutionGuards(decision, brokerPositions) {
   }
 
   const activeSymbols = new Set([
-    ...brokerPositions.map((position) => position.symbol),
-    ...openTrades.filter((trade) => ['pending', 'open'].includes(trade.status)).map((trade) => trade.symbol),
+    ...brokerPositions.map((position) => symbolKey(position.symbol)),
+    ...openTrades
+      .filter((trade) => ['pending', 'open'].includes(trade.status))
+      .map((trade) => symbolKey(trade.normalizedSymbol ?? trade.symbol)),
   ]);
 
   if (activeSymbols.size >= maxPositions) {
@@ -204,13 +276,25 @@ async function handleExits(dryRun) {
       continue;
     }
 
-    await closeTrade({
+    const closeResult = await closeTrade({
       tradeId: exit.tradeId,
       symbol: exit.symbol,
       exitPrice: exit.currentPrice,
       reason: exit.reason,
       dryRun,
     });
+
+    if (closeResult && closeResult.closed === false && !closeResult.dryRun) {
+      await appendCycleEvent({
+        type: 'trade_close_skipped',
+        timestamp: nowIso(),
+        symbol: exit.symbol,
+        tradeId: exit.tradeId,
+        reason: exit.reason,
+        error: closeResult.error ?? null,
+      });
+      continue;
+    }
 
     await appendCycleEvent({
       type: 'trade_closed',
@@ -321,11 +405,18 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
     await setRuntimeStage(CYCLE_STAGES.SYNCING_BROKER, 'Syncing broker positions');
 
     const brokerPositionsBefore = await getPositions();
-    const brokerOrdersBefore = await getOrders({ status: 'all', limit: 200, nested: true, direction: 'desc' });
+    const brokerOrdersBefore = await fetchBrokerOrders();
 
     await syncTradesWithBroker({
       brokerPositions: brokerPositionsBefore,
       brokerOrders: brokerOrdersBefore,
+      fillHistoryForSymbol,
+    });
+    await maintainProtection({
+      brokerPositions: brokerPositionsBefore,
+      brokerOrders: brokerOrdersBefore,
+      dryRun,
+      cycleId,
     });
 
     await setRuntimeStage(CYCLE_STAGES.MONITORING_POSITIONS, 'Checking open trades for exits');
@@ -487,6 +578,10 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
         preFilterMetrics: item.metrics,
         accountEquity: equity,
         riskPercent,
+        buyingPower:
+          item.assetClass === 'crypto'
+            ? toNumber(account?.non_marginable_buying_power, toNumber(account?.buying_power, equity))
+            : toNumber(account?.buying_power, equity),
         options: {
           breakoutLookback: config.strategy.breakoutLookback,
           volumeLookback: config.strategy.volumeLookback,
@@ -503,6 +598,7 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
           minSetupScoreLondon: config.strategy.minSetupScoreLondon,
           minSetupScoreNewYork: config.strategy.minSetupScoreNewYork,
           maxDistanceToBreakoutPct: config.prefilter.maxDistanceToBreakoutPct,
+          maxPositionNotionalPct: config.risk.maxPositionNotionalPct,
         },
       });
 
@@ -620,12 +716,37 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
       counters.approved += 1;
     }
 
+    // ── Protection gate: no new entries while any position lacks a stop ───────
+    const protectionGate = evaluateProtectionGate({
+      openTrades: openTradesForPortfolio,
+      brokerPositions: brokerPositionsForPortfolio,
+    });
+    if (!protectionGate.allowed) {
+      for (const candidate of portfolioResult.allowed) {
+        candidate._protectionBlocked = true;
+        counters.blocked += 1;
+      }
+      await appendCycleEvent({
+        type: 'entries_blocked_protection',
+        timestamp: nowIso(),
+        cycleId,
+        reasons: protectionGate.reasons,
+        candidateCount: portfolioResult.allowed.length,
+      });
+    }
+
     await setRuntimeStage(CYCLE_STAGES.PLACING_ORDERS, 'Placing approved orders');
 
     // ── Place orders ──────────────────────────────────────────────────────────
     const placements = [];
     for (const decision of decisions) {
-      if (!decision.approved || decision._rankedOut || decision._portfolioBlocked || (decision.blockers?.length ?? 0) > 0) continue;
+      if (
+        !decision.approved ||
+        decision._rankedOut ||
+        decision._portfolioBlocked ||
+        decision._protectionBlocked ||
+        (decision.blockers?.length ?? 0) > 0
+      ) continue;
 
       await updateCycleRuntime({ cycleId, currentSymbol: decision.symbol });
       const placement = await placeOrder({ decision, dryRun });
@@ -670,11 +791,19 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
     await setRuntimeStage(CYCLE_STAGES.FINAL_SYNC, 'Finalizing cycle state', { currentSymbol: null });
 
     const brokerPositionsAfter = await getPositions();
-    const brokerOrdersAfter = await getOrders({ status: 'all', limit: 200, nested: true, direction: 'desc' });
+    const brokerOrdersAfter = await fetchBrokerOrders();
 
     await syncTradesWithBroker({
       brokerPositions: brokerPositionsAfter,
       brokerOrders: brokerOrdersAfter,
+      fillHistoryForSymbol,
+    });
+    // Entries filled this cycle get their protective stop now.
+    await maintainProtection({
+      brokerPositions: brokerPositionsAfter,
+      brokerOrders: brokerOrdersAfter,
+      dryRun,
+      cycleId,
     });
 
     const completedAt = nowIso();
