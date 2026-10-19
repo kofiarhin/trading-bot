@@ -111,6 +111,7 @@ The Express server is read-only — it reads from MongoDB and queries Alpaca dir
 - `/api/expectancy/*` — expectancy metrics derived from closed trades
 - `/api/candidates/*` — ranked signal candidates from the last cycle
 - `/api/rejections/*` — rejection breakdown by risk guard
+- `/api/safety` — open-trade safety alerts (unfilled/missing stops, failing or pending exits, unverified entries)
 - `/api/health` — liveness check
 
 CORS is restricted to `CLIENT_URL` env var (defaults to `http://localhost:5173`).

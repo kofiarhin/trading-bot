@@ -15,6 +15,7 @@ import { addOpenTrade, getOpenTrades, syncTradesWithBroker } from './journal/tra
 import { ensureProtectiveStop, evaluateProtectionGate } from './execution/protectiveStops.js';
 import { getOrderHistory } from './execution/alpacaOrders.js';
 import { normalizeSymbol } from './utils/symbolNorm.js';
+import { EXIT_FAILURE_ALERT_THRESHOLD, isActiveTradeStatus } from './journal/tradeStatus.js';
 import { saveDecision } from './repositories/decisionRepo.mongo.js';
 import { appendCycleEvent } from './repositories/cycleRepo.mongo.js';
 import { loadRiskState } from './risk/riskState.js';
@@ -22,6 +23,7 @@ import { checkOpenTradesForExit } from './positions/positionMonitor.js';
 import { closeTrade } from './execution/orderManager.js';
 import { evaluateBreakout } from './strategies/breakoutStrategy.js';
 import { checkPortfolioRisk } from './risk/portfolioRisk.js';
+import { evaluateRiskGate } from './risk/riskGate.js';
 import { preFilter } from './preFilter.js';
 import { computeScore } from './scoring/scorer.js';
 import { CYCLE_STAGES } from './autopilot/cycleStages.js';
@@ -162,10 +164,20 @@ async function fetchBarsBySymbol(symbols) {
 
 async function getRiskState() {
   const state = await loadRiskState();
-  return { dailyLossPct: state.dailyRealizedLoss ?? 0, halted: false, ...state };
+  return {
+    ...state,
+    halted: Boolean(state?.halted),
+    dailyRealizedLoss: toNumber(state?.dailyRealizedLoss, 0),
+    cooldowns: state?.cooldowns ?? {},
+  };
 }
 
-async function evaluateExecutionGuards(decision, brokerPositions) {
+function isSymbolInCooldown(riskState, symbol, now = new Date()) {
+  const expiry = riskState.cooldowns?.[symbolKey(symbol)];
+  return Boolean(expiry) && new Date(expiry) > now;
+}
+
+async function evaluateExecutionGuards(decision, brokerPositions, equity) {
   const blockers = [];
   const openTrades = await getOpenTrades();
   const riskState = await getRiskState();
@@ -176,7 +188,7 @@ async function evaluateExecutionGuards(decision, brokerPositions) {
   const hasMatchingBrokerPosition = brokerPositions.some((position) => symbolKey(position.symbol) === decisionKey);
   const hasMatchingJournalTrade = openTrades.some(
     (trade) =>
-      symbolKey(trade.normalizedSymbol ?? trade.symbol) === decisionKey && ['pending', 'open'].includes(trade.status),
+      symbolKey(trade.normalizedSymbol ?? trade.symbol) === decisionKey && isActiveTradeStatus(trade.status),
   );
 
   if (hasMatchingBrokerPosition || hasMatchingJournalTrade) {
@@ -186,7 +198,7 @@ async function evaluateExecutionGuards(decision, brokerPositions) {
   const activeSymbols = new Set([
     ...brokerPositions.map((position) => symbolKey(position.symbol)),
     ...openTrades
-      .filter((trade) => ['pending', 'open'].includes(trade.status))
+      .filter((trade) => isActiveTradeStatus(trade.status))
       .map((trade) => symbolKey(trade.normalizedSymbol ?? trade.symbol)),
   ]);
 
@@ -194,8 +206,15 @@ async function evaluateExecutionGuards(decision, brokerPositions) {
     blockers.push('max_positions_guard');
   }
 
-  if (riskState.halted || toNumber(riskState.dailyLossPct, 0) >= dailyLossLimit) {
+  // Realized daily loss as a percent of equity (the risk gate also checks the
+  // broker equity change, which includes unrealized losses).
+  const realizedLossPct = equity > 0 ? (riskState.dailyRealizedLoss / equity) * 100 : Infinity;
+  if (riskState.halted || realizedLossPct >= dailyLossLimit) {
     blockers.push('daily_loss_guard');
+  }
+
+  if (isSymbolInCooldown(riskState, decision.symbol)) {
+    blockers.push('cooldown_guard');
   }
 
   return {
@@ -284,6 +303,18 @@ async function handleExits(dryRun) {
       dryRun,
     });
 
+    if (closeResult?.pending) {
+      await appendCycleEvent({
+        type: 'trade_exit_pending',
+        timestamp: nowIso(),
+        symbol: exit.symbol,
+        tradeId: exit.tradeId,
+        reason: exit.reason,
+        orderId: closeResult.orderId ?? null,
+      });
+      continue;
+    }
+
     if (closeResult && closeResult.closed === false && !closeResult.dryRun) {
       await appendCycleEvent({
         type: 'trade_close_skipped',
@@ -292,7 +323,19 @@ async function handleExits(dryRun) {
         tradeId: exit.tradeId,
         reason: exit.reason,
         error: closeResult.error ?? null,
+        exitAttempts: closeResult.exitAttempts ?? null,
+        stopRestored: closeResult.stopRestored ?? null,
       });
+      if ((closeResult.exitAttempts ?? 0) >= EXIT_FAILURE_ALERT_THRESHOLD) {
+        await appendCycleEvent({
+          type: 'exit_failing',
+          timestamp: nowIso(),
+          symbol: exit.symbol,
+          tradeId: exit.tradeId,
+          exitAttempts: closeResult.exitAttempts,
+          error: closeResult.error ?? null,
+        });
+      }
       continue;
     }
 
@@ -669,7 +712,7 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
 
       await updateCycleRuntime({ cycleId, currentSymbol: decision.symbol });
       const brokerPositions = await getPositions();
-      const guardResult = await evaluateExecutionGuards(decision, brokerPositions);
+      const guardResult = await evaluateExecutionGuards(decision, brokerPositions, toNumber(account?.equity, 0));
       decision.blockers = [...(decision.blockers ?? []), ...guardResult.blockers];
       await recordApproval(decision, guardResult.blockers);
 
@@ -735,6 +778,33 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
       });
     }
 
+    // ── Risk gate: no new entries while portfolio limits are reached ──────────
+    const riskGate = evaluateRiskGate({
+      account,
+      brokerPositions: brokerPositionsForPortfolio,
+      openTrades: openTradesForPortfolio,
+      riskState: riskStateForPortfolio,
+      limits: {
+        maxDailyLossPct: config.trading.dailyLossLimitPct,
+        maxTotalRiskPct: config.risk.maxTotalRiskPct,
+        maxGrossExposurePct: config.risk.maxGrossExposurePct ?? 50,
+      },
+    });
+    if (!riskGate.allowed) {
+      for (const candidate of portfolioResult.allowed) {
+        if (!candidate._protectionBlocked) counters.blocked += 1;
+        candidate._riskBlocked = true;
+      }
+      await appendCycleEvent({
+        type: 'entries_blocked_risk',
+        timestamp: nowIso(),
+        cycleId,
+        reasons: riskGate.reasons,
+        metrics: riskGate.metrics,
+        candidateCount: portfolioResult.allowed.length,
+      });
+    }
+
     await setRuntimeStage(CYCLE_STAGES.PLACING_ORDERS, 'Placing approved orders');
 
     // ── Place orders ──────────────────────────────────────────────────────────
@@ -745,6 +815,7 @@ export async function runAutopilotCycle(options = {}, triggerSource = 'cron', { 
         decision._rankedOut ||
         decision._portfolioBlocked ||
         decision._protectionBlocked ||
+        decision._riskBlocked ||
         (decision.blockers?.length ?? 0) > 0
       ) continue;
 

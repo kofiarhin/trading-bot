@@ -8,6 +8,15 @@
  *   "trailing_stop"  — trailing stop hit after breakeven trigger
  *   "time_exit"      — trade held longer than maxHoldBars
  *
+ * barsHeld is derived from openedAt and the bar timeframe, so it survives
+ * restarts and is not inflated by extra (manual) cycles. Adopted broker_sync
+ * positions never time-exit — their real open time is unknown.
+ *
+ * With a bot-owned broker stop at or above the trade's stop, the broker order
+ * is the stop loss: no software stop_loss exit runs. A triggered-but-unfilled stop-limit is
+ * either alerted only (STOP_LIMIT_FALLBACK=alert, default) or exited at market
+ * ("stop_limit_unfilled", STOP_LIMIT_FALLBACK=market_bot_only).
+ *
  * Positions protected by an external broker-side stop (one the bot did not
  * place) are never exited by the bot. Positions whose quantity is reserved by
  * an order the bot does not own are skipped — selling them would fail.
@@ -34,6 +43,27 @@ function toNumber(value, fallback = 0) {
 
 const PROTECTED_STATUSES = new Set(['active', 'partial', 'unfilled']);
 const QTY_TOLERANCE = 0.999;
+
+function barMinutes(timeframe) {
+  const match = /^(\d+)\s*(Min|T|Hour|H|Day|D)$/i.exec(String(timeframe ?? '15Min').trim());
+  if (!match) return 15;
+  const n = Number(match[1]);
+  const unit = match[2].toLowerCase();
+  if (unit === 'hour' || unit === 'h') return n * 60;
+  if (unit === 'day' || unit === 'd') return n * 1440;
+  return n;
+}
+
+/** Whole bars elapsed since openedAt, or null when openedAt is unknown. */
+export function computeBarsHeld(trade, nowMs, timeframe) {
+  const openedMs = Date.parse(trade?.openedAt ?? '');
+  if (!Number.isFinite(openedMs)) return null;
+  return Math.max(0, Math.floor((nowMs - openedMs) / (barMinutes(timeframe) * 60_000)));
+}
+
+function isBotProtected(trade) {
+  return trade.protection?.owner === 'bot' && PROTECTED_STATUSES.has(trade.protection?.status);
+}
 
 function isExternallyProtected(trade) {
   return trade.protection?.owner === 'external' && PROTECTED_STATUSES.has(trade.protection?.status);
@@ -63,7 +93,7 @@ function isValid(value) {
  *   updatedTrade: object|null,
  * }>>}
  */
-export async function evaluateExits(openTrades) {
+export async function evaluateExits(openTrades, { now = Date.now() } = {}) {
   const trades = openTrades ?? (await getOpenTrades());
   if (!trades.length) return [];
 
@@ -77,11 +107,14 @@ export async function evaluateExits(openTrades) {
 
   const atrMultiplier = config.trading.trailingAtrMultiplier;
   const maxHoldBarsDefault = config.trading.maxHoldBars;
+  const timeframe = config.trading.timeframe ?? '15Min';
+  const stopLimitFallback = config.risk?.stopLimitFallback ?? 'alert';
 
   const results = [];
 
   for (const trade of trades) {
-    if (trade.status === 'pending' || trade.status === 'canceled') continue;
+    // closing: an exit order is already working at the broker.
+    if (trade.status === 'pending' || trade.status === 'canceled' || trade.status === 'closing') continue;
 
     const key = normalizeSymbol(trade.normalizedSymbol ?? trade.symbol);
     const position = positionMap[key];
@@ -129,9 +162,26 @@ export async function evaluateExits(openTrades) {
     const entryPrice = toNumber(trade.entryPrice, 0);
     const atr = toNumber(trade.metrics?.atr, 0);
     const riskPerUnit = entryPrice && stopLoss ? entryPrice - toNumber(stopLoss, 0) : 0;
+    const botProtected = isBotProtected(trade);
+    // The broker order covers the stop only while it sits at or above the
+    // trade's current stop. After breakeven raises the stop, the software stop
+    // takes over again (the bot cancels its own lower stop before exiting).
+    const brokerCoversStop =
+      botProtected && toNumber(trade.protection.stopPrice, 0) >= toNumber(stopLoss, 0) - 1e-9;
 
-    // ── 1. Hard stop loss ────────────────────────────────────────────────────
-    if (isValid(stopLoss) && currentPrice <= stopLoss) {
+    // ── 0. Bot-owned stop-limit triggered but not filled ─────────────────────
+    if (botProtected && trade.protection.status === 'unfilled') {
+      if (stopLimitFallback === 'market_bot_only') {
+        logger.error('Stop-limit unfilled — exiting at market (STOP_LIMIT_FALLBACK=market_bot_only)', { symbol: key, currentPrice });
+        results.push({ tradeId: trade.tradeId, symbol: trade.symbol, shouldExit: true, reason: 'stop_limit_unfilled', currentPrice, updatedTrade: null });
+      } else {
+        logger.error('Stop-limit unfilled — alert only (STOP_LIMIT_FALLBACK=alert)', { symbol: key, currentPrice });
+      }
+      continue;
+    }
+
+    // ── 1. Hard stop loss (software) — skipped when the bot's broker stop covers it
+    if (!brokerCoversStop && isValid(stopLoss) && currentPrice <= stopLoss) {
       logger.info('Stop loss hit', { symbol: key, currentPrice, stopLoss });
       results.push({ tradeId: trade.tradeId, symbol: trade.symbol, shouldExit: true, reason: 'stop_loss', currentPrice, updatedTrade: null });
       continue;
@@ -154,10 +204,11 @@ export async function evaluateExits(openTrades) {
 
     // ── 4. Time-based exit ───────────────────────────────────────────────────
     const maxHoldBars = toNumber(trade.maxHoldBars, maxHoldBarsDefault);
-    const barsHeld = toNumber(trade.barsHeld, 0) + 1;
-    if (barsHeld >= maxHoldBars) {
+    const computedBars = computeBarsHeld(trade, now, timeframe);
+    const barsHeld = computedBars ?? toNumber(trade.barsHeld, 0);
+    const canTimeExit = computedBars !== null && !isBrokerSync;
+    if (canTimeExit && barsHeld >= maxHoldBars) {
       logger.info('Time exit', { symbol: key, barsHeld, maxHoldBars });
-      // Persist barsHeld increment
       const updated = { ...trade, barsHeld };
       try { await upsertOpenTrade(updated); } catch { /* best effort */ }
       results.push({ tradeId: trade.tradeId, symbol: trade.symbol, shouldExit: true, reason: 'time_exit', currentPrice, updatedTrade: updated });
@@ -224,7 +275,7 @@ export async function evaluateExits(openTrades) {
       }
     }
 
-    // Increment barsHeld even when no exit condition triggered
+    // Persist the derived barsHeld for display even when nothing triggered
     if (barsHeld !== toNumber(trade.barsHeld, 0)) {
       try { await upsertOpenTrade({ ...trade, barsHeld }); } catch { /* best effort */ }
     }

@@ -50,3 +50,23 @@ export async function setCooldown(symbol, assetClass) {
 export async function isInCooldown(symbol) {
   return repoIsInCooldown(symbol);
 }
+
+/**
+ * Records the outcome of a confirmed close: realized P&L feeds the daily loss
+ * limit and the symbol enters its cooldown. Only call for real fills.
+ *
+ * @param {{ symbol: string, assetClass?: string, pnl?: number|null }} closedTrade
+ */
+export async function recordTradeOutcome(closedTrade) {
+  const symbol = String(closedTrade?.normalizedSymbol ?? closedTrade?.symbol ?? '').replace(/\//g, '').toUpperCase();
+  if (!symbol) return;
+  const pnl = Number(closedTrade.pnl);
+  if (Number.isFinite(pnl) && pnl !== 0) {
+    // recordDailyLoss: positive = loss, negative = profit.
+    await repoRecordLoss(-pnl);
+  }
+  const assetClass = closedTrade.assetClass
+    ?? (String(closedTrade.symbol ?? '').includes('/') ? 'crypto' : 'stock');
+  await repoSetCooldown(symbol, assetClass);
+}
+

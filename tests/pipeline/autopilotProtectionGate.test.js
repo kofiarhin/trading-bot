@@ -50,7 +50,8 @@ describe("runAutopilotCycle — protection gate", () => {
     const placeOrder = jest.fn().mockResolvedValue({ placed: true, orderId: "should-not-happen" });
 
     jest.unstable_mockModule("../../src/lib/alpaca.js", () => ({
-      getAccount: jest.fn().mockResolvedValue({ equity: 100000, buying_power: 100000 }),
+      // Valid, flat account so only the protection gate can block.
+      getAccount: jest.fn().mockResolvedValue({ equity: "100000", last_equity: "100000", buying_power: "100000" }),
       getBarsForSymbols: jest.fn().mockResolvedValue({ AAPL: makeBreakoutBars() }),
       getOrders: jest.fn().mockResolvedValue([]),
       getPositions: jest.fn().mockResolvedValue([unprotectedPosition]),
@@ -88,5 +89,6 @@ describe("runAutopilotCycle — protection gate", () => {
     const blocked = await CycleRun.find({ type: "entries_blocked_protection", cycleId: result.cycleId }).lean();
     expect(blocked).toHaveLength(1);
     expect(blocked[0].reasons).toContainEqual({ symbol: "SOLUSD", reason: "protection_missing" });
+    expect(await CycleRun.countDocuments({ type: "entries_blocked_risk", cycleId: result.cycleId })).toBe(0);
   });
 });

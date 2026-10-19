@@ -35,6 +35,12 @@ function docToPlain(doc) {
   return plain;
 }
 
+function unexpiredCooldowns(cooldowns = {}, now = new Date()) {
+  return Object.fromEntries(
+    Object.entries(cooldowns ?? {}).filter(([, expiry]) => new Date(expiry) > now),
+  );
+}
+
 // ─── Load ─────────────────────────────────────────────────────────────────────
 
 export async function loadRiskState() {
@@ -48,6 +54,8 @@ export async function loadRiskState() {
       { upsert: true, returnDocument: 'after' },
     );
   } else if (doc.date !== today) {
+    // New trading day: reset daily counters, but keep cooldowns that have not
+    // expired yet (a crypto cooldown can span midnight).
     doc = await RiskState.findOneAndUpdate(
       { key: RISK_STATE_KEY },
       {
@@ -56,7 +64,7 @@ export async function loadRiskState() {
           halted: false,
           dailyLossPct: 0,
           dailyRealizedLoss: 0,
-          cooldowns: {},
+          cooldowns: unexpiredCooldowns(docToPlain(doc).cooldowns),
           updatedAt: nowIso(),
         },
       },

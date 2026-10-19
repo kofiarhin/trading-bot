@@ -19,7 +19,11 @@ import {
 } from "../journal/tradeJournal.js";
 import { normalizeSymbol } from "../utils/symbolNorm.js";
 import { normalizeTradeForWrite } from "../journal/normalizeTrade.js";
-import { BOT_ORDER_PREFIX, cancelBotStop } from "./protectiveStops.js";
+import { BOT_ORDER_PREFIX, cancelBotStop, restoreProtectiveStop } from "./protectiveStops.js";
+import { recordTradeOutcome } from "../risk/riskState.js";
+import { isEligibleNow } from "../market/marketHours.js";
+
+import { EXIT_FAILURE_ALERT_THRESHOLD } from "../journal/tradeStatus.js";
 
 const PROTECTED_STATUSES = new Set(["active", "partial", "unfilled"]);
 
@@ -306,11 +310,19 @@ export async function placeOrder({ decision, dryRun = false }) {
 }
 
 /**
- * Closes an open trade: submits market close to broker, calculates pnl,
- * archives in journal as a canonical closed-trade record. Reads the open trade
- * record via the journal accessor (which normalizes any legacy fields), so
- * legacy-shaped open records are still closeable but the closed record always
- * goes back to disk in canonical shape.
+ * Closes an open trade at the broker.
+ *
+ * Safety order of operations:
+ *   1. Never act on a trade whose exit is already working ("closing"), on a
+ *      position protected by an external stop, or on a stock outside market
+ *      hours (a queued market order would leave the position unprotected).
+ *   2. Cancel the bot's own protective stop (ownership verified at the broker)
+ *      so its reserved quantity is released.
+ *   3. Submit the close. If it fails, count the attempt and re-place the stop
+ *      immediately.
+ *   4. Archive as closed only on a confirmed fill, at the broker fill price.
+ *      An accepted-but-unfilled close marks the trade "closing"; the broker
+ *      sync settles it later.
  *
  * @param {{
  *   tradeId: string,
@@ -328,22 +340,30 @@ export async function closeTrade({ tradeId, symbol, exitPrice: currentPrice, rea
     return { closed: false, dryRun: true, exitReason: reason };
   }
 
-  // Protection checks before any broker call: never sell a position protected
-  // by someone else's stop, and remove the bot's own stop first so its
-  // reserved quantity is released.
-  let tradeBeforeClose = null;
+  let trade = null;
   try {
-    tradeBeforeClose = await getOpenTradeById(tradeId);
+    trade = await getOpenTradeById(tradeId);
   } catch (err) {
     logger.warn("closeTrade: could not read trade before close", { tradeId, error: err.message });
   }
-  const protection = tradeBeforeClose?.protection;
+  const protection = trade?.protection;
+
+  if (trade?.status === "closing") {
+    return { closed: false, pending: true, error: "exit_in_progress", orderId: trade.exitOrderId ?? null, exitReason: reason };
+  }
 
   if (protection?.owner === "external" && PROTECTED_STATUSES.has(protection.status)) {
     logger.warn("Close skipped — position protected by an external stop order", { symbol: normalizedSym, reason });
     return { closed: false, error: "externally_protected", exitReason: reason };
   }
 
+  const isCrypto = (trade?.assetClass ?? "") === "crypto" || String(trade?.symbol ?? symbol).includes("/");
+  if (!isCrypto && !isEligibleNow("stock")) {
+    logger.warn("Close deferred — stock market closed", { symbol: normalizedSym, reason });
+    return { closed: false, error: "market_closed", exitReason: reason };
+  }
+
+  let canceledOwnStop = false;
   if (protection?.owner === "bot" && protection.orderId && PROTECTED_STATUSES.has(protection.status)) {
     try {
       const cancel = await cancelBotStop({ orderId: protection.orderId });
@@ -351,6 +371,7 @@ export async function closeTrade({ tradeId, symbol, exitPrice: currentPrice, rea
         logger.error("Close skipped — protective stop cancel not confirmed", { symbol: normalizedSym, reason: cancel.reason });
         return { closed: false, error: "protective_stop_cancel_unconfirmed", exitReason: reason };
       }
+      canceledOwnStop = true;
     } catch (err) {
       logger.error("Close skipped — protective stop cancel failed", { symbol: normalizedSym, error: err.message });
       return { closed: false, error: err.message, exitReason: reason };
@@ -359,37 +380,66 @@ export async function closeTrade({ tradeId, symbol, exitPrice: currentPrice, rea
 
   logger.info("Closing position", { symbol: normalizedSym, reason, currentPrice });
 
-  let fillPrice = currentPrice;
-  let orderId = null;
-  let orderStatus = null;
-
+  let response;
   try {
-    const response = await closePosition(normalizedSym);
-    fillPrice = response.filled_avg_price ? parseFloat(response.filled_avg_price) : currentPrice;
-    orderId = response.id ?? null;
-    orderStatus = response.status ?? null;
-    logger.info("Position closed at broker", { symbol: normalizedSym, fillPrice, orderId });
+    response = await closePosition(normalizedSym);
   } catch (err) {
     logger.error("Close position failed at broker", { symbol: normalizedSym, reason, error: err.message });
-    return { closed: false, error: err.message, exitReason: reason };
+    const restored = canceledOwnStop ? await restoreAfterFailedExit(trade, normalizedSym) : null;
+    const exitAttempts = await recordExitFailure(trade, err.message, restored);
+    return {
+      closed: false,
+      error: err.message,
+      exitReason: reason,
+      exitAttempts,
+      stopRestored: restored?.action === "placed",
+    };
   }
+
+  const orderId = response?.id ?? null;
+  const orderStatus = response?.status ?? null;
+  const filledAvg = parseFloat(response?.filled_avg_price);
+  const isFilled = orderStatus === "filled" && Number.isFinite(filledAvg) && filledAvg > 0;
+
+  if (!isFilled) {
+    // Accepted but not filled yet: never archive on an assumed price.
+    if (trade) {
+      try {
+        await addOpenTrade({
+          ...trade,
+          status: "closing",
+          exitOrderId: orderId,
+          closingAt: new Date().toISOString(),
+          closingReason: reason,
+          ...(canceledOwnStop ? { protection: { ...protection, status: "missing", lastOrderStatus: "canceled_for_exit" } } : {}),
+        });
+      } catch (err) {
+        logger.error("Failed to mark trade closing", { tradeId, error: err.message });
+      }
+    }
+    logger.warn("Exit order accepted but not filled — trade marked closing", { symbol: normalizedSym, orderId, orderStatus });
+    return { closed: false, pending: true, orderId, orderStatus, exitReason: reason };
+  }
+
+  const fillPrice = filledAvg;
+  logger.info("Position closed at broker", { symbol: normalizedSym, fillPrice, orderId });
 
   // Archive in journal — read normalises legacy aliases, write enforces
   // canonical only.
   try {
-    const trade = await getOpenTradeById(tradeId);
-    if (!trade) {
+    const archived = trade ?? (await getOpenTradeById(tradeId));
+    if (!archived) {
       logger.warn("closeTrade: trade not found in journal, skipping archive", { tradeId, symbol });
       return { closed: true, exitPrice: fillPrice, orderId, orderStatus, exitReason: reason };
     }
 
-    const quantity = trade.quantity ?? 0;
-    const entry = trade.entryPrice ?? 0;
+    const quantity = archived.quantity ?? 0;
+    const entry = archived.entryPrice ?? 0;
     const pnl = entry && quantity ? (fillPrice - entry) * quantity : null;
     const pnlPct = entry && pnl != null ? ((fillPrice - entry) / entry) * 100 : null;
 
     const closedTrade = normalizeTradeForWrite({
-      ...trade,
+      ...archived,
       status: "closed",
       exitPrice: fillPrice,
       pnl: pnl != null ? Number(pnl.toFixed(2)) : null,
@@ -402,6 +452,12 @@ export async function closeTrade({ tradeId, symbol, exitPrice: currentPrice, rea
     await addClosedTrade(closedTrade);
 
     logger.info("Trade archived as closed", { tradeId, symbol, exitReason: reason, pnl: closedTrade.pnl });
+
+    try {
+      await recordTradeOutcome(closedTrade);
+    } catch (err) {
+      logger.error("Failed to record trade outcome (daily loss / cooldown)", { tradeId, error: err.message });
+    }
   } catch (journalErr) {
     logger.error("Failed to archive closed trade in journal (broker close already submitted)", {
       tradeId,
@@ -417,6 +473,46 @@ export async function closeTrade({ tradeId, symbol, exitPrice: currentPrice, rea
     orderStatus,
     exitReason: reason,
   };
+}
+
+async function restoreAfterFailedExit(trade, normalizedSym) {
+  if (!trade) return null;
+  const bufferPct = (config.risk?.cryptoStopLimitBufferPct ?? 2) / 100;
+  const restored = await restoreProtectiveStop({ trade, symbol: normalizedSym, bufferPct });
+  if (restored.action !== "placed") {
+    logger.error("Protective stop NOT restored after failed exit — position may be unprotected", {
+      symbol: normalizedSym,
+      tradeId: trade.tradeId,
+      action: restored.action,
+      error: restored.error ?? null,
+    });
+  }
+  return restored;
+}
+
+async function recordExitFailure(trade, message, restored) {
+  if (!trade) return null;
+  const exitAttempts = Number(trade.exitAttempts ?? 0) + 1;
+  const next = { ...trade, exitAttempts, lastExitError: message };
+  if (restored?.protection) {
+    next.protection = restored.protection;
+  } else if (restored) {
+    next.protection = { ...(trade.protection ?? {}), status: "missing", lastOrderStatus: "canceled_for_exit" };
+  }
+  try {
+    await addOpenTrade(next);
+  } catch (err) {
+    logger.error("Failed to record exit failure", { tradeId: trade.tradeId, error: err.message });
+  }
+  if (exitAttempts >= EXIT_FAILURE_ALERT_THRESHOLD) {
+    logger.error("Exit failing repeatedly — manual attention needed", {
+      symbol: trade.symbol,
+      tradeId: trade.tradeId,
+      exitAttempts,
+      lastExitError: message,
+    });
+  }
+  return exitAttempts;
 }
 
 export default {

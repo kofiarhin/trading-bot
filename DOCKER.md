@@ -22,8 +22,11 @@ stop any other worker (e.g. Heroku) before enabling this one.
 
 The worker aligns its cycles to closed 15-minute candles. Do not add a second cron scheduler.
 
-**Important:** Docker does not create broker-side stop-loss orders. Stops and targets are enforced
-only while the worker runs. Verify exit protection before leaving the worker unattended.
+**Protection:** the bot places a bot-owned GTC stop at Alpaca for each new trade once it fills
+(crypto stop-limit, stocks stop). Take-profit, trailing and time exits run only while the worker
+runs. New entries are blocked while any position lacks an active stop or a portfolio limit is hit.
+Check `GET /api/safety` for unfilled stops, failing exits and other alerts before leaving the
+worker unattended. Stops you place yourself are never cancelled or exited by the bot.
 
 The UI is published on `127.0.0.1` only and has no authentication. Do not expose it publicly without
 authenticated HTTPS. Production deployment and any trading activation require separate approval.

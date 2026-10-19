@@ -7,6 +7,7 @@
 //     Everything else (e.g. a manually placed stop) is external.
 //   - New entries are blocked while any position lacks active protection.
 import { normalizeSymbol } from '../utils/symbolNorm.js';
+import { isActiveTradeStatus } from './tradeStatus.js';
 
 export const BOT_ORDER_PREFIX = 'tb-';
 export const BOT_STOP_PREFIX = 'tb-stop-';
@@ -119,8 +120,14 @@ export function describeProtection({ trade = null, brokerPosition = null, orders
     if (positionQty > 0 && coveredQty < positionQty * QTY_TOLERANCE) status = 'partial';
     if (stopPrice && currentPrice > 0 && currentPrice <= stopPrice) status = 'unfilled';
 
+    const previous = trade?.protection;
+    const unfilledSince = status === 'unfilled'
+      ? (previous?.status === 'unfilled' && previous.unfilledSince ? previous.unfilledSince : checkedAt)
+      : null;
+
     return {
       status,
+      unfilledSince,
       owner: isBotOwned(primary) ? 'bot' : 'external',
       orderId: primary.id ?? null,
       clientOrderId: primary.client_order_id ?? null,
@@ -165,7 +172,7 @@ export function evaluateProtectionGate({ openTrades = [], brokerPositions = [], 
     return { allowed: false, reasons };
   }
 
-  const activeTrades = (openTrades ?? []).filter((t) => ['open', 'pending'].includes(t.status));
+  const activeTrades = (openTrades ?? []).filter((t) => isActiveTradeStatus(t.status));
 
   for (const position of brokerPositions ?? []) {
     if (Math.abs(toNumber(position.qty, 0)) <= 0) continue;

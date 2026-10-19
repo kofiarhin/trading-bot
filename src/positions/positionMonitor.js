@@ -52,6 +52,6 @@ export async function getPositionMap() {
  * @param {Array} [openTrades] Optional pre-fetched trades
  * @returns {Promise<Array<{ tradeId, symbol, shouldExit, reason, currentPrice, updatedTrade }>>}
  */
-export async function checkOpenTradesForExit(openTrades) {
-  return evaluateExits(openTrades);
+export async function checkOpenTradesForExit(openTrades, options) {
+  return evaluateExits(openTrades, options);
 }

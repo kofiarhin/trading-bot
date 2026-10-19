@@ -12,8 +12,9 @@
 
 import { config as runtimeConfig } from '../config/env.js';
 import { normalizeSymbol } from '../utils/symbolNorm.js';
+import { openRiskForTrade } from './openRisk.js';
+import { isActiveTradeStatus } from '../journal/tradeStatus.js';
 
-const PROTECTED_STATUSES = new Set(['active', 'partial', 'unfilled']);
 
 function toNumber(value, fallback = 0) {
   const n = Number(value);
@@ -28,23 +29,7 @@ function symbolKey(symbol) {
   return normalizeSymbol(String(symbol ?? ''));
 }
 
-/**
- * Open risk of one trade. With an active broker-side stop the risk is the
- * distance from the current price to the worst expected fill (limit price for
- * stop-limit orders); otherwise the journal riskAmount.
- */
-export function openRiskForTrade(trade, brokerPosition) {
-  const protection = trade?.protection;
-  if (protection && PROTECTED_STATUSES.has(protection.status) && brokerPosition) {
-    const worstFill = toNumber(protection.limitPrice, 0) || toNumber(protection.stopPrice, 0);
-    const currentPrice = toNumber(brokerPosition.current_price, 0);
-    const qty = Math.abs(toNumber(brokerPosition.qty, 0));
-    if (worstFill > 0 && currentPrice > 0 && qty > 0) {
-      return Math.max(0, (currentPrice - worstFill) * qty);
-    }
-  }
-  return toNumber(trade?.riskAmount, 0);
-}
+export { openRiskForTrade };
 
 /**
  * @typedef {object} Candidate
@@ -107,7 +92,7 @@ export function checkPortfolioRisk({
 
   // ── Existing open positions by asset class ───────────────────────────────────
   // Keyed by normalized symbol so "SOL/USD" and "SOLUSD" count once.
-  const activeTrades = (openTrades ?? []).filter((t) => ['pending', 'open'].includes(t.status));
+  const activeTrades = (openTrades ?? []).filter((t) => isActiveTradeStatus(t.status));
   const classBySymbol = new Map();
   for (const p of brokerPositions ?? []) {
     const cls = p.asset_class === 'crypto' ? 'crypto' : p.asset_class === 'us_equity' ? 'stock' : inferAssetClass(p.symbol);

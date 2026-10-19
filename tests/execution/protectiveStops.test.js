@@ -16,6 +16,8 @@ jest.unstable_mockModule('../../src/execution/alpacaOrders.js', () => ({
   getOrderByClientId,
   cancelOrderById,
   getOrderHistory: jest.fn(),
+  getOpenOrders: jest.fn(async () => []),
+  getPositionForSymbol: jest.fn(async () => null),
 }));
 jest.unstable_mockModule('../../src/utils/logger.js', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },

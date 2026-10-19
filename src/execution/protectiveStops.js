@@ -4,7 +4,13 @@
 // never cancels, replaces or modifies an order it does not own (see
 // protectionState.js for ownership and status rules).
 import { submitOrder } from './alpacaTrading.js';
-import { getOrder, getOrderByClientId, cancelOrderById } from './alpacaOrders.js';
+import {
+  getOrder,
+  getOrderByClientId,
+  cancelOrderById,
+  getOpenOrders,
+  getPositionForSymbol,
+} from './alpacaOrders.js';
 import { logger } from '../utils/logger.js';
 import {
   OPEN_ORDER_STATUSES,
@@ -166,3 +172,35 @@ export async function cancelBotStop({ orderId }) {
   const canceled = ['canceled', 'pending_cancel'].includes(confirmed?.status);
   return { canceled, reason: canceled ? undefined : `order_status_${confirmed?.status}` };
 }
+
+/**
+ * Re-places a bot-owned stop right after an exit failed following the
+ * cancellation of that stop. Reads live position and open orders first, so it
+ * never duplicates a stop and never acts on a position that is already gone.
+ *
+ * @param {{ trade: object, symbol: string, bufferPct?: number }} params
+ * @returns {Promise<{ action: string, protection?: object, error?: string }>}
+ */
+export async function restoreProtectiveStop({ trade, symbol, bufferPct = DEFAULT_STOP_LIMIT_BUFFER_PCT }) {
+  try {
+    const brokerPosition = await getPositionForSymbol(symbol);
+    if (!brokerPosition) return { action: 'skipped_no_position' };
+    const orders = await getOpenOrders();
+    return await ensureProtectiveStop({ trade, brokerPosition, orders, bufferPct });
+  } catch (err) {
+    logger.error('Protective stop restore failed', { symbol, tradeId: trade?.tradeId, error: err.message });
+    return {
+      action: 'failed',
+      error: err.message,
+      protection: {
+        status: 'failed',
+        owner: 'bot',
+        orderId: null,
+        clientOrderId: botStopClientOrderId(trade?.tradeId),
+        lastError: err.message,
+        checkedAt: nowIso(),
+      },
+    };
+  }
+}
+

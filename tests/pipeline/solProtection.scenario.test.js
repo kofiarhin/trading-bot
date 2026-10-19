@@ -32,6 +32,8 @@ jest.unstable_mockModule('../../src/execution/alpacaOrders.js', () => ({
   getOrderByClientId,
   cancelOrderById,
   getOrderHistory: jest.fn(),
+  getOpenOrders: jest.fn(async () => []),
+  getPositionForSymbol: jest.fn(async () => null),
 }));
 
 const KOFI_SOL_STOP = {
@@ -92,6 +94,7 @@ let orderManager;
 let protective;
 let portfolio;
 let enricher;
+let riskGate;
 
 beforeAll(async () => {
   await startMongoHarness('sol-protection-scenario');
@@ -102,6 +105,7 @@ beforeAll(async () => {
   protective = await import('../../src/execution/protectiveStops.js');
   portfolio = await import('../../src/risk/portfolioRisk.js');
   enricher = await import('../../src/journal/positionEnricher.js');
+  riskGate = await import('../../src/risk/riskGate.js');
 });
 
 afterAll(async () => {
@@ -268,6 +272,20 @@ describe('SOL protection scenario', () => {
     });
     expect(result.allowed).toHaveLength(0);
     expect(result.blocked[0].reason).toBe('total_risk_cap');
+  });
+
+  it('blocks new entries on the portfolio risk gate (exposure and open risk)', async () => {
+    await syncSol();
+    const result = riskGate.evaluateRiskGate({
+      account: { equity: '70407.97', last_equity: '69949.89' },
+      brokerPositions: [solPosition()],
+      openTrades: await journal.getOpenTrades(),
+      riskState: { dailyRealizedLoss: 0 },
+      limits: { maxDailyLossPct: 2, maxTotalRiskPct: 5, maxGrossExposurePct: 50 },
+    });
+    expect(result.allowed).toBe(false);
+    expect(result.reasons.map((r) => r.reason)).toEqual(['total_risk_limit', 'gross_exposure_limit']);
+    expectNoBrokerWrites();
   });
 
   it('alerts and blocks entries when the stop-limit is triggered but unfilled — no selling', async () => {

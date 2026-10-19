@@ -86,3 +86,25 @@ export async function getOrderHistory(symbol, limit = 100) {
 export async function cancelOrderById(orderId) {
   return tradingFetch(`/v2/orders/${encodeURIComponent(orderId)}`, { method: "DELETE" });
 }
+
+/**
+ * Fetches all open orders (nested bracket legs included).
+ * @returns {Promise<object[]>}
+ */
+export async function getOpenOrders() {
+  return tradingFetch("/v2/orders?status=open&limit=500&nested=true");
+}
+
+/**
+ * Fetches one open position, or null when none exists.
+ * @param {string} symbol  e.g. "SOLUSD" or "AAPL"
+ * @returns {Promise<object|null>}
+ */
+export async function getPositionForSymbol(symbol) {
+  try {
+    return await tradingFetch(`/v2/positions/${encodeURIComponent(symbol)}`);
+  } catch (err) {
+    if (err.status === 404) return null;
+    throw err;
+  }
+}

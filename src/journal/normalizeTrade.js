@@ -24,6 +24,20 @@ const CANONICAL_TRADE_FIELDS = [
   'session',
   'protection',
   'entryPriceSource',
+  // Lifecycle state that must survive cycles and restarts.
+  'barsHeld',
+  'maxHoldBars',
+  'breakevenTriggered',
+  'trailingStopPrice',
+  'brokerOrderId',
+  'brokerClientOrderId',
+  'side',
+  'pendingAt',
+  'exitOrderId',
+  'exitAttempts',
+  'lastExitError',
+  'closingAt',
+  'closingReason',
 ];
 
 const READ_ALIASES = {
@@ -52,6 +66,19 @@ const READ_ALIASES = {
   session: ['session'],
   protection: ['protection'],
   entryPriceSource: ['entryPriceSource'],
+  barsHeld: ['barsHeld'],
+  maxHoldBars: ['maxHoldBars'],
+  breakevenTriggered: ['breakevenTriggered'],
+  trailingStopPrice: ['trailingStopPrice'],
+  brokerOrderId: ['brokerOrderId'],
+  brokerClientOrderId: ['brokerClientOrderId'],
+  side: ['side'],
+  pendingAt: ['pendingAt'],
+  exitOrderId: ['exitOrderId'],
+  exitAttempts: ['exitAttempts'],
+  lastExitError: ['lastExitError'],
+  closingAt: ['closingAt'],
+  closingReason: ['closingReason'],
 };
 
 const TRADE_MARKERS = new Set([
@@ -188,6 +215,19 @@ export function normalizeTradeRecord(trade = {}) {
     session: pickFirst(trade, READ_ALIASES.session),
     protection: pickFirst(trade, READ_ALIASES.protection),
     entryPriceSource: pickFirst(trade, READ_ALIASES.entryPriceSource),
+    barsHeld: pickFirst(trade, READ_ALIASES.barsHeld),
+    maxHoldBars: pickFirst(trade, READ_ALIASES.maxHoldBars),
+    breakevenTriggered: pickFirst(trade, READ_ALIASES.breakevenTriggered),
+    trailingStopPrice: pickFirst(trade, READ_ALIASES.trailingStopPrice),
+    brokerOrderId: pickFirst(trade, READ_ALIASES.brokerOrderId),
+    brokerClientOrderId: pickFirst(trade, READ_ALIASES.brokerClientOrderId),
+    side: pickFirst(trade, READ_ALIASES.side),
+    pendingAt: pickFirst(trade, READ_ALIASES.pendingAt),
+    exitOrderId: pickFirst(trade, READ_ALIASES.exitOrderId),
+    exitAttempts: pickFirst(trade, READ_ALIASES.exitAttempts),
+    lastExitError: pickFirst(trade, READ_ALIASES.lastExitError),
+    closingAt: pickFirst(trade, READ_ALIASES.closingAt),
+    closingReason: pickFirst(trade, READ_ALIASES.closingReason),
   };
 
   return omitUndefined(canonicalTrade);

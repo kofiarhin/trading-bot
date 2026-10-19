@@ -5,6 +5,7 @@ import { normalizeTradeForRead, normalizeTradeForWrite } from './normalizeTrade.
 import { resolveSession } from '../utils/time.js';
 import { enrichPosition } from './positionEnricher.js';
 import { isValidPrice, resolveEntryPrice } from './entryPriceResolver.js';
+import { isActiveTradeStatus } from './tradeStatus.js';
 import {
   BOT_STOP_PREFIX,
   STOP_ORDER_TYPES,
@@ -12,6 +13,7 @@ import {
   flattenOrders,
 } from './protectionState.js';
 import { logger } from '../utils/logger.js';
+import { recordTradeOutcome } from '../risk/riskState.js';
 import {
   getOpenTrades as repoGetOpenTrades,
   getOpenTradeById as repoGetOpenTradeById,
@@ -63,7 +65,7 @@ function roundPrice(value) {
 }
 
 function normalizeStatus(status) {
-  return ['pending', 'open', 'closed', 'canceled'].includes(status) ? status : 'pending';
+  return ['pending', 'open', 'closing', 'closed', 'canceled'].includes(status) ? status : 'pending';
 }
 
 function calculatePnl(trade) {
@@ -235,7 +237,7 @@ export async function createPendingTrade({ decision, order = {}, source = 'autop
   const existingTrade = openTrades.find((trade) => {
     if (decision?.id && trade.decisionId === decision.id) return true;
     if (order?.id && trade.brokerOrderId === order.id) return true;
-    return trade.symbol === decision?.symbol && ['pending', 'open'].includes(trade.status);
+    return sameSymbol(tradeSymbol(trade), decision?.symbol) && isActiveTradeStatus(trade.status);
   });
 
   const nextTrade = buildCanonicalTradeRecord({
@@ -397,6 +399,18 @@ export async function markTradeClosed({ tradeId, symbol, reason = 'broker_sync',
     pnl: canonicalClosed.pnl,
   });
 
+  // A pending entry that never filled is not a trade outcome.
+  if (!String(reason).startsWith('order_')) {
+    try {
+      await recordTradeOutcome(canonicalClosed);
+    } catch (err) {
+      logger.error('Failed to record trade outcome (daily loss / cooldown)', {
+        tradeId: canonicalClosed.tradeId,
+        error: err.message,
+      });
+    }
+  }
+
   return canonicalClosed;
 }
 
@@ -414,6 +428,54 @@ async function resolveEntryForPosition(brokerPosition, brokerOrders, fillHistory
     });
   }
   return entry;
+}
+
+const DEAD_ORDER_STATUSES = new Set(['canceled', 'expired', 'rejected']);
+
+/**
+ * Settles a trade whose exit order was accepted but not yet filled.
+ * Closed only on a confirmed fill (or the position being gone); reverted to
+ * open if the exit order died while the position still exists.
+ */
+async function reconcileClosingTrade(trade, brokerPosition, brokerOrders) {
+  const exitOrder = trade.exitOrderId
+    ? flattenOrders(brokerOrders).find((o) => o.id === trade.exitOrderId) ?? null
+    : null;
+  const exitStatus = exitOrder?.status ?? null;
+  const reason = trade.closingReason ?? 'exit_filled';
+
+  if (exitStatus === 'filled' || (!brokerPosition && !DEAD_ORDER_STATUSES.has(exitStatus))) {
+    await markTradeClosed({ tradeId: trade.tradeId, brokerOrder: exitOrder ?? {}, reason });
+    return;
+  }
+
+  // Open orders are always part of brokerOrders, so a missing exit order with
+  // the position still there means the order is no longer working.
+  const exitOrderDead = DEAD_ORDER_STATUSES.has(exitStatus) || (!exitOrder && Boolean(brokerPosition));
+
+  if (exitOrderDead) {
+    if (!brokerPosition) {
+      await markTradeClosed({ tradeId: trade.tradeId, brokerOrder: {}, reason });
+      return;
+    }
+    const reverted = {
+      ...trade,
+      status: 'open',
+      exitOrderId: null,
+      closingAt: null,
+      closingReason: null,
+      exitAttempts: toNumber(trade.exitAttempts, 0) + 1,
+      lastExitError: `exit_order_${exitStatus ?? 'not_found'}`,
+    };
+    await upsertOpenTrade(reverted);
+    await persistTradeEvent('exit_order_failed', reverted, { exitOrderId: trade.exitOrderId, exitStatus });
+    logger.error('Exit order did not fill; trade reverted to open', {
+      symbol: trade.symbol,
+      tradeId: trade.tradeId,
+      exitStatus,
+    });
+  }
+  // Otherwise the exit order is still working — leave the trade closing.
 }
 
 const CRITICAL_PROTECTION_STATUSES = new Set(['unfilled', 'missing', 'partial', 'failed']);
@@ -481,6 +543,11 @@ export async function syncTradesWithBroker({ brokerPositions = [], brokerOrders 
     const brokerPosition = findPosition(trade);
     const brokerOrder = findMatchingOrder(trade, brokerOrders);
 
+    if (trade.status === 'closing') {
+      await reconcileClosingTrade(trade, brokerPosition, brokerOrders);
+      continue;
+    }
+
     if (brokerPosition) {
       if (trade.status !== 'open') {
         await markTradeOpen({ tradeId: trade.tradeId, brokerPosition, source: 'broker_sync' });
@@ -535,7 +602,7 @@ export async function syncTradesWithBroker({ brokerPositions = [], brokerOrders 
   }
 
   for (const trade of await getOpenTrades()) {
-    if (trade.status !== 'open') continue;
+    if (!['open', 'closing'].includes(trade.status)) continue;
     const brokerPosition = findPosition(trade);
     if (!brokerPosition) continue;
     await refreshPositionState(trade, brokerPosition, brokerOrders, fillHistoryForSymbol);
