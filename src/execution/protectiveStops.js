@@ -105,10 +105,24 @@ export async function ensureProtectiveStop({
       return { action: 'placed', protection: protectionFromOrder(response, orderPayload) };
     } catch (err) {
       lastError = err;
-      // A reused client_order_id means a previous attempt already landed.
-      const existingOrder = await getOrderByClientId(orderPayload.clientOrderId).catch(() => null);
+      // A failed submission can still have reached Alpaca. Do not retry if
+      // the broker cannot confirm whether this client ID already exists.
+      let existingOrder;
+      try {
+        existingOrder = await getOrderByClientId(orderPayload.clientOrderId);
+      } catch (lookupError) {
+        logger.error('Protective stop status unknown — manual attention required', {
+          symbol: orderPayload.symbol, tradeId: trade.tradeId, error: lookupError.message,
+        });
+        lastError = new Error('stop submission uncertain: broker lookup failed');
+        break;
+      }
       if (existingOrder && OPEN_ORDER_STATUSES.has(existingOrder.status)) {
         return { action: 'placed', protection: protectionFromOrder(existingOrder, orderPayload) };
+      }
+      if (existingOrder) {
+        lastError = new Error(`stop submission not active: ${existingOrder.status ?? 'unknown'}`);
+        break;
       }
       logger.error('Protective stop placement failed', {
         symbol: orderPayload.symbol,
