@@ -273,6 +273,25 @@ describe('ensureProtectiveStop', () => {
     expect(result.protection).toMatchObject({ status: 'failed', owner: 'bot', clientOrderId: 'tb-stop-trade-1' });
   });
 
+  it('does not retry a stop when the broker lookup fails', async () => {
+    submitOrder.mockRejectedValue(new Error('connection timeout'));
+    getOrderByClientId.mockRejectedValue(new Error('broker unavailable'));
+    const result = await ensureProtectiveStop({ trade: botTrade(), brokerPosition: ethPosition(), orders: [] });
+    expect(result.action).toBe('failed');
+    expect(result.protection.status).toBe('failed');
+    expect(result.error).toMatch(/submission uncertain/);
+    expect(submitOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retry a rejected or canceled broker stop using the same ID', async () => {
+    submitOrder.mockRejectedValue(new Error('duplicate client ID'));
+    getOrderByClientId.mockResolvedValue({ id: 'stop-old', status: 'canceled' });
+    const result = await ensureProtectiveStop({ trade: botTrade(), brokerPosition: ethPosition(), orders: [] });
+    expect(result.action).toBe('failed');
+    expect(result.error).toMatch(/not active/);
+    expect(submitOrder).toHaveBeenCalledTimes(1);
+  });
+
   it('treats a reused client id that already landed as placed (no second submit)', async () => {
     submitOrder.mockRejectedValueOnce(new Error('Alpaca API 422: client_order_id must be unique'));
     getOrderByClientId.mockResolvedValue({ id: 'stop-9', client_order_id: 'tb-stop-trade-1', status: 'new', stop_price: '2900', limit_price: '2842', qty: '1.5' });
