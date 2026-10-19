@@ -167,10 +167,13 @@ export async function cancelBotStop({ orderId }) {
     return { canceled: order?.status === 'canceled', reason: `order_status_${order?.status}` };
   }
 
+  // Alpaca can return pending_cancel while the order still reserves shares.
+  // Only a terminal canceled state permits a replacement sell.
+  if (order.status === 'canceled') return { canceled: true };
   await cancelOrderById(orderId);
   const confirmed = await getOrder(orderId);
-  const canceled = ['canceled', 'pending_cancel'].includes(confirmed?.status);
-  return { canceled, reason: canceled ? undefined : `order_status_${confirmed?.status}` };
+  const canceled = confirmed?.status === 'canceled';
+  return { canceled, reason: canceled ? undefined : `order_status_${confirmed?.status ?? 'unknown'}` };
 }
 
 /**
