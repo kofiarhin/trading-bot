@@ -54,6 +54,7 @@ async function setupAutopilot({ accountError = null } = {}) {
   jest.unstable_mockModule('../../src/journal/tradeJournal.js', () => ({
     getOpenTrades: jest.fn(async () => []),
     syncTradesWithBroker: jest.fn(async () => null),
+    addOpenTrade: jest.fn(async () => null),
   }));
 
   jest.unstable_mockModule('../../src/repositories/decisionRepo.mongo.js', () => ({

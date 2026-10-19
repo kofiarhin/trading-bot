@@ -31,7 +31,8 @@ export async function runRiskGuards({
   }
 
   // 2. Position sizing
-  const sizeCheck = validatePositionSize({ riskPerUnit, riskAmount, quantity });
+  const assetClass = decision.assetClass ?? (String(symbol ?? '').includes('/') ? 'crypto' : 'stock');
+  const sizeCheck = validatePositionSize({ riskPerUnit, riskAmount, quantity, assetClass });
   if (!sizeCheck.valid) return { pass: false, reason: sizeCheck.reason };
 
   // 3. Daily loss lockout

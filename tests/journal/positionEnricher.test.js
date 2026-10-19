@@ -182,3 +182,33 @@ describe("entry price fallback from broker position", () => {
     expect(result.stopLoss).toBe(48.5);
   });
 });
+
+describe("enrichPosition — broker-side protection", () => {
+  const solTrade = {
+    tradeId: "sol",
+    symbol: "SOLUSD",
+    strategyName: "broker_sync",
+    entryPrice: 76.14,
+    quantity: 655.337420408,
+    protection: { status: "active", owner: "external", stopPrice: 99, limitPrice: 97 },
+  };
+
+  it("uses the broker stop for an adopted position", () => {
+    const result = enrichPosition(solTrade, { avg_entry_price: "-2.38", current_price: "105" });
+    expect(result).toMatchObject({
+      origin: "broker_sync",
+      managementStatus: "broker_protected",
+      riskSource: "broker",
+      stopLoss: 99,
+      takeProfit: null,
+      exitCoverage: "partial",
+      riskPerUnit: 0, // stop is above entry: profit is locked in
+      riskAmount: 0,
+    });
+  });
+
+  it("falls back to existing behaviour when protection is missing", () => {
+    const result = enrichPosition({ ...solTrade, protection: { status: "missing" } }, null);
+    expect(result.managementStatus).not.toBe("broker_protected");
+  });
+});

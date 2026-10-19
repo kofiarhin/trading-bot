@@ -94,6 +94,16 @@ function canonicalFromEnv() {
     MIN_SETUP_SCORE_NEW_YORK: parseNonNegativeNumber(process.env.MIN_SETUP_SCORE_NEW_YORK, 0),
 
     MAX_TOTAL_RISK_PCT: parsePositiveNumber(process.env.MAX_TOTAL_RISK_PCT, 5),
+    // Percent units: 10 = each position may be at most 10% of equity.
+    MAX_POSITION_NOTIONAL_PCT: parsePositiveNumber(process.env.MAX_POSITION_NOTIONAL_PCT, 10),
+    // Percent units: crypto stop-limit limit price = stop × (1 − buffer/100).
+    CRYPTO_STOP_LIMIT_BUFFER_PCT: parsePositiveNumber(process.env.CRYPTO_STOP_LIMIT_BUFFER_PCT, 2),
+    // Bot-owned stop-limit triggered but unfilled: "alert" (default, never sells)
+    // or "market_bot_only" (cancel the bot's own stop, exit at market).
+    // External stops are always alert-only.
+    STOP_LIMIT_FALLBACK: process.env.STOP_LIMIT_FALLBACK === 'market_bot_only' ? 'market_bot_only' : 'alert',
+    // Percent units: block new entries when total position value reaches this share of equity.
+    MAX_GROSS_EXPOSURE_PCT: parsePositiveNumber(process.env.MAX_GROSS_EXPOSURE_PCT, 50),
     MAX_CORRELATED_POSITIONS: parsePositiveInt(process.env.MAX_CORRELATED_POSITIONS, 3),
     DRAWDOWN_THROTTLE_PCT: parsePositiveNumber(process.env.DRAWDOWN_THROTTLE_PCT, 1),
     MAX_HOLD_BARS: parsePositiveInt(process.env.MAX_HOLD_BARS, 48),
@@ -186,6 +196,10 @@ function loadEnv() {
       maxOpenPositions: canonical.MAX_OPEN_POSITIONS,
       maxDailyLossPercent: canonical.MAX_DAILY_LOSS_PERCENT,
       maxTotalRiskPct: canonical.MAX_TOTAL_RISK_PCT,
+      maxPositionNotionalPct: canonical.MAX_POSITION_NOTIONAL_PCT,
+      cryptoStopLimitBufferPct: canonical.CRYPTO_STOP_LIMIT_BUFFER_PCT,
+      stopLimitFallback: canonical.STOP_LIMIT_FALLBACK,
+      maxGrossExposurePct: canonical.MAX_GROSS_EXPOSURE_PCT,
       maxCorrelatedPositions: canonical.MAX_CORRELATED_POSITIONS,
       drawdownThrottlePct: canonical.DRAWDOWN_THROTTLE_PCT,
       maxHoldBars: canonical.MAX_HOLD_BARS,

@@ -5,7 +5,7 @@
  *
  * Every merged position record gets:
  *   origin           — "strategy" | "broker_sync"
- *   managementStatus — "managed" | "derived" | "unmanaged"
+ *   managementStatus — "managed" | "broker_protected" | "derived" | "unmanaged"
  *   riskSource       — "journal" | "derived" | "none"
  *   exitCoverage     — "full" | "partial" | "none"
  *   stopLoss         — number | null
@@ -18,6 +18,7 @@
  *
  * managementStatus semantics:
  *   managed   — stop AND target present, sourced from journal
+ *   broker_protected — an open broker-side stop order protects the position
  *   derived   — stop/target computed by this module (ATR or fixed %)
  *   unmanaged — no stop, no target, no derivation possible
  */
@@ -114,6 +115,10 @@ export function enrichPosition(journalTrade, brokerPosition = null) {
     };
   }
 
+  // ── Broker-sync with a live broker-side stop: the broker order is the stop ─
+  const brokerProtected = _brokerProtectedResult(origin, journalTrade, brokerPosition);
+  if (brokerProtected) return brokerProtected;
+
   // ── Broker-sync: attempt to populate risk state ───────────────────────────
   const { enableDerivedRisk, stopPct, targetRMultiple, trailingAtrMultiplier } = getBrokerSyncConfig();
 
@@ -205,6 +210,33 @@ export function enrichPosition(journalTrade, brokerPosition = null) {
   // 4. Truly unmanaged
   _emitUnmanaged(journalTrade, 'no_entry_price_or_atr');
   return _unmanagedResult(origin);
+}
+
+const BROKER_PROTECTED_STATUSES = new Set(['active', 'partial', 'unfilled']);
+
+function _brokerProtectedResult(origin, journalTrade, brokerPosition) {
+  const protection = journalTrade?.protection;
+  if (!protection || !BROKER_PROTECTED_STATUSES.has(protection.status)) return null;
+  const stopLoss = toNumber(protection.stopPrice, 0);
+  if (stopLoss <= 0) return null;
+
+  const entry = toNumber(journalTrade.entryPrice, 0);
+  // Worst expected fill is the limit price for stop-limit orders.
+  const worstFill = toNumber(protection.limitPrice, 0) || stopLoss;
+  const riskPerUnit = entry > 0 && entry > worstFill ? round2(entry - worstFill) : 0;
+  const quantity = Math.abs(toNumber(journalTrade.quantity ?? brokerPosition?.qty, 0));
+  const takeProfit = toNumber(journalTrade.takeProfit, 0) || null;
+
+  return {
+    origin,
+    managementStatus: 'broker_protected',
+    riskSource: 'broker',
+    exitCoverage: takeProfit ? 'full' : 'partial',
+    stopLoss,
+    takeProfit,
+    riskPerUnit,
+    riskAmount: round2(riskPerUnit * quantity),
+  };
 }
 
 function _unmanagedResult(origin) {

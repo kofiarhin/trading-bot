@@ -112,7 +112,14 @@ describe("evaluateBreakout — approved path", () => {
 
   it("riskAmount equals total planned dollar risk (accountEquity × riskPercent), not per-share risk", () => {
     const bars = makeBars({ count: 30, breakout: true });
-    const result = evaluateBreakout({ ...BASE_PARAMS, bars, accountEquity: 10_000, riskPercent: 0.005 });
+    // Position-value cap lifted so this checks the uncapped risk semantics.
+    const result = evaluateBreakout({
+      ...BASE_PARAMS,
+      bars,
+      accountEquity: 10_000,
+      riskPercent: 0.005,
+      options: { maxPositionNotionalPct: 100 },
+    });
     expect(result.approved).toBe(true);
     // Total planned risk should be close to 10_000 * 0.005 = 50
     expect(result.riskAmount).toBeCloseTo(50, 0);
@@ -251,5 +258,67 @@ describe("evaluateBreakout — crypto asset class", () => {
     // Crypto quantity is a positive number (may be fractional or whole depending on
     // the ATR-based position size).
     expect(typeof result.quantity).toBe("number");
+  });
+});
+
+// ─── Position-value cap ───────────────────────────────────────────────────────
+
+describe("evaluateBreakout — position-value cap", () => {
+  it("caps a position at 10% of equity by default and reports the actual risk taken", () => {
+    const bars = makeBars({ count: 30, breakout: true });
+    const result = evaluateBreakout({ ...BASE_PARAMS, bars, accountEquity: 10_000, riskPercent: 0.005 });
+
+    expect(result.approved).toBe(true);
+    expect(result.positionCapped).toBe(true);
+    expect(result.quantity * result.entryPrice).toBeLessThanOrEqual(1_000 + 1e-6);
+    expect(result.positionNotional).toBeLessThanOrEqual(1_000);
+    expect(result.plannedRiskAmount).toBeCloseTo(50, 0);
+    const riskPerShare = result.entryPrice - result.stopLoss;
+    expect(result.riskAmount).toBeCloseTo(result.quantity * riskPerShare, 2);
+    expect(result.riskAmount).toBeLessThan(result.plannedRiskAmount);
+  });
+
+  it("never exceeds available buying power", () => {
+    const bars = makeBars({ count: 30, breakout: true });
+    const result = evaluateBreakout({ ...BASE_PARAMS, bars, accountEquity: 100_000, buyingPower: 450 });
+
+    expect(result.approved).toBe(true);
+    expect(result.quantity * result.entryPrice).toBeLessThanOrEqual(450);
+  });
+
+  it("rejects a stock trade when the cap leaves less than one share", () => {
+    const bars = makeBars({ count: 30, breakout: true });
+    const result = evaluateBreakout({ ...BASE_PARAMS, bars, accountEquity: 10_000, buyingPower: 50 });
+
+    expect(result.approved).toBe(false);
+    expect(result.reason).toBe("invalid_position_size");
+  });
+
+  it("does not cap when risk-based size is already within the limit", () => {
+    const bars = makeBars({ count: 30, breakout: true });
+    const result = evaluateBreakout({
+      ...BASE_PARAMS,
+      bars,
+      accountEquity: 10_000,
+      options: { maxPositionNotionalPct: 100 },
+    });
+
+    expect(result.positionCapped).toBe(false);
+    expect(result.riskAmount).toBe(result.plannedRiskAmount);
+  });
+
+  it("sizes crypto fractionally under the cap", () => {
+    const bars = makeBars({ count: 30, breakout: true, baseClose: 90_000 });
+    const result = evaluateBreakout({
+      symbol: "BTC/USD",
+      assetClass: "crypto",
+      accountEquity: 100_000,
+      riskPercent: 0.005,
+      bars,
+    });
+
+    expect(result.approved).toBe(true);
+    expect(result.quantity).toBeLessThan(1);
+    expect(result.quantity * result.entryPrice).toBeLessThanOrEqual(10_000 + 1e-6);
   });
 });

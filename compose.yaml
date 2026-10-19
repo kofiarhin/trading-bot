@@ -1,0 +1,64 @@
+# Paper-only Docker stack. Deployment to Beast requires separate approval.
+# MongoDB: uses the existing database from the env file (MONGO_URI / MONGO_URI_PROD).
+# Secrets: set TRADING_BOT_ENV_FILE to an env file outside the image (defaults to ./.env).
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-bot-env: &bot-env
+  NODE_ENV: production
+  RUN_MODE: paper
+  ALPACA_BASE_URL: https://paper-api.alpaca.markets
+
+services:
+  web:
+    build:
+      context: ./client
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    mem_limit: 128m
+    logging: *logging
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+    env_file:
+      - ${TRADING_BOT_ENV_FILE:-.env}
+    environment:
+      <<: *bot-env
+      PORT: "5000"
+      CLIENT_URL: http://localhost:8080
+      # The dashboard has no auth; never allow unauthenticated cycle triggers.
+      ALLOW_MANUAL_TRIGGER: "false"
+    init: true
+    mem_limit: 384m
+    logging: *logging
+    restart: unless-stopped
+
+  # Places paper orders. Only enabled with: docker compose --profile trading up -d
+  worker:
+    build:
+      context: .
+    command: ["node", "-r", "./src/config/loadEnv.cjs", "src/worker15m.js"]
+    profiles: ["trading"]
+    env_file:
+      - ${TRADING_BOT_ENV_FILE:-.env}
+    environment: *bot-env
+    healthcheck:
+      disable: true
+    init: true
+    mem_limit: 512m
+    logging: *logging
+    restart: unless-stopped

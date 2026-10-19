@@ -3,12 +3,18 @@
  * Runs after per-symbol guards to enforce aggregate exposure limits.
  *
  * Checks:
- *   1. Total open risk cap — sum of all open + candidate riskAmounts vs account equity
+ *   1. Total open risk cap — sum of all open + candidate risk vs account equity.
+ *      A position protected by a broker-side stop counts as
+ *      (current price − stop limit) × quantity; otherwise its journal riskAmount.
  *   2. Correlation buckets — max positions per asset class (stock | crypto)
  *   3. Drawdown throttle — reduce candidate slots when daily loss exceeds throttle threshold
  */
 
 import { config as runtimeConfig } from '../config/env.js';
+import { normalizeSymbol } from '../utils/symbolNorm.js';
+import { openRiskForTrade } from './openRisk.js';
+import { isActiveTradeStatus } from '../journal/tradeStatus.js';
+
 
 function toNumber(value, fallback = 0) {
   const n = Number(value);
@@ -18,6 +24,12 @@ function toNumber(value, fallback = 0) {
 function inferAssetClass(symbol) {
   return typeof symbol === 'string' && symbol.includes('/') ? 'crypto' : 'stock';
 }
+
+function symbolKey(symbol) {
+  return normalizeSymbol(String(symbol ?? ''));
+}
+
+export { openRiskForTrade };
 
 /**
  * @typedef {object} Candidate
@@ -79,24 +91,28 @@ export function checkPortfolioRisk({
   }
 
   // ── Existing open positions by asset class ───────────────────────────────────
-  const openSymbols = new Set([
-    ...(brokerPositions ?? []).map((p) => p.symbol),
-    ...(openTrades ?? [])
-      .filter((t) => ['pending', 'open'].includes(t.status))
-      .map((t) => t.symbol),
-  ]);
+  // Keyed by normalized symbol so "SOL/USD" and "SOLUSD" count once.
+  const activeTrades = (openTrades ?? []).filter((t) => isActiveTradeStatus(t.status));
+  const classBySymbol = new Map();
+  for (const p of brokerPositions ?? []) {
+    const cls = p.asset_class === 'crypto' ? 'crypto' : p.asset_class === 'us_equity' ? 'stock' : inferAssetClass(p.symbol);
+    classBySymbol.set(symbolKey(p.symbol), cls);
+  }
+  for (const t of activeTrades) {
+    const key = symbolKey(t.normalizedSymbol ?? t.symbol);
+    if (!classBySymbol.has(key)) classBySymbol.set(key, t.assetClass ?? inferAssetClass(t.symbol));
+  }
 
   // Count existing open positions per asset class
   const openCountByClass = { stock: 0, crypto: 0 };
-  for (const sym of openSymbols) {
-    const cls = inferAssetClass(sym);
+  for (const cls of classBySymbol.values()) {
     openCountByClass[cls] = (openCountByClass[cls] ?? 0) + 1;
   }
 
   // ── Total open risk already committed ────────────────────────────────────────
-  const existingRisk = (openTrades ?? [])
-    .filter((t) => ['pending', 'open'].includes(t.status))
-    .reduce((sum, t) => sum + toNumber(t.riskAmount, 0), 0);
+  const positionFor = (trade) =>
+    (brokerPositions ?? []).find((p) => symbolKey(p.symbol) === symbolKey(trade.normalizedSymbol ?? trade.symbol));
+  const existingRisk = activeTrades.reduce((sum, t) => sum + openRiskForTrade(t, positionFor(t)), 0);
 
   const maxTotalRisk = equity * maxTotalRiskPct;
 
