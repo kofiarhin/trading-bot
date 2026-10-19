@@ -316,6 +316,13 @@ describe('cancelBotStop', () => {
     expect(cancelOrderById).toHaveBeenCalledWith('stop-1');
   });
 
+  it('keeps the exit blocked while cancellation is pending', async () => {
+    const own = { ...KOFI_SOL_STOP, id: 'stop-1', client_order_id: 'tb-stop-trade-1' };
+    getOrder.mockResolvedValueOnce(own).mockResolvedValueOnce({ ...own, status: 'pending_cancel' });
+    cancelOrderById.mockResolvedValue(null);
+    expect(await cancelBotStop({ orderId: 'stop-1' })).toEqual({ canceled: false, reason: 'order_status_pending_cancel' });
+  });
+
   it('reports an unconfirmed cancel', async () => {
     const own = { ...KOFI_SOL_STOP, id: 'stop-1', client_order_id: 'tb-stop-trade-1' };
     getOrder.mockResolvedValueOnce(own).mockResolvedValueOnce({ ...own, status: 'new' });
