@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { resolveMongoUri } from '../config/env.js';
 
 let connectionPromise = null;
 
@@ -15,11 +16,11 @@ function parseDbNameFromUri(uri) {
 }
 
 function getMongoConfig() {
-  const uri = process.env.MONGO_URI?.trim();
+  const uri = resolveMongoUri();
   const dbName = process.env.MONGO_DB_NAME?.trim() || parseDbNameFromUri(uri);
 
   if (!uri) {
-    throw new Error('MONGO_URI environment variable is required');
+    throw new Error('MongoDB connection URI is required (MONGO_URI_PROD for production, MONGO_URI_DEV for development, or legacy MONGO_URI)');
   }
 
   if (!dbName) {

@@ -30,7 +30,6 @@ const REQUIRED = [
   "ALPACA_API_KEY",
   "ALPACA_API_SECRET",
   "ALPACA_BASE_URL",
-  "MONGO_URI",
 ];
 
 const PAPER_URL = "https://paper-api.alpaca.markets";
@@ -102,9 +101,19 @@ function canonicalFromEnv() {
   };
 }
 
+// A production deployment must never silently use the development database.
+export function resolveMongoUri(env = process.env) {
+  const preferred = env.NODE_ENV === "production" ? env.MONGO_URI_PROD : env.MONGO_URI_DEV;
+  return preferred?.trim() || env.MONGO_URI?.trim() || null;
+}
+
 function loadEnv() {
   const isTestEnv = process.env.NODE_ENV === "test";
   const missing = REQUIRED.filter((k) => !process.env[k]);
+  const mongoUri = resolveMongoUri();
+  if (!mongoUri && !isTestEnv) {
+    missing.push(process.env.NODE_ENV === "production" ? "MONGO_URI_PROD (or MONGO_URI)" : "MONGO_URI_DEV (or MONGO_URI)");
+  }
   if (!isTestEnv && missing.length) {
     throw new Error(
       `Missing required environment variables: ${missing.join(", ")}\n` +
@@ -130,7 +139,7 @@ function loadEnv() {
       dataURL: "https://data.alpaca.markets",
     },
     mongo: {
-      uri: process.env.MONGO_URI ?? null,
+      uri: mongoUri,
     },
     trading: {
       timeframe: process.env.DEFAULT_TIMEFRAME ?? "15Min",
