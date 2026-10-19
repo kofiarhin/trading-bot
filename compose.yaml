@@ -1,4 +1,18 @@
-# Paper-only local Docker stack. Deployment to Beast requires separate approval.
+# Paper-only Docker stack. Deployment to Beast requires separate approval.
+# MongoDB: uses the existing database from the env file (MONGO_URI / MONGO_URI_PROD).
+# Secrets: set TRADING_BOT_ENV_FILE to an env file outside the image (defaults to ./.env).
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-bot-env: &bot-env
+  NODE_ENV: production
+  RUN_MODE: paper
+  ALPACA_BASE_URL: https://paper-api.alpaca.markets
+
 services:
   web:
     build:
@@ -7,48 +21,42 @@ services:
       - "127.0.0.1:8080:80"
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    mem_limit: 128m
+    logging: *logging
     restart: unless-stopped
 
   api:
     build:
       context: .
     env_file:
-      - .env
+      - ${TRADING_BOT_ENV_FILE:-.env}
     environment:
-      NODE_ENV: production
+      <<: *bot-env
       PORT: "5000"
-      RUN_MODE: paper
-      ALPACA_BASE_URL: https://paper-api.alpaca.markets
-      MONGO_URI_PROD: mongodb://mongo:27017/trading-bot-paper
       CLIENT_URL: http://localhost:8080
-    depends_on:
-      mongo:
-        condition: service_started
+    init: true
+    mem_limit: 384m
+    logging: *logging
     restart: unless-stopped
 
+  # Places paper orders. Only enabled with: docker compose --profile trading up -d
   worker:
     build:
       context: .
-    command: ["npm", "run", "worker:15m"]
+    command: ["node", "-r", "./src/config/loadEnv.cjs", "src/worker15m.js"]
     profiles: ["trading"]
     env_file:
-      - .env
-    environment:
-      NODE_ENV: production
-      RUN_MODE: paper
-      ALPACA_BASE_URL: https://paper-api.alpaca.markets
-      MONGO_URI_PROD: mongodb://mongo:27017/trading-bot-paper
-    depends_on:
-      mongo:
-        condition: service_started
+      - ${TRADING_BOT_ENV_FILE:-.env}
+    environment: *bot-env
+    healthcheck:
+      disable: true
+    init: true
+    mem_limit: 512m
+    logging: *logging
     restart: unless-stopped
-
-  mongo:
-    image: mongo:7
-    volumes:
-      - trading_mongo:/data/db
-    restart: unless-stopped
-
-volumes:
-  trading_mongo:

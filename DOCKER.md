@@ -1,19 +1,34 @@
-# Docker — local paper-trading stack
+# Docker — paper-trading stack
 
-The web UI, API and MongoDB start without the trading worker.
+The web UI and API start without the trading worker.
 The worker is deliberately behind the `trading` profile to avoid submitting paper orders by accident.
 
-1. Copy `.env.example` to `.env` and enter **paper** Alpaca credentials. Never commit `.env`.
-2. Run `docker compose build`.
-3. Run `docker compose up -d`.
+## Database
+
+The stack uses the **existing MongoDB** from your env file (`MONGO_URI_PROD`, or legacy `MONGO_URI`).
+There is no local MongoDB container. Only one worker may run against a database at a time —
+stop any other worker (e.g. Heroku) before enabling this one.
+
+## Run
+
+1. Provide an env file with **paper** Alpaca credentials. Never commit it.
+   - Default: `./.env`
+   - Or point at an existing file: `export TRADING_BOT_ENV_FILE=/path/to/.env`
+2. `docker compose build`
+3. `docker compose up -d` (web + API only)
 4. Open http://localhost:8080 and check http://localhost:8080/api/health.
-5. Review the broker positions and journal before enabling any trading.
-6. Only after review, run `docker compose --profile trading up -d` to enable the 15-minute worker.
+5. Review broker positions and the journal before enabling any trading.
+6. Only after review: `docker compose --profile trading up -d` to enable the 15-minute worker.
 
-The worker already aligns its cycles to closed 15-minute candles. Do not add a second cron scheduler.
+The worker aligns its cycles to closed 15-minute candles. Do not add a second cron scheduler.
 
-**Important:** Docker does not create broker-side stop-loss orders. The current bot can have unmanaged Alpaca positions. Resolve those and verify exit protections before leaving the worker unattended.
+**Important:** Docker does not create broker-side stop-loss orders. Stops and targets are enforced
+only while the worker runs. Verify exit protection before leaving the worker unattended.
 
-The example publishes the web UI on localhost only and is **not** a Beast production deployment recipe. On Beast, reuse approved MongoDB/networking and configure authenticated HTTPS access before exposing the UI. Production deployment and any trading activation require separate approval.
+The UI is published on `127.0.0.1` only and has no authentication. Do not expose it publicly without
+authenticated HTTPS. Production deployment and any trading activation require separate approval.
 
-To stop the worker without stopping the UI: `docker compose stop worker`.
+## Stop
+
+- Worker only: `docker compose stop worker`
+- Everything: `docker compose down`
