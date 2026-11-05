@@ -3,6 +3,8 @@
  * Computes open risk, unrealized P&L, and breakdowns by asset class.
  */
 
+import { isActiveTradeStatus } from '../journal/tradeStatus.js';
+
 function toNumber(value, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
@@ -43,7 +45,7 @@ export function computeExposure({ openTrades, brokerPositions, accountEquity }) 
   // Collect risk amounts from open journal trades
   const activeSymbols = new Set();
   for (const trade of (openTrades ?? [])) {
-    if (!['pending', 'open'].includes(trade.status)) continue;
+    if (!isActiveTradeStatus(trade.status)) continue;
     activeSymbols.add(trade.symbol);
     const risk = toNumber(trade.riskAmount, 0);
     totalOpenRisk += risk;

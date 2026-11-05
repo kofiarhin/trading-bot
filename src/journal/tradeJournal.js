@@ -4,6 +4,16 @@ import { normalizeSymbol } from '../utils/symbolNorm.js';
 import { normalizeTradeForRead, normalizeTradeForWrite } from './normalizeTrade.js';
 import { resolveSession } from '../utils/time.js';
 import { enrichPosition } from './positionEnricher.js';
+import { isValidPrice, resolveEntryPrice } from './entryPriceResolver.js';
+import { isActiveTradeStatus } from './tradeStatus.js';
+import {
+  BOT_STOP_PREFIX,
+  STOP_ORDER_TYPES,
+  describeProtection,
+  flattenOrders,
+} from './protectionState.js';
+import { logger } from '../utils/logger.js';
+import { recordTradeOutcome } from '../risk/riskState.js';
 import {
   getOpenTrades as repoGetOpenTrades,
   getOpenTradeById as repoGetOpenTradeById,
@@ -24,12 +34,38 @@ function toNumber(value, fallback = 0) {
   return Number.isFinite(numericValue) ? numericValue : fallback;
 }
 
+function symbolKey(symbol) {
+  return symbol ? normalizeSymbol(String(symbol)) : '';
+}
+
+function sameSymbol(a, b) {
+  return Boolean(a) && Boolean(b) && symbolKey(a) === symbolKey(b);
+}
+
+function tradeSymbol(trade) {
+  return trade?.normalizedSymbol ?? trade?.symbol;
+}
+
+/** First argument that is a valid (finite, > 0) price, else null. */
+function firstValidPrice(...values) {
+  for (const value of values) {
+    if (isValidPrice(value)) return Number(value);
+  }
+  return null;
+}
+
+function assetClassFromBroker(brokerPosition = {}) {
+  if (brokerPosition.asset_class === 'crypto') return 'crypto';
+  if (brokerPosition.asset_class === 'us_equity') return 'stock';
+  return null;
+}
+
 function roundPrice(value) {
   return Number(toNumber(value, 0).toFixed(2));
 }
 
 function normalizeStatus(status) {
-  return ['pending', 'open', 'closed', 'canceled'].includes(status) ? status : 'pending';
+  return ['pending', 'open', 'closing', 'closed', 'canceled'].includes(status) ? status : 'pending';
 }
 
 function calculatePnl(trade) {
@@ -122,10 +158,9 @@ function buildCanonicalTradeRecord({ decision = {}, order = {}, trade = {}, sour
 }
 
 function inferCloseReason(trade, brokerOrders = []) {
-  const matchingOrders = brokerOrders.filter((order) => {
-    const orderSymbol = order.symbol ?? order.asset_symbol;
-    return orderSymbol === trade.symbol;
-  });
+  const matchingOrders = flattenOrders(brokerOrders).filter((order) =>
+    sameSymbol(order.symbol ?? order.asset_symbol, tradeSymbol(trade)),
+  );
 
   for (const order of matchingOrders) {
     const orderSide = order.side ?? '';
@@ -145,12 +180,42 @@ function inferCloseReason(trade, brokerOrders = []) {
   return 'broker_sync';
 }
 
+function isProtectiveOrder(order) {
+  return (
+    STOP_ORDER_TYPES.has(order.type ?? order.order_type) ||
+    String(order.client_order_id ?? '').startsWith(BOT_STOP_PREFIX)
+  );
+}
+
+/**
+ * Finds the entry order for a trade. Matches by broker id first; the symbol
+ * fallback only considers entry-side, non-stop orders so a protective stop is
+ * never mistaken for an entry.
+ */
 function findMatchingOrder(trade, brokerOrders = []) {
-  return brokerOrders.find((order) => {
-    if (trade.brokerOrderId && order.id === trade.brokerOrderId) return true;
-    if (trade.brokerClientOrderId && order.client_order_id === trade.brokerClientOrderId) return true;
-    return (order.symbol ?? order.asset_symbol) === trade.symbol;
-  });
+  const orders = flattenOrders(brokerOrders);
+  const byId = orders.find(
+    (order) =>
+      (trade.brokerOrderId && order.id === trade.brokerOrderId) ||
+      (trade.brokerClientOrderId && order.client_order_id === trade.brokerClientOrderId),
+  );
+  if (byId) return byId;
+
+  const entrySide = trade.side ?? 'buy';
+  return orders.find(
+    (order) =>
+      sameSymbol(order.symbol ?? order.asset_symbol, tradeSymbol(trade)) &&
+      (!order.side || order.side === entrySide) &&
+      !isProtectiveOrder(order),
+  );
+}
+
+/** The trade's tracked protective stop order, when it has filled. */
+function findFilledProtectiveOrder(trade, brokerOrders = []) {
+  const orderId = trade.protection?.orderId;
+  if (!orderId) return null;
+  const order = flattenOrders(brokerOrders).find((o) => o.id === orderId);
+  return order?.status === 'filled' ? order : null;
 }
 
 export async function getOpenTrades() {
@@ -172,7 +237,7 @@ export async function createPendingTrade({ decision, order = {}, source = 'autop
   const existingTrade = openTrades.find((trade) => {
     if (decision?.id && trade.decisionId === decision.id) return true;
     if (order?.id && trade.brokerOrderId === order.id) return true;
-    return trade.symbol === decision?.symbol && ['pending', 'open'].includes(trade.status);
+    return sameSymbol(tradeSymbol(trade), decision?.symbol) && isActiveTradeStatus(trade.status);
   });
 
   const nextTrade = buildCanonicalTradeRecord({
@@ -195,12 +260,20 @@ export async function createPendingTrade({ decision, order = {}, source = 'autop
   return nextTrade;
 }
 
-export async function markTradeOpen({ tradeId, symbol, order = {}, brokerPosition = {}, source = 'autopilot' }) {
+export async function markTradeOpen({
+  tradeId,
+  symbol,
+  order = {},
+  brokerPosition = {},
+  source = 'autopilot',
+  entryPrice: resolvedEntryPrice = null,
+  entryPriceSource = null,
+}) {
   const openTrades = await getOpenTrades();
   const matchingTrade = openTrades.find((trade) => {
     if (tradeId && trade.tradeId === tradeId) return true;
     if (order?.id && trade.brokerOrderId === order.id) return true;
-    return trade.symbol === (symbol ?? brokerPosition.symbol ?? order.symbol);
+    return sameSymbol(tradeSymbol(trade), symbol ?? brokerPosition.symbol ?? order.symbol);
   });
 
   if (!matchingTrade) {
@@ -215,12 +288,16 @@ export async function markTradeOpen({ tradeId, symbol, order = {}, brokerPositio
       trade: {
         tradeId: randomUUID(),
         status: 'open',
-        entryPrice: brokerPosition.avg_entry_price ?? order.filled_avg_price,
+        assetClass: assetClassFromBroker(brokerPosition),
+        // Never adopt a zero/negative broker average as an entry price.
+        entryPrice: firstValidPrice(resolvedEntryPrice, brokerPosition.avg_entry_price, order.filled_avg_price),
         openedAt: nowIso(),
         strategyName: 'broker_sync',
       },
       source: 'broker_sync',
     });
+    brokerBackedTrade.entryPriceSource =
+      entryPriceSource ?? (brokerBackedTrade.entryPrice ? 'broker' : 'unverified');
 
     await upsertOpenTrade(brokerBackedTrade);
     await persistTradeEvent('trade_open', brokerBackedTrade, {
@@ -234,12 +311,13 @@ export async function markTradeOpen({ tradeId, symbol, order = {}, brokerPositio
     ...matchingTrade,
     status: 'open',
     quantity: toNumber(brokerPosition.qty, matchingTrade.quantity),
-    entryPrice:
-      toNumber(brokerPosition.avg_entry_price, 0) ||
-      toNumber(order.filled_avg_price, 0) ||
-      toNumber(matchingTrade.entryPrice, 0) ||
-      toNumber(matchingTrade.metrics?.closePrice ?? matchingTrade.metrics?.close, 0) ||
-      null,
+    entryPrice: firstValidPrice(
+      resolvedEntryPrice,
+      brokerPosition.avg_entry_price,
+      order.filled_avg_price,
+      matchingTrade.entryPrice,
+      matchingTrade.metrics?.closePrice ?? matchingTrade.metrics?.close,
+    ),
     brokerOrderId: matchingTrade.brokerOrderId ?? order.id ?? null,
     brokerClientOrderId: matchingTrade.brokerClientOrderId ?? order.client_order_id ?? null,
     openedAt: matchingTrade.openedAt ?? order.filled_at ?? nowIso(),
@@ -258,7 +336,7 @@ export async function markTradeClosed({ tradeId, symbol, reason = 'broker_sync',
   const openTrades = await getOpenTrades();
   const matchingTrade = openTrades.find((trade) => {
     if (tradeId && trade.tradeId === tradeId) return true;
-    return trade.symbol === (symbol ?? brokerPosition.symbol ?? brokerOrder.symbol);
+    return sameSymbol(tradeSymbol(trade), symbol ?? brokerPosition.symbol ?? brokerOrder.symbol);
   });
 
   if (!matchingTrade) return null;
@@ -321,16 +399,154 @@ export async function markTradeClosed({ tradeId, symbol, reason = 'broker_sync',
     pnl: canonicalClosed.pnl,
   });
 
+  // A pending entry that never filled is not a trade outcome.
+  if (!String(reason).startsWith('order_')) {
+    try {
+      await recordTradeOutcome(canonicalClosed);
+    } catch (err) {
+      logger.error('Failed to record trade outcome (daily loss / cooldown)', {
+        tradeId: canonicalClosed.tradeId,
+        error: err.message,
+      });
+    }
+  }
+
   return canonicalClosed;
 }
 
-export async function syncTradesWithBroker({ brokerPositions = [], brokerOrders = [] }) {
+async function resolveEntryForPosition(brokerPosition, brokerOrders, fillHistoryForSymbol) {
+  let entry = resolveEntryPrice({ brokerPosition, fills: flattenOrders(brokerOrders) });
+  if (entry.source !== 'unverified' || typeof fillHistoryForSymbol !== 'function') return entry;
+
+  try {
+    const history = await fillHistoryForSymbol(brokerPosition);
+    entry = resolveEntryPrice({ brokerPosition, fills: flattenOrders(history ?? []) });
+  } catch (err) {
+    logger.warn('Fill history lookup failed; entry stays unverified', {
+      symbol: brokerPosition.symbol,
+      error: err.message,
+    });
+  }
+  return entry;
+}
+
+const DEAD_ORDER_STATUSES = new Set(['canceled', 'expired', 'rejected']);
+
+/**
+ * Settles a trade whose exit order was accepted but not yet filled.
+ * Closed only on a confirmed fill (or the position being gone); reverted to
+ * open if the exit order died while the position still exists.
+ */
+async function reconcileClosingTrade(trade, brokerPosition, brokerOrders) {
+  const exitOrder = trade.exitOrderId
+    ? flattenOrders(brokerOrders).find((o) => o.id === trade.exitOrderId) ?? null
+    : null;
+  const exitStatus = exitOrder?.status ?? null;
+  const reason = trade.closingReason ?? 'exit_filled';
+
+  if (exitStatus === 'filled' || (!brokerPosition && !DEAD_ORDER_STATUSES.has(exitStatus))) {
+    await markTradeClosed({ tradeId: trade.tradeId, brokerOrder: exitOrder ?? {}, reason });
+    return;
+  }
+
+  // Open orders are always part of brokerOrders, so a missing exit order with
+  // the position still there means the order is no longer working.
+  const exitOrderDead = DEAD_ORDER_STATUSES.has(exitStatus) || (!exitOrder && Boolean(brokerPosition));
+
+  if (exitOrderDead) {
+    if (!brokerPosition) {
+      await markTradeClosed({ tradeId: trade.tradeId, brokerOrder: {}, reason });
+      return;
+    }
+    const reverted = {
+      ...trade,
+      status: 'open',
+      exitOrderId: null,
+      closingAt: null,
+      closingReason: null,
+      exitAttempts: toNumber(trade.exitAttempts, 0) + 1,
+      lastExitError: `exit_order_${exitStatus ?? 'not_found'}`,
+    };
+    await upsertOpenTrade(reverted);
+    await persistTradeEvent('exit_order_failed', reverted, { exitOrderId: trade.exitOrderId, exitStatus });
+    logger.error('Exit order did not fill; trade reverted to open', {
+      symbol: trade.symbol,
+      tradeId: trade.tradeId,
+      exitStatus,
+    });
+  }
+  // Otherwise the exit order is still working — leave the trade closing.
+}
+
+const CRITICAL_PROTECTION_STATUSES = new Set(['unfilled', 'missing', 'partial', 'failed']);
+
+/**
+ * Refreshes entry price and broker-side protection on a position-backed trade.
+ * Only the trade's own record is written; broker orders are never touched.
+ */
+async function refreshPositionState(trade, brokerPosition, brokerOrders, fillHistoryForSymbol) {
+  const patch = {};
+
+  if (!isValidPrice(trade.entryPrice) || trade.entryPriceSource === 'unverified') {
+    const entry = await resolveEntryForPosition(brokerPosition, brokerOrders, fillHistoryForSymbol);
+    if (entry.price && entry.price !== trade.entryPrice) patch.entryPrice = entry.price;
+    if (entry.source !== trade.entryPriceSource) patch.entryPriceSource = entry.source;
+  }
+
+  let protection = describeProtection({ trade, brokerPosition, orders: brokerOrders });
+  // Keep a failed bot placement visible until a stop actually exists.
+  if (protection.status === 'missing' && trade.protection?.status === 'failed') {
+    protection = { ...trade.protection, checkedAt: protection.checkedAt };
+  }
+  patch.protection = protection;
+
+  const next = { ...trade, ...patch };
+  await upsertOpenTrade(next);
+
+  if (protection.status !== trade.protection?.status) {
+    await persistTradeEvent('protection_status_changed', next, {
+      from: trade.protection?.status ?? null,
+      to: protection.status,
+      owner: protection.owner ?? null,
+      orderId: protection.orderId ?? null,
+    });
+  }
+  if (CRITICAL_PROTECTION_STATUSES.has(protection.status)) {
+    logger.error('Position lacks active broker-side protection', {
+      symbol: trade.symbol,
+      tradeId: trade.tradeId,
+      status: protection.status,
+      owner: protection.owner ?? null,
+    });
+  }
+
+  return next;
+}
+
+/**
+ * Reconciles the journal with broker positions and orders.
+ *
+ * @param {{
+ *   brokerPositions?: object[],
+ *   brokerOrders?: object[],
+ *   fillHistoryForSymbol?: (brokerPosition: object) => Promise<object[]>,
+ * }} params  fillHistoryForSymbol is used only when an entry price cannot be
+ *            verified from brokerOrders (read-only lookup).
+ */
+export async function syncTradesWithBroker({ brokerPositions = [], brokerOrders = [], fillHistoryForSymbol = null }) {
   const openTrades = await getOpenTrades();
-  const openSymbols = new Set(openTrades.map((trade) => trade.symbol));
+  const openKeys = new Set(openTrades.map((trade) => symbolKey(tradeSymbol(trade))));
+  const findPosition = (trade) =>
+    brokerPositions.find((p) => sameSymbol(p.symbol, tradeSymbol(trade)));
 
   for (const trade of openTrades) {
-    const brokerPosition = brokerPositions.find((p) => p.symbol === trade.symbol);
+    const brokerPosition = findPosition(trade);
     const brokerOrder = findMatchingOrder(trade, brokerOrders);
+
+    if (trade.status === 'closing') {
+      await reconcileClosingTrade(trade, brokerPosition, brokerOrders);
+      continue;
+    }
 
     if (brokerPosition) {
       if (trade.status !== 'open') {
@@ -359,6 +575,12 @@ export async function syncTradesWithBroker({ brokerPositions = [], brokerOrders 
     }
 
     if (trade.status === 'open') {
+      const stopFill = findFilledProtectiveOrder(trade, brokerOrders);
+      if (stopFill) {
+        await markTradeClosed({ tradeId: trade.tradeId, brokerOrder: stopFill, reason: 'stop_hit' });
+        continue;
+      }
+
       const isBrokerSyncTrade = trade.strategyName === 'broker_sync';
       const reason = isBrokerSyncTrade
         ? 'broker_sync_reconciled'
@@ -368,8 +590,22 @@ export async function syncTradesWithBroker({ brokerPositions = [], brokerOrders 
   }
 
   for (const brokerPosition of brokerPositions) {
-    if (openSymbols.has(brokerPosition.symbol)) continue;
-    await markTradeOpen({ symbol: brokerPosition.symbol, brokerPosition, source: 'broker_sync' });
+    if (openKeys.has(symbolKey(brokerPosition.symbol))) continue;
+    const entry = await resolveEntryForPosition(brokerPosition, brokerOrders, fillHistoryForSymbol);
+    await markTradeOpen({
+      symbol: brokerPosition.symbol,
+      brokerPosition,
+      source: 'broker_sync',
+      entryPrice: entry.price,
+      entryPriceSource: entry.source,
+    });
+  }
+
+  for (const trade of await getOpenTrades()) {
+    if (!['open', 'closing'].includes(trade.status)) continue;
+    const brokerPosition = findPosition(trade);
+    if (!brokerPosition) continue;
+    await refreshPositionState(trade, brokerPosition, brokerOrders, fillHistoryForSymbol);
   }
 
   return getOpenTrades();
@@ -379,7 +615,7 @@ export async function mergeBrokerPositionsWithJournal(brokerPositions = []) {
   const openTrades = await getOpenTrades();
 
   const mergedBrokerPositions = (brokerPositions ?? []).map((brokerPosition) => {
-    const matchingTrade = openTrades.find((trade) => trade.symbol === brokerPosition.symbol);
+    const matchingTrade = openTrades.find((trade) => sameSymbol(tradeSymbol(trade), brokerPosition.symbol));
     const enriched = enrichPosition(matchingTrade ?? null, brokerPosition);
 
     return {
@@ -418,7 +654,7 @@ export async function mergeBrokerPositionsWithJournal(brokerPositions = []) {
   });
 
   const pendingTrades = openTrades
-    .filter((trade) => trade.status === 'pending' && !brokerPositions.find((p) => p.symbol === trade.symbol))
+    .filter((trade) => trade.status === 'pending' && !brokerPositions.find((p) => sameSymbol(p.symbol, tradeSymbol(trade))))
     .map((trade) => {
       const enriched = enrichPosition(trade, null);
       return {

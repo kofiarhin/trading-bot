@@ -239,6 +239,153 @@ describe('syncTradesWithBroker', () => {
   });
 });
 
+// ─── protective stops and symbol formats ─────────────────────────────────────
+
+describe('syncTradesWithBroker – protective stops', () => {
+  const cryptoDecision = {
+    ...baseDecision,
+    symbol: 'SOL/USD',
+    normalizedSymbol: 'SOLUSD',
+    assetClass: 'crypto',
+    entryPrice: 100,
+    stopLoss: 95,
+    takeProfit: 110,
+    quantity: 2,
+  };
+
+  it('does not mistake a protective stop order for the pending entry order', async () => {
+    const trade = await createPendingTrade({ decision: cryptoDecision });
+
+    await syncTradesWithBroker({
+      brokerPositions: [],
+      brokerOrders: [
+        { id: 'stop-x', symbol: 'SOL/USD', side: 'sell', type: 'stop_limit', status: 'canceled', client_order_id: 'manual' },
+      ],
+    });
+
+    const open = await getOpenTrades();
+    expect(open.find((t) => t.tradeId === trade.tradeId)?.status).toBe('pending');
+  });
+
+  it('matches a SOLUSD position to a SOL/USD trade without creating a duplicate', async () => {
+    const trade = await createPendingTrade({ decision: cryptoDecision });
+
+    await syncTradesWithBroker({
+      brokerPositions: [{ symbol: 'SOLUSD', asset_class: 'crypto', qty: 2, qty_available: '2', avg_entry_price: 100, current_price: 101 }],
+      brokerOrders: [],
+    });
+
+    const open = await getOpenTrades();
+    expect(open).toHaveLength(1);
+    expect(open[0].tradeId).toBe(trade.tradeId);
+    expect(open[0].status).toBe('open');
+    expect(open[0].protection.status).toBe('missing');
+  });
+
+  it('closes a trade as stop_hit at the stop fill price when its tracked stop fills', async () => {
+    const trade = await createPendingTrade({ decision: cryptoDecision });
+    const position = { symbol: 'SOLUSD', asset_class: 'crypto', qty: 2, qty_available: '0', avg_entry_price: 100, current_price: 101 };
+    const stop = {
+      id: 'stop-1', client_order_id: `tb-stop-${trade.tradeId}`, symbol: 'SOL/USD', side: 'sell',
+      type: 'stop_limit', qty: '2', filled_qty: '0', stop_price: '95', limit_price: '93.1', status: 'new',
+    };
+
+    await syncTradesWithBroker({ brokerPositions: [position], brokerOrders: [stop] });
+    expect((await getOpenTrades())[0].protection).toMatchObject({ status: 'active', owner: 'bot', orderId: 'stop-1' });
+
+    await syncTradesWithBroker({
+      brokerPositions: [],
+      brokerOrders: [{ ...stop, status: 'filled', filled_qty: '2', filled_avg_price: '94.5', filled_at: '2026-10-20T00:00:00Z' }],
+    });
+
+    expect(await getOpenTrades()).toHaveLength(0);
+    const closed = (await getClosedTrades()).find((t) => t.tradeId === trade.tradeId);
+    expect(closed.exitReason).toBe('stop_hit');
+    expect(closed.exitPrice).toBe(94.5);
+  });
+
+  it('adopts a position with a negative broker average as unverified, never as a negative entry', async () => {
+    await syncTradesWithBroker({
+      brokerPositions: [{ symbol: 'SOLUSD', asset_class: 'crypto', qty: 5, avg_entry_price: -2.38, current_price: 105 }],
+      brokerOrders: [],
+    });
+
+    const [adopted] = await getOpenTrades();
+    expect(adopted.strategyName).toBe('broker_sync');
+    expect(adopted.assetClass).toBe('crypto');
+    expect(adopted.entryPrice ?? null).toBeNull();
+    expect(adopted.entryPriceSource).toBe('unverified');
+  });
+});
+
+// ─── closing (exit accepted, not yet filled) ──────────────────────────────────
+
+describe('syncTradesWithBroker – closing trades', () => {
+  const position = { symbol: 'SOLUSD', asset_class: 'crypto', qty: 2, qty_available: '0', avg_entry_price: 100, current_price: 90 };
+
+  async function closingTrade() {
+    const trade = await createPendingTrade({
+      decision: { ...baseDecision, symbol: 'SOL/USD', normalizedSymbol: 'SOLUSD', assetClass: 'crypto', entryPrice: 100, stopLoss: 95, takeProfit: 110, quantity: 2 },
+    });
+    await syncTradesWithBroker({ brokerPositions: [position], brokerOrders: [] });
+    const { upsertOpenTrade } = await import('../../src/repositories/tradeJournalRepo.mongo.js');
+    const [open] = await getOpenTrades();
+    await upsertOpenTrade({ ...open, status: 'closing', exitOrderId: 'exit-1', closingReason: 'time_exit' });
+    return trade;
+  }
+
+  it('closes only when the exit order fills, at the fill price, and records loss + cooldown', async () => {
+    const trade = await closingTrade();
+
+    await syncTradesWithBroker({ brokerPositions: [position], brokerOrders: [{ id: 'exit-1', symbol: 'SOL/USD', side: 'sell', type: 'market', status: 'new' }] });
+    expect((await getOpenTrades())[0].status).toBe('closing');
+
+    await syncTradesWithBroker({
+      brokerPositions: [],
+      brokerOrders: [{ id: 'exit-1', symbol: 'SOL/USD', side: 'sell', type: 'market', status: 'filled', filled_qty: '2', filled_avg_price: '90', filled_at: '2026-10-20T00:00:00Z' }],
+    });
+
+    expect(await getOpenTrades()).toHaveLength(0);
+    const closed = (await getClosedTrades()).find((t) => t.tradeId === trade.tradeId);
+    expect(closed).toMatchObject({ exitReason: 'time_exit', exitPrice: 90, pnl: -20 });
+
+    const { loadRiskState } = await import('../../src/risk/riskState.js');
+    const risk = await loadRiskState();
+    expect(risk.dailyRealizedLoss).toBe(20);
+    expect(new Date(risk.cooldowns.SOLUSD) > new Date()).toBe(true);
+  });
+
+  it('reverts to open (and counts the failure) when the exit order dies while the position remains', async () => {
+    await closingTrade();
+
+    await syncTradesWithBroker({ brokerPositions: [position], brokerOrders: [{ id: 'exit-1', symbol: 'SOL/USD', side: 'sell', type: 'market', status: 'canceled' }] });
+
+    const [trade] = await getOpenTrades();
+    expect(trade).toMatchObject({ status: 'open', exitAttempts: 1, lastExitError: 'exit_order_canceled' });
+    expect(trade.exitOrderId ?? null).toBeNull();
+    const events = (await getTradeEvents()).filter((e) => e.type === 'exit_order_failed');
+    expect(events).toHaveLength(1);
+  });
+
+  it('reverts to open when the exit order is gone but the position remains', async () => {
+    await closingTrade();
+    await syncTradesWithBroker({ brokerPositions: [position], brokerOrders: [] });
+    const [trade] = await getOpenTrades();
+    expect(trade).toMatchObject({ status: 'open', lastExitError: 'exit_order_not_found', exitAttempts: 1 });
+  });
+
+  it('does not record a trade outcome for a pending entry that never filled', async () => {
+    const trade = await createPendingTrade({ decision: baseDecision });
+    await syncTradesWithBroker({
+      brokerPositions: [],
+      brokerOrders: [{ id: trade.brokerOrderId ?? 'b-1', symbol: 'AAPL', side: 'buy', type: 'market', status: 'canceled' }],
+    });
+    const { loadRiskState } = await import('../../src/risk/riskState.js');
+    const risk = await loadRiskState();
+    expect(risk.cooldowns?.AAPL).toBeUndefined();
+  });
+});
+
 // ─── broker_sync reconciliation ───────────────────────────────────────────────
 
 describe('syncTradesWithBroker – broker_sync reconciliation', () => {

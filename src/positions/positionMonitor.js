@@ -31,6 +31,7 @@ export async function getPositionMap() {
       map[p.symbol] = {
         symbol: p.symbol,
         qty: parseFloat(p.qty),
+        qtyAvailable: p.qty_available != null ? parseFloat(p.qty_available) : parseFloat(p.qty),
         entryPrice: parseFloat(p.avg_entry_price),
         currentPrice: parseFloat(p.current_price),
         unrealizedPnl: parseFloat(p.unrealized_pl),
@@ -51,6 +52,6 @@ export async function getPositionMap() {
  * @param {Array} [openTrades] Optional pre-fetched trades
  * @returns {Promise<Array<{ tradeId, symbol, shouldExit, reason, currentPrice, updatedTrade }>>}
  */
-export async function checkOpenTradesForExit(openTrades) {
-  return evaluateExits(openTrades);
+export async function checkOpenTradesForExit(openTrades, options) {
+  return evaluateExits(openTrades, options);
 }

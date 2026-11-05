@@ -14,7 +14,7 @@ const openTradeSchema = new mongoose.Schema(
     riskAmount: Number,
     status: {
       type: String,
-      enum: ['pending', 'open', 'canceled'],
+      enum: ['pending', 'open', 'closing', 'canceled'],
       default: 'pending',
       index: true,
     },

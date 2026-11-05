@@ -40,6 +40,8 @@ const DEFAULTS = {
   minSetupScoreTokyo: runtimeConfig.strategy.minSetupScoreTokyo,
   minSetupScoreLondon: runtimeConfig.strategy.minSetupScoreLondon,
   minSetupScoreNewYork: runtimeConfig.strategy.minSetupScoreNewYork,
+  // Percent units (10 = 10% of equity per position).
+  maxPositionNotionalPct: runtimeConfig.risk?.maxPositionNotionalPct ?? 10,
 };
 
 function resolveMinScore(opts, session) {
@@ -71,6 +73,7 @@ function resolveMinScore(opts, session) {
  *   },
  *   accountEquity: number,
  *   riskPercent: number,
+ *   buyingPower?: number,     caps position value when provided
  *   timeframe?: string,
  *   options?: object,
  * }} params
@@ -82,6 +85,7 @@ export function evaluateBreakout({
   preFilterMetrics,
   accountEquity,
   riskPercent,
+  buyingPower,
   timeframe = "15Min",
   options = {},
 }) {
@@ -181,10 +185,19 @@ export function evaluateBreakout({
     return buildReject('invalid_position_size', closePrice, breakoutLevel, atr, volumeRatio, distanceToBreakoutPct, breakoutClassification, symbol, normalizedSym, assetClass, timestamp, timeframe, opts, 'strategy');
   }
 
-  const quantity =
-    assetClass === 'crypto'
-      ? parseFloat((riskAmount / riskPerUnit).toFixed(8))
-      : Math.floor(riskAmount / riskPerUnit);
+  // Risk-based size, then capped by position value: tight intraday stops would
+  // otherwise size a single position at most of the account.
+  const floorQty = (q) => (assetClass === 'crypto' ? Math.floor(q * 1e8) / 1e8 : Math.floor(q));
+  const riskQty = floorQty(riskAmount / riskPerUnit);
+  const notionalCaps = [(accountEquity ?? 0) * (opts.maxPositionNotionalPct / 100)];
+  if (Number.isFinite(buyingPower) && buyingPower >= 0) notionalCaps.push(buyingPower);
+  const maxNotional = Math.min(...notionalCaps);
+  const capQty = floorQty(maxNotional / entryPrice);
+  const positionCapped = riskQty > capQty;
+  const quantity = positionCapped ? capQty : riskQty;
+  // Report the risk actually taken when the cap binds.
+  const plannedRiskAmount = riskAmount;
+  const effectiveRiskAmount = positionCapped ? quantity * riskPerUnit : riskAmount;
 
   if (assetClass !== 'crypto' && quantity < 1) {
     return buildReject('invalid_position_size', closePrice, breakoutLevel, atr, volumeRatio, distanceToBreakoutPct, breakoutClassification, symbol, normalizedSym, assetClass, timestamp, timeframe, opts, 'strategy');
@@ -220,7 +233,10 @@ export function evaluateBreakout({
     stopLoss: toMetric(stopLoss),
     takeProfit: toMetric(takeProfit),
     quantity,
-    riskAmount: toMetric(riskAmount),
+    riskAmount: toMetric(effectiveRiskAmount),
+    plannedRiskAmount: toMetric(plannedRiskAmount),
+    positionNotional: toMetric(quantity * entryPrice),
+    positionCapped,
     riskReward: toMetric(riskReward),
     setupScore: score,
     setupGrade,
